@@ -64,6 +64,7 @@ SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILEN
 
 # Flask apps
 app_callback = Flask("callback_server")
+app_callback.template_folder = os.path.join(os.path.dirname(__file__), "templates")
 app_ui = Flask("ui_server")
 app_ui.template_folder = os.path.join(os.path.dirname(__file__), "templates")
 app_ui.static_folder = os.path.join(os.path.dirname(__file__), "static")
@@ -91,8 +92,8 @@ def callback():
     req_token = request.args.get("request_token")
     if req_token:
         auth_manager.set_request_token(req_token)
-        return "Request token captured! You can close this tab."
-    return "Error: request_token not found."
+        return render_template("callback_success.html")
+    return render_template("callback_error.html")
 
 
 # --------------------------
