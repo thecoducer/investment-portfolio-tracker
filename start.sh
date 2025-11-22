@@ -153,7 +153,7 @@ fi
 print_success "pip is available"
 
 # Create virtual environment if it doesn't exist
-VENV_DIR="venv"
+VENV_DIR="run_server"
 if [ ! -d "$VENV_DIR" ]; then
     print_info "Creating virtual environment..."
     python3 -m venv "$VENV_DIR" || {

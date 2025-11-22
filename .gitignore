@@ -11,7 +11,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-venv/
+run_server/
 *.log
 *.db
 *.sqlite
