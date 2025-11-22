@@ -14,11 +14,14 @@ import os
 import threading
 import time
 from typing import List, Dict, Any
+import json
+import webbrowser
 
-from flask import Flask, request, jsonify, make_response, Response
+from flask import Flask, request, jsonify, Response, render_template, make_response
+from pytz import timezone
+from datetime import datetime
 
 from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
-from templates import get_holdings_page_html
 from api import AuthenticationManager, HoldingsService, LTPService
 from constants import (
     STATE_UPDATING,
@@ -62,6 +65,7 @@ SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILEN
 # Flask apps
 app_callback = Flask("callback_server")
 app_ui = Flask("ui_server")
+app_ui.template_folder = os.path.join(os.path.dirname(__file__), "templates")
 app_ui.static_folder = os.path.join(os.path.dirname(__file__), "static")
 
 # Global state
@@ -140,7 +144,7 @@ def refresh_route():
 @app_ui.route("/holdings", methods=["GET"])
 def holdings_page():
     """Serve the main holdings page."""
-    return Response(get_holdings_page_html(), mimetype="text/html")
+    return render_template("holdings.html")
 
 
 # --------------------------
