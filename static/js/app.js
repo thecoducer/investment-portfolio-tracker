@@ -127,7 +127,11 @@ class PortfolioApp {
     this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
 
     // Re-render tables with current data to apply/remove updating animations
-    if (this.dataManager.getHoldings().length > 0) {
+    const hasData = this.dataManager.getHoldings().length > 0 || 
+                    this.dataManager.getMFHoldings().length > 0 || 
+                    this.dataManager.getSIPs().length > 0;
+    
+    if (hasData) {
       this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
       this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
