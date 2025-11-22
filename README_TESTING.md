@@ -23,7 +23,54 @@ tests/
 
 ## Running Tests
 
-### Using unittest (built-in)
+### Quick Start (Recommended)
+
+Use the automated test runner script that handles everything:
+
+```bash
+./run_tests.sh
+```
+
+This script will:
+- Create/activate virtual environment automatically
+- Install all dependencies (including test dependencies)
+- Run the complete test suite
+- Generate coverage reports
+
+### Script Options
+
+```bash
+# Run all tests with coverage (default)
+./run_tests.sh
+
+# Run only unit tests
+./run_tests.sh --unit
+
+# Run only integration tests
+./run_tests.sh --integration
+
+# Generate HTML coverage report
+./run_tests.sh --html
+
+# Skip dependency installation (faster)
+./run_tests.sh --quick
+
+# Clean coverage files before running
+./run_tests.sh --clean
+
+# Verbose output
+./run_tests.sh --verbose
+
+# Run without coverage
+./run_tests.sh --no-coverage
+
+# Show help
+./run_tests.sh --help
+```
+
+### Manual Testing
+
+#### Using unittest (built-in)
 
 Run all tests:
 ```bash
@@ -40,7 +87,7 @@ Run specific test module:
 python tests/run_tests.py tests.test_utils
 ```
 
-### Using pytest (recommended)
+#### Using pytest (recommended)
 
 Install test dependencies:
 ```bash
