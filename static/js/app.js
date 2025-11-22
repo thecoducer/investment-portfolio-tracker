@@ -126,13 +126,6 @@ class PortfolioApp {
     const refreshRunning = status.state === 'updating';
     this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
 
-    // Re-render tables with current data to apply/remove updating animations
-    if (this.dataManager.getHoldings().length > 0) {
-      this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
-      this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
-      this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
-    }
-
     // If state changed to 'updated', refresh the data
     if (!isUpdating && this._wasUpdating) {
       this.updateData();
