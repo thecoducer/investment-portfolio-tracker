@@ -17,6 +17,7 @@ from typing import List, Dict, Any
 import json
 import webbrowser
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue, Empty
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
 from flask.json.provider import DefaultJSONProvider
@@ -24,7 +25,7 @@ from zoneinfo import ZoneInfo
 from datetime import datetime
 
 from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
-from api import AuthenticationManager, HoldingsService, LTPService, SIPService
+from api import AuthenticationManager, HoldingsService, SIPService
 from constants import (
     STATE_UPDATING,
     HTTP_ACCEPTED,
@@ -37,7 +38,7 @@ from constants import (
     DEFAULT_UI_HOST,
     DEFAULT_UI_PORT,
     DEFAULT_REQUEST_TOKEN_TIMEOUT,
-    DEFAULT_LTP_FETCH_INTERVAL
+    DEFAULT_AUTO_REFRESH_INTERVAL
 )
 
 # Load configuration
@@ -58,9 +59,9 @@ UI_HOST = SERVER_CONFIG.get("ui_host", DEFAULT_UI_HOST)
 UI_PORT = SERVER_CONFIG.get("ui_port", DEFAULT_UI_PORT)
 
 REQUEST_TOKEN_TIMEOUT = TIMEOUT_CONFIG.get("request_token_timeout_seconds", DEFAULT_REQUEST_TOKEN_TIMEOUT)
-LTP_FETCH_INTERVAL = TIMEOUT_CONFIG.get("ltp_fetch_interval_seconds", DEFAULT_LTP_FETCH_INTERVAL)
+AUTO_REFRESH_INTERVAL = TIMEOUT_CONFIG.get("auto_refresh_interval_seconds", DEFAULT_AUTO_REFRESH_INTERVAL)
 
-AUTO_LTP_UPDATE = FEATURE_CONFIG.get("auto_ltp_update", True)
+ENABLE_AUTO_REFRESH = FEATURE_CONFIG.get("enable_auto_refresh", True)
 
 SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILENAME)
 
@@ -82,13 +83,50 @@ merged_sips_global: List[Dict[str, Any]] = []
 
 fetch_in_progress = threading.Event()
 
+# SSE (Server-Sent Events) support
+sse_clients: List[Queue] = []
+sse_lock = threading.Lock()
+
 # Manager instances
 session_manager = SessionManager(SESSION_CACHE_FILE)
 state_manager = StateManager()
 auth_manager = AuthenticationManager(session_manager, REQUEST_TOKEN_TIMEOUT)
 holdings_service = HoldingsService()
-ltp_service = LTPService()
 sip_service = SIPService()
+
+
+# --------------------------
+# SSE HELPER FUNCTIONS
+# --------------------------
+def broadcast_state_change():
+    """Broadcast state change to all connected SSE clients."""
+    with sse_lock:
+        state = state_manager.get_combined_state()
+        ltp_state = state_manager.ltp_fetch_state
+        
+        message = json.dumps({
+            "state": state,
+            "ltp_fetch_state": ltp_state,
+            "last_error": state_manager.last_error,
+            "last_run_at": format_timestamp(state_manager.last_run_ts),
+            "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
+            "session_validity": session_manager.get_validity()
+        })
+        
+        # Send to all connected clients
+        for client_queue in sse_clients[:]:  # Use slice to avoid modification during iteration
+            try:
+                client_queue.put_nowait(message)
+            except:
+                # Remove disconnected clients
+                try:
+                    sse_clients.remove(client_queue)
+                except ValueError:
+                    pass
+
+
+# Register state change listener
+state_manager.add_change_listener(broadcast_state_change)
 
 
 # --------------------------
@@ -125,6 +163,58 @@ def status():
     # Don't cache status as it changes frequently
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
+
+
+@app_ui.route("/events", methods=["GET"])
+def events():
+    """Server-Sent Events endpoint for real-time status updates."""
+    def event_stream():
+        # Create a queue for this client
+        client_queue = Queue(maxsize=10)
+        
+        with sse_lock:
+            sse_clients.append(client_queue)
+        
+        try:
+            # Send initial state immediately
+            state = state_manager.get_combined_state()
+            ltp_state = state_manager.ltp_fetch_state
+            
+            initial_data = json.dumps({
+                "state": state,
+                "ltp_fetch_state": ltp_state,
+                "last_error": state_manager.last_error,
+                "last_run_at": format_timestamp(state_manager.last_run_ts),
+                "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
+                "session_validity": session_manager.get_validity()
+            })
+            yield f"data: {initial_data}\n\n"
+            
+            # Keep connection alive and send updates
+            while True:
+                try:
+                    # Wait for state changes with timeout for keepalive
+                    message = client_queue.get(timeout=30)
+                    yield f"data: {message}\n\n"
+                except Empty:
+                    # Send keepalive comment every 30 seconds
+                    yield ": keepalive\n\n"
+        except GeneratorExit:
+            # Client disconnected
+            pass
+        finally:
+            # Clean up
+            with sse_lock:
+                try:
+                    sse_clients.remove(client_queue)
+                except ValueError:
+                    pass
+    
+    return Response(event_stream(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'X-Accel-Buffering': 'no',
+        'Connection': 'keep-alive'
+    })
 
 
 @app_ui.route("/holdings_data", methods=["GET"])
@@ -256,46 +346,34 @@ def run_background_fetch(force_login: bool = False):
 
 
 # --------------------------
-# LTP FETCHING
+# AUTOMATIC REFRESH
 # --------------------------
-def run_ltp_fetcher():
+def run_auto_refresh():
     """
-    Periodically fetch latest trading prices for stocks.
+    Periodically trigger full holdings refresh (same as refresh button).
     
-    Feature Flag (AUTO_LTP_UPDATE):
-    - True: Run LTP fetcher regardless of market open status (for testing)
-    - False: Only run LTP fetcher when market is open (production behavior)
+    Feature Flag (ENABLE_AUTO_REFRESH):
+    - True: Run auto refresh at specified intervals
+    - False: Disabled
     """
-    if not AUTO_LTP_UPDATE:
+    if not ENABLE_AUTO_REFRESH:
         # If disabled, just keep thread alive but do nothing
         while True:
             time.sleep(10)
         return
     
     while True:
-        time.sleep(1)
+        # Wait for the configured interval
+        time.sleep(AUTO_REFRESH_INTERVAL)
         
-        # If no holdings loaded yet, wait before attempting fetch
-        if not merged_holdings_global:
-            time.sleep(LTP_FETCH_INTERVAL)
+        # Skip if a manual refresh is already in progress
+        if fetch_in_progress.is_set():
+            print("Auto-refresh skipped: manual refresh in progress")
             continue
         
-        # Feature flag logic:
-        # - If AUTO_LTP_UPDATE is True: skip market check, always run
-        # - If AUTO_LTP_UPDATE is False: check market open status
-        if not AUTO_LTP_UPDATE and not is_market_open_ist():
-            time.sleep(LTP_FETCH_INTERVAL)
-            continue
-
-        state_manager.set_ltp_running()
-        try:
-            ltp_data = ltp_service.fetch_ltps(merged_holdings_global)
-            ltp_service.update_holdings_with_ltp(merged_holdings_global, ltp_data)
-        except Exception as e:
-            print(f"Error fetching LTPs: {e}")
-        finally:
-            state_manager.set_ltp_idle()
-            time.sleep(LTP_FETCH_INTERVAL)
+        # Trigger full refresh (same as refresh button)
+        print(f"Auto-refresh triggered at {datetime.now().strftime('%H:%M:%S')}")
+        run_background_fetch(force_login=False)
 
 
 # --------------------------
@@ -338,8 +416,9 @@ def main():
         print("Triggering initial holdings refresh...")
         run_background_fetch(force_login=False)
         
-        # Start background services
-        threading.Thread(target=run_ltp_fetcher, daemon=True).start()
+        # Start background auto-refresh service
+        print(f"Starting auto-refresh service (interval: {AUTO_REFRESH_INTERVAL}s)")
+        threading.Thread(target=run_auto_refresh, daemon=True).start()
         
         # Keep main thread alive
         while True:

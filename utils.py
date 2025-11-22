@@ -3,19 +3,45 @@ Utility functions for session management, market operations, and common patterns
 """
 import json
 import os
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
+from cryptography.fernet import Fernet
+import platform
 
 
 class SessionManager:
-    """Handles session token caching and validation."""
+    """Handles session token caching and validation with encryption."""
     
     def __init__(self, cache_file: str):
         self.cache_file = cache_file
         self.sessions: Dict[str, Dict[str, Any]] = {}
+        self._cipher = self._get_cipher()
+    
+    def _get_cipher(self) -> Fernet:
+        """Generate a cipher using machine-specific data for encryption key."""
+        # Use machine-specific identifiers to generate a consistent key
+        machine_id = platform.node() + platform.machine()
+        key_material = hashlib.sha256(machine_id.encode()).digest()
+        # Fernet requires base64-encoded 32-byte key
+        from base64 import urlsafe_b64encode
+        key = urlsafe_b64encode(key_material)
+        return Fernet(key)
+    
+    def _encrypt_token(self, token: str) -> str:
+        """Encrypt an access token."""
+        return self._cipher.encrypt(token.encode()).decode()
+    
+    def _decrypt_token(self, encrypted_token: str) -> str:
+        """Decrypt an access token."""
+        try:
+            return self._cipher.decrypt(encrypted_token.encode()).decode()
+        except Exception:
+            # If decryption fails, assume it's an old plain text token
+            return encrypted_token
     
     def load(self):
-        """Load cached session tokens from file."""
+        """Load cached session tokens from file and decrypt them."""
         if not os.path.exists(self.cache_file):
             return
         
@@ -32,8 +58,12 @@ class SessionManager:
                 except (ValueError, TypeError):
                     continue
                 
+                # Decrypt the access token
+                encrypted_token = session_info.get("access_token")
+                access_token = self._decrypt_token(encrypted_token)
+                
                 self.sessions[account_name] = {
-                    "access_token": session_info.get("access_token"),
+                    "access_token": access_token,
                     "expiry": expiry
                 }
             
@@ -42,19 +72,22 @@ class SessionManager:
             print(f"Error loading session cache: {e}")
     
     def save(self):
-        """Save session tokens to file."""
+        """Save session tokens to file with encryption."""
         try:
             cache_data = {}
             for account_name, session_info in self.sessions.items():
+                # Encrypt the access token before saving
+                encrypted_token = self._encrypt_token(session_info.get("access_token"))
+                
                 cache_data[account_name] = {
-                    "access_token": session_info.get("access_token"),
+                    "access_token": encrypted_token,
                     "expiry": session_info["expiry"].isoformat()
                 }
             
             with open(self.cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
             
-            print(f"Saved session cache for: {', '.join(cache_data.keys())}")
+            print(f"Saved encrypted session cache for: {', '.join(cache_data.keys())}")
         except Exception as e:
             print(f"Error saving session cache: {e}")
     
@@ -94,10 +127,24 @@ class StateManager:
         self.last_error: str = None
         self.last_run_ts: float = None
         self.holdings_last_updated: float = None
+        self._change_listeners = []
     
     def _set_state(self, state_attr: str, value: str):
         """Helper to set any state attribute."""
         setattr(self, state_attr, value)
+        self._notify_change()
+    
+    def _notify_change(self):
+        """Notify all listeners that state has changed."""
+        for listener in self._change_listeners:
+            try:
+                listener()
+            except Exception as e:
+                print(f"Error notifying listener: {e}")
+    
+    def add_change_listener(self, callback):
+        """Add a callback to be notified on state changes."""
+        self._change_listeners.append(callback)
     
     def set_refresh_running(self, error: str = None):
         """Set refresh state to updating."""
@@ -122,6 +169,7 @@ class StateManager:
     def set_holdings_updated(self):
         """Mark holdings as updated with current timestamp."""
         self.holdings_last_updated = __import__('time').time()
+        self._notify_change()
     
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""

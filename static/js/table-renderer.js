@@ -62,8 +62,7 @@ class TableRenderer {
 
   renderStocksTable(holdings, status) {
     const tbody = document.getElementById('tbody');
-    const ltpRunning = status.ltp_fetch_state === 'updating' || status.state === 'updating';
-    const refreshRunning = status.state === 'updating';
+    const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
 
     tbody.innerHTML = '';
     let totalInvested = 0;
@@ -78,13 +77,16 @@ class TableRenderer {
       totalCurrent += metrics.current;
 
       tbody.innerHTML += this._buildStockRow(holding, metrics, {
-        qtyClass: this._getUpdateClass(refreshRunning),
-        avgClass: this._getUpdateClass(refreshRunning),
-        investedClass: this._getUpdateClass(refreshRunning),
-        ltpClass: this._getUpdateClass(ltpRunning),
-        plClass: this._getUpdateClass(ltpRunning),
-        dayChangeClass: this._getUpdateClass(ltpRunning),
-        currentClass: this._getUpdateClass(ltpRunning)
+        symbolClass: this._getUpdateClass(isUpdating),
+        qtyClass: this._getUpdateClass(isUpdating),
+        avgClass: this._getUpdateClass(isUpdating),
+        investedClass: this._getUpdateClass(isUpdating),
+        ltpClass: this._getUpdateClass(isUpdating),
+        plClass: this._getUpdateClass(isUpdating),
+        dayChangeClass: this._getUpdateClass(isUpdating),
+        currentClass: this._getUpdateClass(isUpdating),
+        exchangeClass: this._getUpdateClass(isUpdating),
+        accountClass: this._getUpdateClass(isUpdating)
       });
     });
 
@@ -93,15 +95,14 @@ class TableRenderer {
       totalCurrent,
       totalPL: totalCurrent - totalInvested,
       totalPLPct: totalInvested ? ((totalCurrent - totalInvested) / totalInvested * 100) : 0
-    }, ltpRunning);
+    }, isUpdating);
 
     this._updateStatusDisplay(status);
   }
 
   renderMFTable(mfHoldings, status) {
     const tbody = document.getElementById('mf_tbody');
-    const ltpRunning = status.ltp_fetch_state === 'updating' || status.state === 'updating';
-    const refreshRunning = status.state === 'updating';
+    const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
 
     tbody.innerHTML = '';
     let mfTotalInvested = 0;
@@ -117,12 +118,14 @@ class TableRenderer {
       mfTotalCurrent += metrics.current;
 
       tbody.innerHTML += this._buildMFRow(fundName, mf, metrics, {
-        qtyClass: this._getUpdateClass(refreshRunning),
-        avgClass: this._getUpdateClass(refreshRunning),
-        investedClass: this._getUpdateClass(refreshRunning),
-        navClass: this._getUpdateClass(ltpRunning),
-        currentClass: this._getUpdateClass(ltpRunning),
-        plClass: this._getUpdateClass(ltpRunning)
+        fundClass: this._getUpdateClass(isUpdating),
+        qtyClass: this._getUpdateClass(isUpdating),
+        avgClass: this._getUpdateClass(isUpdating),
+        investedClass: this._getUpdateClass(isUpdating),
+        navClass: this._getUpdateClass(isUpdating),
+        currentClass: this._getUpdateClass(isUpdating),
+        plClass: this._getUpdateClass(isUpdating),
+        accountClass: this._getUpdateClass(isUpdating)
       });
     });
 
@@ -131,13 +134,13 @@ class TableRenderer {
       totalCurrent: mfTotalCurrent,
       totalPL: mfTotalCurrent - mfTotalInvested,
       totalPLPct: mfTotalInvested ? ((mfTotalCurrent - mfTotalInvested) / mfTotalInvested * 100) : 0
-    }, ltpRunning);
+    }, isUpdating);
   }
 
   renderSIPsTable(sips, status) {
     const tbody = document.getElementById('sips_tbody');
-    const refreshRunning = status.state === 'updating';
-    const dataClass = this._getUpdateClass(refreshRunning);
+    const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
+    const dataClass = this._getUpdateClass(isUpdating);
 
     tbody.innerHTML = '';
     let totalMonthlyAmount = 0;
@@ -146,8 +149,6 @@ class TableRenderer {
       const fundName = (sip.fund || sip.tradingsymbol).toUpperCase();
       const text = (fundName + sip.account).toLowerCase();
       if (!text.includes(this.searchQuery)) return;
-
-      const dataClass = refreshRunning ? 'updating-field' : '';
 
       tbody.innerHTML += this._buildSIPRow(fundName, sip, dataClass);
       
@@ -178,7 +179,7 @@ class TableRenderer {
     });
     
     return `<tr style="border-top: 2px solid #e9e9e7; font-weight: 600;">
-<td style="color: #37352f;">Total Monthly SIP Amount:</td>
+<td class="${dataClass}">Total Monthly SIP Amount:</td>
 <td class="${dataClass}">${formattedAmount}</td>
 <td></td>
 <td></td>
@@ -193,7 +194,7 @@ class TableRenderer {
     const color = Formatter.colorPL(dayChange);
     
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
-${this._buildCell(holding.tradingsymbol)}
+${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
 ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
 ${this._buildCell(avg.toLocaleString(), classes.avgClass)}
 ${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
@@ -201,8 +202,8 @@ ${this._buildCell(ltp.toLocaleString(), classes.ltpClass)}
 ${this._buildPLCell(pl, classes.plClass)}
 <td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatNumber(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${dayChangePct.toFixed(2)}%</span></td>
 ${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
-${this._buildCell(holding.exchange)}
-${this._buildCell(holding.account)}
+${this._buildCell(holding.exchange, classes.exchangeClass)}
+${this._buildCell(holding.account, classes.accountClass)}
 </tr>`;
   }
 
@@ -219,14 +220,14 @@ ${this._buildCell(holding.account)}
     }
     
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
-${this._buildCell(fundName)}
+${this._buildCell(fundName, classes.fundClass)}
 ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
 ${this._buildCell(avg.toLocaleString(), classes.avgClass)}
 ${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
 ${this._buildCell(nav.toLocaleString() + navDateText, classes.navClass)}
 ${this._buildPLCell(pl, classes.plClass)}
 ${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
-${this._buildCell(mf.account)}
+${this._buildCell(mf.account, classes.accountClass)}
 </tr>`;
   }
 
@@ -269,34 +270,36 @@ ${this._buildCell(mf.account)}
 </tr>`;
   }
 
-  _updateStockSummary(totals, ltpRunning) {
+  _updateStockSummary(totals, isUpdating) {
+    const totalInvestedEl = document.getElementById('total_invested');
     const currentValueEl = document.getElementById('current_value');
     const totalPlEl = document.getElementById('total_pl');
     const totalPlPctEl = document.getElementById('total_pl_pct');
 
-    document.getElementById('total_invested').innerText = Formatter.formatNumber(totals.totalInvested);
+    totalInvestedEl.innerText = Formatter.formatNumber(totals.totalInvested);
     currentValueEl.innerText = Formatter.formatNumber(totals.totalCurrent);
     totalPlEl.innerText = Formatter.formatSign(totals.totalPL) + Formatter.formatNumber(totals.totalPL);
     totalPlEl.style.color = Formatter.colorPL(totals.totalPL);
     totalPlPctEl.innerText = Formatter.formatSign(totals.totalPL) + totals.totalPLPct.toFixed(2) + '%';
     totalPlPctEl.style.color = Formatter.colorPL(totals.totalPL);
 
-    [currentValueEl, totalPlEl, totalPlPctEl].forEach(el => this._applyUpdatingClass(el, ltpRunning));
+    [totalInvestedEl, currentValueEl, totalPlEl, totalPlPctEl].forEach(el => this._applyUpdatingClass(el, isUpdating));
   }
 
-  _updateMFSummary(totals, ltpRunning) {
+  _updateMFSummary(totals, isUpdating) {
+    const mfTotalInvestedEl = document.getElementById('mf_total_invested');
     const mfCurrentValueEl = document.getElementById('mf_current_value');
     const mfTotalPlEl = document.getElementById('mf_total_pl');
     const mfTotalPlPctEl = document.getElementById('mf_total_pl_pct');
 
-    document.getElementById('mf_total_invested').innerText = Formatter.formatNumber(totals.totalInvested);
+    mfTotalInvestedEl.innerText = Formatter.formatNumber(totals.totalInvested);
     mfCurrentValueEl.innerText = Formatter.formatNumber(totals.totalCurrent);
     mfTotalPlEl.innerText = Formatter.formatSign(totals.totalPL) + Formatter.formatNumber(totals.totalPL);
     mfTotalPlEl.style.color = Formatter.colorPL(totals.totalPL);
     mfTotalPlPctEl.innerText = Formatter.formatSign(totals.totalPL) + totals.totalPLPct.toFixed(2) + '%';
     mfTotalPlPctEl.style.color = Formatter.colorPL(totals.totalPL);
 
-    [mfCurrentValueEl, mfTotalPlEl, mfTotalPlPctEl].forEach(el => this._applyUpdatingClass(el, ltpRunning));
+    [mfTotalInvestedEl, mfCurrentValueEl, mfTotalPlEl, mfTotalPlPctEl].forEach(el => this._applyUpdatingClass(el, isUpdating));
   }
 
   _updateStatusDisplay(status) {

@@ -2,6 +2,7 @@ flask==2.3.3
 kiteconnect==5.0.1
 requests==2.31.0
 python-dotenv==1.0.0
+cryptography==46.0.0
 
 # Testing dependencies
 pytest==7.4.3

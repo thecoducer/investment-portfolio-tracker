@@ -8,11 +8,7 @@ from constants import (
     STATE_ERROR,
     HTTP_OK,
     HTTP_ACCEPTED,
-    HTTP_CONFLICT,
-    EXCHANGE_NSE,
-    EXCHANGE_BSE,
-    EXCHANGE_SUFFIX,
-    NSE_API_URL
+    HTTP_CONFLICT
 )
 
 
@@ -31,43 +27,24 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(HTTP_ACCEPTED, 202)
         self.assertEqual(HTTP_CONFLICT, 409)
     
-    def test_exchange_constants(self):
-        """Test exchange constants"""
-        self.assertEqual(EXCHANGE_NSE, "NSE")
-        self.assertEqual(EXCHANGE_BSE, "BSE")
-    
-    def test_exchange_suffix_mapping(self):
-        """Test exchange suffix mapping"""
-        self.assertIsInstance(EXCHANGE_SUFFIX, dict)
-        self.assertEqual(EXCHANGE_SUFFIX.get("NSE"), ".NS")
-        self.assertEqual(EXCHANGE_SUFFIX.get("BSE"), ".BO")
-    
-    def test_nse_api_url(self):
-        """Test NSE API URL is valid"""
-        self.assertIsInstance(NSE_API_URL, str)
-        self.assertTrue(NSE_API_URL.startswith("http"))
-    
     def test_default_values(self):
         """Test default configuration values"""
         from constants import (
             DEFAULT_CALLBACK_HOST,
             DEFAULT_CALLBACK_PORT,
             DEFAULT_UI_PORT,
-            DEFAULT_REQUEST_TOKEN_TIMEOUT,
-            DEFAULT_LTP_FETCH_INTERVAL
+            DEFAULT_REQUEST_TOKEN_TIMEOUT
         )
         
         self.assertEqual(DEFAULT_CALLBACK_HOST, "127.0.0.1")
         self.assertIsInstance(DEFAULT_CALLBACK_PORT, int)
         self.assertIsInstance(DEFAULT_UI_PORT, int)
         self.assertIsInstance(DEFAULT_REQUEST_TOKEN_TIMEOUT, int)
-        self.assertIsInstance(DEFAULT_LTP_FETCH_INTERVAL, int)
         
         # Sanity checks on values
         self.assertGreater(DEFAULT_CALLBACK_PORT, 0)
         self.assertGreater(DEFAULT_UI_PORT, 0)
         self.assertGreater(DEFAULT_REQUEST_TOKEN_TIMEOUT, 0)
-        self.assertGreater(DEFAULT_LTP_FETCH_INTERVAL, 0)
 
 
 if __name__ == '__main__':

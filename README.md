@@ -92,10 +92,10 @@ Before running the application, make sure you have:
   },
   "timeouts": {
     "request_token_timeout_seconds": 180,
-    "ltp_fetch_interval_seconds": 60
+    "auto_refresh_interval_seconds": 60
   },
   "features": {
-    "auto_ltp_update": true
+    "enable_auto_refresh": true
   }
 }
 ```
@@ -118,10 +118,10 @@ Before running the application, make sure you have:
 
 **timeouts**: Timing configuration
 - `request_token_timeout_seconds`: OAuth timeout (default: 180)
-- `ltp_fetch_interval_seconds`: Price update interval (default: 60)
+- `auto_refresh_interval_seconds`: Automatic refresh interval (default: 60)
 
 **features**: Feature toggles
-- `auto_ltp_update`: Enable automatic real-time price updates (default: true)
+- `enable_auto_refresh`: Enable automatic periodic refresh of all holdings data (default: true)
 
 ## 🚀 Quick Start
 
@@ -272,14 +272,20 @@ To switch themes, edit `templates/holdings.html` and change the stylesheet link:
 ## 🔒 Security
 
 - ⚠️ **Never commit `config.json`** - Contains sensitive API credentials
-- ✅ Session tokens cached in `.session_cache.json` (auto-generated, gitignored)
+- ✅ Session tokens cached in `.session_cache.json` are **automatically encrypted** using machine-specific keys
 - ✅ All sensitive files excluded via `.gitignore`
 - ✅ OAuth flow for secure authentication
 - ✅ Token auto-renewal when possible
 
+**Encryption Details:**
+- Session tokens are encrypted using Fernet (symmetric encryption)
+- Encryption key is derived from machine-specific identifiers (hostname + architecture)
+- Tokens stored in plain text in earlier versions will be automatically migrated to encrypted format
+- Each machine generates its own unique encryption key
+
 **Files to keep private:**
-- `config.json`
-- `.session_cache.json`
+- `config.json` - API keys and secrets (plain text, manually protect with file permissions)
+- `.session_cache.json` - Encrypted session tokens (auto-generated, gitignored)
 - `.env` (if used)
 
 ## 🛠️ Development
@@ -313,6 +319,7 @@ python3 server.py
 - `kiteconnect==5.0.1` - Zerodha API client
 - `requests==2.31.0` - HTTP library
 - `python-dotenv==1.0.0` - Environment variable management
+- `cryptography==46.0.0` - Session token encryption
 - `zoneinfo` (Python 3.9+) - Timezone handling (built-in)
 
 ## 🐛 Troubleshooting
@@ -332,7 +339,7 @@ pip install -r requirements.txt --upgrade
 - Check `.session_cache.json` exists and is readable
 
 ### LTP Not Updating
-1. Verify `auto_ltp_update: true` in config.json
+1. Verify `enable_auto_refresh: true` in config.json
 2. Check market hours (9:15 AM - 3:30 PM IST, weekdays)
 3. Ensure valid stock symbols
 

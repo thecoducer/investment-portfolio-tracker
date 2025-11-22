@@ -2,19 +2,6 @@
 Constants used throughout the portfolio tracker application.
 """
 
-# API Endpoints
-NSE_API_URL = "https://nse-api-khaki.vercel.app/stock/list"
-
-# Exchange codes
-EXCHANGE_NSE = "NSE"
-EXCHANGE_BSE = "BSE"
-
-# Exchange suffix mappings
-EXCHANGE_SUFFIX = {
-    EXCHANGE_NSE: ".NS",
-    EXCHANGE_BSE: ".BO"
-}
-
 # Status states
 STATE_UPDATING = "updating"
 STATE_UPDATED = "updated"
@@ -22,7 +9,7 @@ STATE_ERROR = "error"
 
 # Default configuration values
 DEFAULT_REQUEST_TOKEN_TIMEOUT = 180  # seconds
-DEFAULT_LTP_FETCH_INTERVAL = 60  # seconds
+DEFAULT_AUTO_REFRESH_INTERVAL = 60  # seconds
 DEFAULT_CALLBACK_HOST = "127.0.0.1"
 DEFAULT_CALLBACK_PORT = 5000
 DEFAULT_CALLBACK_PATH = "/callback"

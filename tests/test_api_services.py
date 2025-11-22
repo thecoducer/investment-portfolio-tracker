@@ -6,7 +6,6 @@ from unittest.mock import Mock, MagicMock, patch, PropertyMock
 from datetime import datetime
 
 from api.holdings import HoldingsService
-from api.ltp import LTPService
 from api.auth import AuthenticationManager
 
 
@@ -213,130 +212,6 @@ class TestHoldingsService(unittest.TestCase):
         self.service._add_nav_dates(mf_holdings, mock_kite)
         
         self.assertIsNone(mf_holdings[0].get("last_price_date"))
-
-
-class TestLTPService(unittest.TestCase):
-    """Test LTPService class"""
-    
-    def setUp(self):
-        """Set up test fixtures"""
-        self.service = LTPService()
-    
-    def test_prepare_symbols_nse(self):
-        """Test preparing symbols for NSE exchange"""
-        holdings = [
-            {"tradingsymbol": "RELIANCE", "exchange": "NSE"}
-        ]
-        
-        symbols = self.service._prepare_symbols(holdings)
-        
-        self.assertIn("RELIANCE.NS", symbols)
-    
-    def test_prepare_symbols_bse(self):
-        """Test preparing symbols for BSE exchange"""
-        holdings = [
-            {"tradingsymbol": "RELIANCE", "exchange": "BSE"}
-        ]
-        
-        symbols = self.service._prepare_symbols(holdings)
-        
-        self.assertIn("RELIANCE.BO", symbols)
-    
-    def test_prepare_symbols_unknown_exchange(self):
-        """Test preparing symbols for unknown exchange"""
-        holdings = [
-            {"tradingsymbol": "RELIANCE", "exchange": "UNKNOWN"}
-        ]
-        
-        symbols = self.service._prepare_symbols(holdings)
-        
-        self.assertIn("RELIANCE", symbols)
-    
-    def test_get_symbol_key(self):
-        """Test getting symbol key for API"""
-        key = self.service._get_symbol_key("RELIANCE", "NSE")
-        self.assertEqual(key, "RELIANCE.NS")
-    
-    @patch('api.ltp.requests.get')
-    def test_fetch_ltps_success(self, mock_get):
-        """Test successful LTP fetch from NSE API"""
-        # Mock NSE API response structure
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "RELIANCE.NS": {
-                "last_price": 2500.0,
-                "change": 25.0,
-                "pChange": 1.01,
-                "volume": 1000000
-            }
-        }
-        mock_get.return_value = mock_response
-        
-        holdings = [{
-            "tradingsymbol": "RELIANCE",
-            "exchange": "NSE",
-            "quantity": 10,
-            "average_price": 2400.0
-        }]
-        
-        ltp_data = self.service.fetch_ltps(holdings)
-        
-        # Verify API was called correctly
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
-        self.assertIn("RELIANCE.NS", call_args[0][0])
-        
-        # Verify response
-        self.assertIn("RELIANCE.NS", ltp_data)
-        self.assertEqual(ltp_data["RELIANCE.NS"]["last_price"], 2500.0)
-    
-    @patch('api.ltp.requests.get')
-    def test_fetch_ltps_http_error(self, mock_get):
-        """Test LTP fetch with HTTP error"""
-        mock_response = Mock()
-        mock_response.status_code = 500
-        mock_get.return_value = mock_response
-        
-        holdings = [{"tradingsymbol": "RELIANCE", "exchange": "NSE"}]
-        ltp_data = self.service.fetch_ltps(holdings)
-        
-        self.assertEqual(ltp_data, {})
-    
-    @patch('api.ltp.requests.get')
-    def test_fetch_ltps_timeout(self, mock_get):
-        """Test LTP fetch with timeout"""
-        mock_get.side_effect = Exception("Timeout")
-        
-        holdings = [{"tradingsymbol": "RELIANCE", "exchange": "NSE"}]
-        ltp_data = self.service.fetch_ltps(holdings)
-        
-        self.assertEqual(ltp_data, {})
-    
-    def test_update_holdings_with_ltp(self):
-        """Test updating holdings with LTP data"""
-        holdings = [
-            {"tradingsymbol": "RELIANCE", "exchange": "NSE", "last_price": 0}
-        ]
-        ltp_data = {
-            "RELIANCE.NS": {"last_price": 2500.0}
-        }
-        
-        self.service.update_holdings_with_ltp(holdings, ltp_data)
-        
-        self.assertEqual(holdings[0]["last_price"], 2500.0)
-    
-    def test_update_holdings_missing_ltp(self):
-        """Test updating holdings when LTP not available"""
-        holdings = [
-            {"tradingsymbol": "RELIANCE", "exchange": "NSE", "last_price": 2400.0}
-        ]
-        ltp_data = {}
-        
-        self.service.update_holdings_with_ltp(holdings, ltp_data)
-        
-        # Should keep original value
-        self.assertEqual(holdings[0]["last_price"], 2400.0)
 
 
 class TestAuthenticationManager(unittest.TestCase):

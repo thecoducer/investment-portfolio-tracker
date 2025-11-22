@@ -14,6 +14,7 @@ class PortfolioApp {
     this.themeManager = new ThemeManager();
     this.privacyManager = new PrivacyManager();
     this.updateInterval = null;
+    this.eventSource = null;
   }
 
   async init() {
@@ -27,11 +28,11 @@ class PortfolioApp {
     // Show loading state
     this._showLoadingState();
 
-    // Start periodic updates (will handle initial data fetch)
-    this.startPeriodicUpdates(2000);
+    // Fetch initial data
+    await this.updateData();
 
-    // Fetch initial data without blocking
-    this.updateData();
+    // Connect to SSE for real-time updates
+    this.connectEventSource();
   }
 
   _setupEventListeners() {
@@ -55,6 +56,89 @@ class PortfolioApp {
     const statusText = document.getElementById('status_text');
     statusTag.className = 'updating';
     statusText.innerText = 'loading';
+  }
+
+  connectEventSource() {
+    // Close existing connection if any
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+
+    // Connect to SSE endpoint
+    this.eventSource = new EventSource('/events');
+
+    this.eventSource.onmessage = (event) => {
+      try {
+        const status = JSON.parse(event.data);
+        this.handleStatusUpdate(status);
+      } catch (error) {
+        console.error('Error parsing SSE message:', error);
+      }
+    };
+
+    this.eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      // Try to reconnect after 5 seconds
+      setTimeout(() => {
+        if (this.eventSource.readyState === EventSource.CLOSED) {
+          console.log('Reconnecting to SSE...');
+          this.connectEventSource();
+        }
+      }, 5000);
+    };
+
+    this.eventSource.onopen = () => {
+      console.log('SSE connection established');
+    };
+  }
+
+  handleStatusUpdate(status) {
+    // Update status display
+    const statusTag = document.getElementById('status_tag');
+    const statusText = document.getElementById('status_text');
+    const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
+    
+    // Force animation restart by removing and re-adding class
+    const currentClass = statusTag.className;
+    const newClass = isUpdating ? 'updating' : 'updated';
+    
+    if (currentClass !== newClass) {
+      statusTag.className = '';
+      // Force reflow to restart animation
+      void statusTag.offsetWidth;
+      statusTag.className = newClass;
+    }
+    
+    statusText.innerText = isUpdating 
+      ? 'updating' 
+      : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
+
+    // Update refresh button
+    const btnText = document.getElementById('refresh_btn_text');
+    if (status.state === 'updating') {
+      btnText.innerHTML = '<span class="spinner"></span>';
+    } else {
+      btnText.innerText = 'Refresh';
+    }
+
+    // Update summary
+    const ltpUpdating = status.ltp_fetch_state === 'updating';
+    const refreshRunning = status.state === 'updating';
+    this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
+
+    // Re-render tables with current data to apply/remove updating animations
+    if (this.dataManager.getHoldings().length > 0) {
+      this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
+      this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+      this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
+    }
+
+    // If state changed to 'updated', refresh the data
+    if (!isUpdating && this._wasUpdating) {
+      this.updateData();
+    }
+    
+    this._wasUpdating = isUpdating;
   }
 
   handleSearch() {
@@ -90,11 +174,6 @@ class PortfolioApp {
       this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
 
-      // Update combined summary
-      const ltpUpdating = status.ltp_fetch_state === 'updating';
-      const refreshRunning = status.state === 'updating';
-      this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
-
     } catch (error) {
       console.error('Error updating data:', error);
     }
@@ -105,67 +184,40 @@ class PortfolioApp {
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     
-    btnText.innerHTML = '<span class="spinner"></span>';
+    // Force animation restart
+    statusTag.className = '';
+    void statusTag.offsetWidth;
     statusTag.className = 'updating';
+    
+    btnText.innerHTML = '<span class="spinner"></span>';
     statusText.innerText = 'updating';
 
     try {
       // Trigger refresh on server
       await this.dataManager.triggerRefresh();
 
-      // Poll and update UI until refresh completes
-      let status;
-      do {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Fetch all data including status
-        const { holdings, mfHoldings, sips, status: currentStatus } = await this.dataManager.fetchAllData();
-        status = currentStatus;
-        
-        // Update status display during polling
-        const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
-        statusTag.className = isUpdating ? 'updating' : 'updated';
-        statusText.innerText = isUpdating 
-          ? 'updating' 
-          : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
-        
-        // Update data manager and render tables with current status
-        this.dataManager.updateHoldings(holdings, true);
-        this.dataManager.updateMFHoldings(mfHoldings, true);
-        this.dataManager.updateSIPs(sips, true);
-        
-        const searchQuery = document.getElementById('search').value;
-        this.tableRenderer.setSearchQuery(searchQuery);
-        this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
-        this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
-        this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
-        
-        const ltpUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
-        const refreshRunning = status.state === 'updating';
-        this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
-      } while (status.state === 'updating');
-
-      // Final update after completion
-      await this.updateData();
+      // SSE will handle the status updates and trigger data refresh when complete
 
     } catch (error) {
       alert('Error triggering refresh: ' + error.message);
-      await this.updateData();
-    } finally {
       btnText.innerText = 'Refresh';
     }
   }
 
   startPeriodicUpdates(intervalMs) {
-    this.updateInterval = setInterval(() => {
-      this.updateData();
-    }, intervalMs);
+    // No longer needed - SSE handles real-time updates
+    console.log('Periodic polling disabled - using SSE for real-time updates');
   }
 
   stopPeriodicUpdates() {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-      this.updateInterval = null;
+    // No longer needed
+  }
+
+  disconnect() {
+    // Clean up SSE connection
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
     }
   }
 }

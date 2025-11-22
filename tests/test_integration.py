@@ -8,7 +8,6 @@ import os
 from unittest.mock import patch, Mock
 
 from api.holdings import HoldingsService
-from api.ltp import LTPService
 from utils import SessionManager, StateManager
 
 
@@ -60,7 +59,6 @@ class TestIntegration(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.holdings_service = HoldingsService()
-        self.ltp_service = LTPService()
     
     def test_complete_holdings_flow(self):
         """Test complete flow: fetch, enrich, merge with mocked KiteConnect API"""
@@ -112,70 +110,6 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(len(merged_stocks), 2)
         self.assertEqual(merged_stocks[0]["tradingsymbol"], "RELIANCE")
         self.assertEqual(merged_stocks[1]["tradingsymbol"], "TCS")
-    
-    @patch('api.ltp.requests.get')
-    def test_ltp_update_flow(self, mock_get):
-        """Test LTP update flow with mocked NSE API"""
-        # Mock NSE API response with realistic structure
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "RELIANCE.NS": {
-                "last_price": 2550.0,
-                "change": 50.0,
-                "pChange": 2.0,
-                "volume": 5000000,
-                "open": 2500.0,
-                "high": 2560.0,
-                "low": 2490.0,
-                "close": 2500.0
-            },
-            "TCS.NS": {
-                "last_price": 3650.0,
-                "change": 50.0,
-                "pChange": 1.39,
-                "volume": 2000000,
-                "open": 3600.0,
-                "high": 3660.0,
-                "low": 3595.0,
-                "close": 3600.0
-            }
-        }
-        mock_get.return_value = mock_response
-        
-        # Create holdings with initial prices
-        holdings = [
-            {
-                "tradingsymbol": "RELIANCE",
-                "exchange": "NSE",
-                "quantity": 10,
-                "average_price": 2400.0,
-                "last_price": 2500.0
-            },
-            {
-                "tradingsymbol": "TCS",
-                "exchange": "NSE",
-                "quantity": 5,
-                "average_price": 3500.0,
-                "last_price": 3600.0
-            }
-        ]
-        
-        # Fetch and update LTP
-        ltp_data = self.ltp_service.fetch_ltps(holdings, timeout=10)
-        
-        # Verify API was called
-        mock_get.assert_called_once()
-        call_url = mock_get.call_args[0][0]
-        self.assertIn("RELIANCE.NS", call_url)
-        self.assertIn("TCS.NS", call_url)
-        
-        # Update holdings
-        self.ltp_service.update_holdings_with_ltp(holdings, ltp_data)
-        
-        # Verify updates
-        self.assertEqual(holdings[0]["last_price"], 2550.0)
-        self.assertEqual(holdings[1]["last_price"], 3650.0)
     
     def test_multi_account_merge(self):
         """Test merging holdings from multiple accounts"""
@@ -270,33 +204,6 @@ class TestIntegration(unittest.TestCase):
         
         self.assertIn("API Error", str(context.exception))
     
-    @patch('api.ltp.requests.get')
-    def test_ltp_network_error(self, mock_get):
-        """Test LTP fetch with network error"""
-        # Simulate network timeout
-        import requests
-        mock_get.side_effect = requests.exceptions.Timeout("Connection timeout")
-        
-        holdings = [{"tradingsymbol": "RELIANCE", "exchange": "NSE"}]
-        ltp_data = self.ltp_service.fetch_ltps(holdings)
-        
-        # Should return empty dict on error
-        self.assertEqual(ltp_data, {})
-    
-    @patch('api.ltp.requests.get')
-    def test_ltp_invalid_response(self, mock_get):
-        """Test LTP fetch with invalid JSON response"""
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.side_effect = ValueError("Invalid JSON")
-        mock_get.return_value = mock_response
-        
-        holdings = [{"tradingsymbol": "RELIANCE", "exchange": "NSE"}]
-        ltp_data = self.ltp_service.fetch_ltps(holdings)
-        
-        # Should return empty dict on error
-        self.assertEqual(ltp_data, {})
-    
     def test_mf_holdings_with_nav_dates(self):
         """Test MF holdings fetch with NAV date enrichment"""
         mock_kite = MockKiteConnect(api_key="test_api_key")
@@ -378,16 +285,6 @@ class TestEdgeCases(unittest.TestCase):
         service.add_account_info(holdings, "Test")
         
         self.assertEqual(holdings[0]["invested"], 10000000000.0)
-    
-    def test_missing_exchange_field(self):
-        """Test holdings without exchange field"""
-        ltp_service = LTPService()
-        holdings = [{"tradingsymbol": "RELIANCE"}]  # No exchange
-        
-        symbols = ltp_service._prepare_symbols(holdings)
-        
-        # Should handle gracefully
-        self.assertIsInstance(symbols, list)
     
     def test_unicode_symbols(self):
         """Test handling unicode characters in symbols"""

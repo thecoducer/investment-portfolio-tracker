@@ -20,9 +20,9 @@
   },
   "timeouts": {
     "request_token_timeout_seconds": 180,
-    "ltp_fetch_interval_seconds": 60
+    "auto_refresh_interval_seconds": 60
   },
   "features": {
-    "auto_ltp_update": true
+    "enable_auto_refresh": true
   }
 }

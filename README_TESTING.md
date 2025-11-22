@@ -127,7 +127,6 @@ The test suite covers:
 
 ### API Services (test_api_services.py)
 - ✅ HoldingsService: Fetch, merge, account enrichment, NAV dates
-- ✅ LTPService: Symbol preparation, API calls, updates
 - ✅ AuthenticationManager: Token caching, validation, OAuth flow
 
 ### Constants (test_constants.py)

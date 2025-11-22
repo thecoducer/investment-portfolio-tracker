@@ -42,20 +42,15 @@ class SummaryManager {
     combinedTotalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
     combinedTotalPlPctEl.style.color = Formatter.colorPL(totals.pl);
 
-    // Apply animation to invested fields during refresh
-    const investedElements = [combinedTotalInvestedEl, stockInvestedEl, mfInvestedEl];
-    investedElements.forEach(el => {
-      if (refreshRunning) {
-        el.classList.add('updating-field');
-      } else {
-        el.classList.remove('updating-field');
-      }
-    });
-
-    // Apply animation to current/PL fields during LTP updates or refresh
-    const ltpElements = [combinedCurrentValueEl, combinedTotalPlEl, combinedTotalPlPctEl];
-    ltpElements.forEach(el => {
-      if (ltpUpdating) {
+    // Apply animation to all fields during refresh (no separate LTP updates anymore)
+    const isUpdating = refreshRunning || ltpUpdating;
+    const allElements = [
+      combinedTotalInvestedEl, stockInvestedEl, mfInvestedEl,
+      combinedCurrentValueEl, combinedTotalPlEl, combinedTotalPlPctEl
+    ];
+    
+    allElements.forEach(el => {
+      if (isUpdating) {
         el.classList.add('updating-field');
       } else {
         el.classList.remove('updating-field');

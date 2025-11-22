@@ -1,7 +1,6 @@
 """API module for external service integrations."""
 from .auth import AuthenticationManager
 from .holdings import HoldingsService
-from .ltp import LTPService
 from .sips import SIPService
 
-__all__ = ['AuthenticationManager', 'HoldingsService', 'LTPService', 'SIPService']
+__all__ = ['AuthenticationManager', 'HoldingsService', 'SIPService']
