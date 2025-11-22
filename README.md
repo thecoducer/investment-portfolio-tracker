@@ -12,7 +12,9 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 - **Multi-account support**: Track holdings across multiple Zerodha accounts
 - **Session token caching**: Auto-login on restart using cached session tokens
 - **Real-time LTP updates**: Automatic stock price updates with configurable intervals
+- **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) from Zerodha
 - **Interactive dashboard**: Modern UI with dark/light theme toggle
+- **Privacy mode**: Hide sensitive data with blur effect for screen sharing
 - **Search & filter**: Quick search across symbols and accounts
 - **Live animations**: Pulsating indicators during data updates
 - **Combined analytics**: Aggregated view of stocks and mutual funds
@@ -175,6 +177,7 @@ The dashboard will automatically open in your browser. If not, manually navigate
 ├── api/
 │   ├── auth.py           # Authentication & OAuth flow
 │   ├── holdings.py       # Holdings data fetching & enrichment
+│   ├── sips.py           # SIP data fetching from Zerodha
 │   └── ltp.py            # Real-time price updates
 ├── utils.py              # State & session management
 ├── constants.py          # Application constants
@@ -186,13 +189,14 @@ The dashboard will automatically open in your browser. If not, manually navigate
 ```
 ├── static/
 │   ├── js/
-│   │   ├── app.js            # Main application controller
-│   │   ├── data-manager.js   # API data fetching
-│   │   ├── table-renderer.js # Table rendering with animations
-│   │   ├── summary-manager.js # Portfolio summary calculations
-│   │   ├── theme-manager.js   # Dark/light theme switching
-│   │   └── utils.js          # Formatters & calculators
-│   └── styles.css            # Styling with dark/light themes
+│   │   ├── app.js                # Main application controller
+│   │   ├── data-manager.js       # API data fetching
+│   │   ├── table-renderer.js     # Table rendering with animations
+│   │   ├── summary-manager.js    # Portfolio summary calculations
+│   │   ├── theme-manager.js      # Dark/light theme switching
+│   │   ├── visibility-manager.js # Privacy mode for data hiding
+│   │   └── utils.js              # Formatters & calculators
+│   └── styles.css                # Styling with dark/light themes
 ```
 
 ## 🎯 Usage
@@ -214,6 +218,15 @@ The dashboard will automatically open in your browser. If not, manually navigate
 **Search & Filter**: Type in the search box to filter holdings by symbol or account
 
 **Theme Toggle**: Click the theme button (🌙/☀️) to switch between dark and light modes
+
+**Privacy Mode**: Click the eye button (👁️) to blur sensitive financial data - perfect for screen sharing or presentations
+
+**Active SIPs**: View all your systematic investment plans with:
+- Fund name (displayed in uppercase)
+- Monthly/quarterly installment amount
+- Frequency and installment progress
+- Status indicator (ACTIVE in green, PAUSED in yellow, CANCELLED in red)
+- Next due date (shown as "Today", "Tomorrow", "In X days", or specific date)
 
 **Real-time Updates**: Watch fields pulse during refresh and LTP updates
 - Quantity, Average Price, Invested: Pulse during manual refresh
