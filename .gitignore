@@ -1,0 +1,18 @@
+# Portfolio Tracker - Ignore cached tokens and environment files
+.session_cache.json
+.env
+.env.local
+config.json
+__pycache__/
+*.pyc
+.DS_Store
+.vscode/
+.idea/
+*.egg-info/
+dist/
+build/
+venv/
+*.log
+*.db
+*.sqlite
+*.sqlite3

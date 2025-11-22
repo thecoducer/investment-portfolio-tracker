@@ -1,0 +1,94 @@
+"""
+HTML template provider for the portfolio holdings page.
+"""
+
+
+def get_holdings_page_html():
+    """Return the complete HTML page for holdings display."""
+    return """
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Investment Portfolio</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+<header>
+<div id="header_left">
+<h1 id="header-title">Investment Portfolio</h1>
+</div>
+<div id="status_tag" class="updated">
+<span class="status-dot"></span>
+<span id="status_text">updated</span>
+</div>
+<div class="controls">
+<input id="search" placeholder="Search symbol or account..." />
+<button class="btn" id="refresh_btn" onclick="triggerRefresh()">
+    <span id="refresh_btn_text">Refresh Holdings</span>
+</button>
+<button class="theme-toggle" id="theme_toggle_btn" onclick="toggleTheme()" title="Toggle dark/light theme">
+    <span id="theme_toggle_icon">🌙</span>
+</button>
+</div>
+</header>
+
+<div class="summary-cards">
+<div class="card" id="combined_summary">
+    <div class="summary-item"><span class="summary-label">Total Invested</span><span class="summary-value" id="combined_total_invested">-</span></div>
+    <div class="summary-item"><span class="summary-label">Current Value</span><span class="summary-value" id="combined_current_value">-</span></div>
+    <div class="summary-item"><span class="summary-label">Total P/L</span><span class="summary-value" id="combined_total_pl">-</span></div>
+    <div class="summary-item"><span class="summary-label">Total P/L %</span><span class="summary-value" id="combined_total_pl_pct">-</span></div>
+</div>
+
+<div class="card" id="mf_summary">
+    <div class="summary-item"><span class="summary-label">MF Invested</span><span class="summary-value" id="mf_total_invested">-</span></div>
+    <div class="summary-item"><span class="summary-label">MF Value</span><span class="summary-value" id="mf_current_value">-</span></div>
+    <div class="summary-item"><span class="summary-label">MF P/L</span><span class="summary-value" id="mf_total_pl">-</span></div>
+    <div class="summary-item"><span class="summary-label">MF P/L %</span><span class="summary-value" id="mf_total_pl_pct">-</span></div>
+</div>
+
+<div class="card" id="portfolio_summary">
+    <div class="summary-item"><span class="summary-label">Stock Invested</span><span class="summary-value" id="total_invested">-</span></div>
+    <div class="summary-item"><span class="summary-label">Stock Value</span><span class="summary-value" id="current_value">-</span></div>
+    <div class="summary-item"><span class="summary-label">Stock P/L</span><span class="summary-value" id="total_pl">-</span></div>
+    <div class="summary-item"><span class="summary-label">Stock P/L %</span><span class="summary-value" id="total_pl_pct">-</span></div>
+</div>
+</div>
+
+<div class="section-wrapper">
+<h2>Mutual Funds</h2>
+<table aria-label="MF Holdings table">
+<thead>
+<tr>
+<th>Fund</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>NAV</th><th>P/L</th><th>Current</th><th>Account</th>
+</tr>
+</thead>
+<tbody id="mf_tbody"></tbody>
+</table>
+</div>
+
+<div class="section-wrapper">
+<h2>Stocks</h2>
+<table aria-label="Holdings table">
+<thead>
+<tr>
+<th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>LTP</th><th>P/L</th><th>Day's Change</th><th>Current</th><th>Exchange</th><th>Account</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+</div>
+
+<div class="footer-note">
+Note: Refresh will only prompt login if session token is expired; otherwise it runs silently.
+</div>
+</div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
+"""
