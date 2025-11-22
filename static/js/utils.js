@@ -23,6 +23,47 @@ class Formatter {
   static formatSign(value) {
     return value >= 0 ? '+' : '';
   }
+
+  /**
+   * Format a date string to relative format (today, yesterday, X days ago, or date)
+   * @param {string} dateStr - Date string to format
+   * @param {boolean} isPastDate - If true, shows "X days ago", if false shows "In X days"
+   * @returns {string} Formatted date string
+   */
+  static formatRelativeDate(dateStr, isPastDate = true) {
+    if (!dateStr) return '';
+    
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '';
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const compareDate = new Date(date);
+      compareDate.setHours(0, 0, 0, 0);
+      
+      const diffTime = isPastDate 
+        ? today.getTime() - compareDate.getTime()
+        : compareDate.getTime() - today.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return 'Today';
+      } else if (diffDays === 1) {
+        return isPastDate ? 'Yesterday' : 'Tomorrow';
+      } else if (diffDays > 1 && diffDays <= 7) {
+        return isPastDate ? `${diffDays} days ago` : `In ${diffDays} days`;
+      } else {
+        return date.toLocaleDateString('en-GB', { 
+          day: 'numeric', 
+          month: 'short',
+          year: diffDays > 365 ? 'numeric' : undefined
+        });
+      }
+    } catch (e) {
+      return dateStr;
+    }
+  }
 }
 
 class Calculator {

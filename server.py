@@ -205,7 +205,7 @@ def run_background_fetch(force_login: bool = False):
                     state_manager.last_error = str(e)
 
             merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
-            merged_sips = sip_service.merge_sips(all_sips)
+            merged_sips = sip_service.merge_items(all_sips)
             
             global merged_holdings_global, merged_mf_holdings_global, merged_sips_global
             merged_holdings_global = merged_stocks

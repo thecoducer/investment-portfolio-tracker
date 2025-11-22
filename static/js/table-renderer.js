@@ -136,33 +136,9 @@ class TableRenderer {
     // Format NAV date in relative format
     let navDateText = '';
     if (mf.last_price_date) {
-      const dateStr = mf.last_price_date;
-      if (typeof dateStr === 'string') {
-        try {
-          const navDate = new Date(dateStr);
-          if (!isNaN(navDate.getTime())) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const compareDate = new Date(navDate);
-            compareDate.setHours(0, 0, 0, 0);
-            
-            const diffTime = today.getTime() - compareDate.getTime();
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-            
-            if (diffDays === 0) {
-              navDateText = ' <span class="pl_pct_small">today</span>';
-            } else if (diffDays === 1) {
-              navDateText = ' <span class="pl_pct_small">yesterday</span>';
-            } else if (diffDays > 1 && diffDays <= 7) {
-              navDateText = ` <span class="pl_pct_small">${diffDays} days ago</span>`;
-            } else {
-              // For older dates, show the actual date
-              navDateText = ` <span class="pl_pct_small">${navDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>`;
-            }
-          }
-        } catch (e) {
-          // Silently ignore date parsing errors
-        }
+      const formattedDate = Formatter.formatRelativeDate(mf.last_price_date, true);
+      if (formattedDate) {
+        navDateText = ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
       }
     }
     
@@ -202,30 +178,8 @@ class TableRenderer {
     // Format next due date
     let nextDueText = '-';
     if (sip.next_instalment && status === 'ACTIVE') {
-      try {
-        const nextDate = new Date(sip.next_instalment);
-        if (!isNaN(nextDate.getTime())) {
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const compareDate = new Date(nextDate);
-          compareDate.setHours(0, 0, 0, 0);
-          
-          const diffTime = compareDate.getTime() - today.getTime();
-          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-          
-          if (diffDays === 0) {
-            nextDueText = 'Today';
-          } else if (diffDays === 1) {
-            nextDueText = 'Tomorrow';
-          } else if (diffDays > 1 && diffDays <= 7) {
-            nextDueText = `In ${diffDays} days`;
-          } else {
-            nextDueText = nextDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-          }
-        }
-      } catch (e) {
-        nextDueText = sip.next_instalment;
-      }
+      const formattedDate = Formatter.formatRelativeDate(sip.next_instalment, false);
+      nextDueText = formattedDate || sip.next_instalment;
     }
     
     return `<tr>

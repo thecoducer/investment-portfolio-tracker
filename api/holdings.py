@@ -5,9 +5,10 @@ from typing import Dict, Any, List, Tuple
 from datetime import datetime
 
 from kiteconnect import KiteConnect
+from .base_service import BaseDataService
 
 
-class HoldingsService:
+class HoldingsService(BaseDataService):
     """Service for fetching and managing holdings data."""
     
     def __init__(self):
@@ -82,11 +83,9 @@ class HoldingsService:
             holdings: List of holdings to enrich
             account_name: Name of the account
         """
+        super().add_account_info(holdings, account_name)
         for holding in holdings:
-            holding.update({
-                "account": account_name,
-                "invested": holding.get("quantity", 0) * holding.get("average_price", 0),
-            })
+            holding["invested"] = holding.get("quantity", 0) * holding.get("average_price", 0)
     
     def merge_holdings(
         self,
@@ -103,13 +102,4 @@ class HoldingsService:
         Returns:
             Tuple of (merged_stock_holdings, merged_mf_holdings)
         """
-        merged_stocks = []
-        merged_mfs = []
-        
-        for holdings in all_stock_holdings:
-            merged_stocks.extend(holdings)
-        
-        for holdings in all_mf_holdings:
-            merged_mfs.extend(holdings)
-        
-        return merged_stocks, merged_mfs
+        return self.merge_items(all_stock_holdings), self.merge_items(all_mf_holdings)

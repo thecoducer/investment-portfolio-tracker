@@ -481,7 +481,7 @@ class TestSIPService(unittest.TestCase):
             [{"sip_id": "SIP001"}, {"sip_id": "SIP002"}]
         ]
         
-        merged = self.service.merge_sips(all_sips)
+        merged = self.service.merge_items(all_sips)
         
         self.assertEqual(len(merged), 2)
         self.assertEqual(merged[0]["sip_id"], "SIP001")
@@ -495,7 +495,7 @@ class TestSIPService(unittest.TestCase):
             [{"sip_id": "SIP003", "account": "Account3"}]
         ]
         
-        merged = self.service.merge_sips(all_sips)
+        merged = self.service.merge_items(all_sips)
         
         self.assertEqual(len(merged), 3)
         self.assertEqual(merged[0]["account"], "Account1")
@@ -506,7 +506,7 @@ class TestSIPService(unittest.TestCase):
         """Test merging empty SIP lists"""
         all_sips = [[], [], []]
         
-        merged = self.service.merge_sips(all_sips)
+        merged = self.service.merge_items(all_sips)
         
         self.assertEqual(len(merged), 0)
 
