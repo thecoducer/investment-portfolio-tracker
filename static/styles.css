@@ -302,33 +302,40 @@ body.dark-theme .theme-toggle:hover {
   font-family: 'Raleway', sans-serif;
 }
 
-/* SIP Total Summary */
-.sip-total {
+/* SIP Total Badge - Standalone component */
+.sip-total-badge {
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
+  justify-content: space-between;
+  padding: 12px 20px;
   background: #fff;
-  border: 1px solid rgba(139, 119, 101, 0.1);
-  border-top: none;
-  border-radius: 0 0 14px 14px;
-  margin-top: -14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(139, 119, 101, 0.12);
+  border-left: 4px solid #8b7765;
+  border-radius: 6px;
+  margin-top: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.sip-total-badge:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-left-color: #6d5e52;
 }
 
 .sip-total-label {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: #6d5e52;
+  font-family: 'Karla', sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 
 .sip-total-value {
   font-size: 18px;
   font-weight: 700;
-  color: #28a745;
+  color: #3e3835;
+  font-family: 'Karla', sans-serif;
 }
 
 /* ============ TABLES ============ */
@@ -597,9 +604,16 @@ body.dark-theme tbody tr:hover {
   box-shadow: inset 0 0 10px rgba(212, 204, 192, 0.08);
 }
 
-body.dark-theme .sip-total {
+body.dark-theme .sip-total-badge {
   background: #1a1613;
-  border-color: rgba(212, 204, 192, 0.1);
+  border-color: rgba(212, 204, 192, 0.15);
+  border-left-color: #8b7765;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-theme .sip-total-badge:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  border-left-color: #a89984;
 }
 
 body.dark-theme .sip-total-label {
@@ -607,7 +621,7 @@ body.dark-theme .sip-total-label {
 }
 
 body.dark-theme .sip-total-value {
-  color: #50c878;
+  color: #e8ddd0;
 }
 
 body.dark-theme .section-wrapper h2 {
