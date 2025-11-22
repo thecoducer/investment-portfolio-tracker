@@ -206,8 +206,7 @@ The dashboard will automatically open in your browser. If not, manually navigate
 ```
 ├── static/
 │   ├── css/
-│   │   ├── styles.css            # Default gradient theme
-│   │   └── styles-flat.css       # Flat minimalist Notion-style theme
+│   │   └── styles.css            # Application styles with dark/light themes
 │   └── js/
 │       ├── app.js                # Main application controller
 │       ├── data-manager.js       # API data fetching
@@ -216,21 +215,6 @@ The dashboard will automatically open in your browser. If not, manually navigate
 │       ├── theme-manager.js      # Dark/light theme switching
 │       ├── visibility-manager.js # Privacy mode for data hiding
 │       └── utils.js              # Formatters & calculators
-```
-
-### UI Themes
-
-The application includes two design themes:
-- **styles.css**: Default design with gradients and shadows
-- **styles-flat.css**: Minimalist flat design inspired by Notion
-
-To switch themes, edit `templates/holdings.html` and change the stylesheet link:
-```html
-<!-- For gradient theme (default) -->
-<link rel="stylesheet" href="/static/css/styles.css">
-
-<!-- For flat minimalist theme -->
-<link rel="stylesheet" href="/static/css/styles-flat.css">
 ```
 
 ## 🎯 Usage
