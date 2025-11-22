@@ -78,6 +78,7 @@ class HoldingsService(BaseDataService):
     def add_account_info(self, holdings: List[Dict[str, Any]], account_name: str) -> None:
         """
         Add account name and calculate invested amount for holdings.
+        Also adds T1 quantity to the main quantity for accurate totals.
         
         Args:
             holdings: List of holdings to enrich
@@ -85,7 +86,16 @@ class HoldingsService(BaseDataService):
         """
         super().add_account_info(holdings, account_name)
         for holding in holdings:
-            holding["invested"] = holding.get("quantity", 0) * holding.get("average_price", 0)
+            # Add T1 quantity (unsettled shares) to the main quantity
+            base_quantity = holding.get("quantity", 0)
+            t1_quantity = holding.get("t1_quantity", 0)
+            total_quantity = base_quantity + t1_quantity
+            
+            # Update the quantity to include T1 shares
+            holding["quantity"] = total_quantity
+            
+            # Calculate invested amount with total quantity
+            holding["invested"] = total_quantity * holding.get("average_price", 0)
     
     def merge_holdings(
         self,

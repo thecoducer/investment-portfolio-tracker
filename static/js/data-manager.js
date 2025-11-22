@@ -10,24 +10,25 @@ class DataManager {
     this.lastRenderedSIPsJSON = "";
   }
 
-  async fetchHoldings() {
-    const response = await fetch('/holdings_data');
+  async _fetchEndpoint(endpoint) {
+    const response = await fetch(endpoint);
     return await response.json();
+  }
+
+  async fetchHoldings() {
+    return this._fetchEndpoint('/holdings_data');
   }
 
   async fetchMFHoldings() {
-    const response = await fetch('/mf_holdings_data');
-    return await response.json();
+    return this._fetchEndpoint('/mf_holdings_data');
   }
 
   async fetchSIPs() {
-    const response = await fetch('/sips_data');
-    return await response.json();
+    return this._fetchEndpoint('/sips_data');
   }
 
   async fetchStatus() {
-    const response = await fetch('/status');
-    return await response.json();
+    return this._fetchEndpoint('/status');
   }
 
   async fetchAllData() {
@@ -40,34 +41,39 @@ class DataManager {
     return { holdings, mfHoldings, sips, status };
   }
 
-  updateHoldings(holdings, forceUpdate = false) {
-    const holdingsJSON = JSON.stringify(holdings);
-    if (holdingsJSON !== this.lastRenderedJSON || forceUpdate) {
-      this.latestHoldings = holdings;
-      this.lastRenderedJSON = holdingsJSON;
-      return true;
+  _updateData(data, currentData, lastJSON, forceUpdate) {
+    const dataJSON = JSON.stringify(data);
+    if (dataJSON !== lastJSON || forceUpdate) {
+      return { updated: true, newData: data, newJSON: dataJSON };
     }
-    return false;
+    return { updated: false, newData: currentData, newJSON: lastJSON };
+  }
+
+  updateHoldings(holdings, forceUpdate = false) {
+    const result = this._updateData(holdings, this.latestHoldings, this.lastRenderedJSON, forceUpdate);
+    if (result.updated) {
+      this.latestHoldings = result.newData;
+      this.lastRenderedJSON = result.newJSON;
+    }
+    return result.updated;
   }
 
   updateMFHoldings(mfHoldings, forceUpdate = false) {
-    const mfHoldingsJSON = JSON.stringify(mfHoldings);
-    if (mfHoldingsJSON !== this.lastRenderedMFJSON || forceUpdate) {
-      this.latestMFHoldings = mfHoldings;
-      this.lastRenderedMFJSON = mfHoldingsJSON;
-      return true;
+    const result = this._updateData(mfHoldings, this.latestMFHoldings, this.lastRenderedMFJSON, forceUpdate);
+    if (result.updated) {
+      this.latestMFHoldings = result.newData;
+      this.lastRenderedMFJSON = result.newJSON;
     }
-    return false;
+    return result.updated;
   }
 
   updateSIPs(sips, forceUpdate = false) {
-    const sipsJSON = JSON.stringify(sips);
-    if (sipsJSON !== this.lastRenderedSIPsJSON || forceUpdate) {
-      this.latestSIPs = sips;
-      this.lastRenderedSIPsJSON = sipsJSON;
-      return true;
+    const result = this._updateData(sips, this.latestSIPs, this.lastRenderedSIPsJSON, forceUpdate);
+    if (result.updated) {
+      this.latestSIPs = result.newData;
+      this.lastRenderedSIPsJSON = result.newJSON;
     }
-    return false;
+    return result.updated;
   }
 
   getHoldings() {

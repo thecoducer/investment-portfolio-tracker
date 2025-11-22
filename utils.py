@@ -58,12 +58,16 @@ class SessionManager:
         except Exception as e:
             print(f"Error saving session cache: {e}")
     
+    def _is_token_expired(self, expiry: datetime) -> bool:
+        """Check if a token has expired."""
+        return datetime.now(timezone.utc) >= expiry
+    
     def is_valid(self, account_name: str) -> bool:
         """Check if account session token is still valid."""
         sess = self.sessions.get(account_name)
         if not sess:
             return False
-        return datetime.now(timezone.utc) < sess["expiry"]
+        return not self._is_token_expired(sess["expiry"])
     
     def set_token(self, account_name: str, access_token: str, hours: int = 23, minutes: int = 50):
         """Store a new access token with expiry."""
@@ -91,36 +95,40 @@ class StateManager:
         self.last_run_ts: float = None
         self.holdings_last_updated: float = None
     
+    def _set_state(self, state_attr: str, value: str):
+        """Helper to set any state attribute."""
+        setattr(self, state_attr, value)
+    
     def set_refresh_running(self, error: str = None):
-        """Set refresh state to updating or updated."""
-        self.refresh_state = "updating"
+        """Set refresh state to updating."""
+        self._set_state('refresh_state', 'updating')
         if error:
             self.last_error = error
     
     def set_refresh_idle(self):
-        """Mark refresh as complete."""
-        self.refresh_state = "updated"
+        """Mark refresh as complete and update timestamp."""
+        self._set_state('refresh_state', 'updated')
         self.last_run_ts = __import__('time').time()
     
     def set_ltp_running(self):
         """Set LTP fetch to updating."""
-        self.ltp_fetch_state = "updating"
+        self._set_state('ltp_fetch_state', 'updating')
     
     def set_ltp_idle(self):
         """Mark LTP fetch as complete and update the holdings timestamp."""
-        self.ltp_fetch_state = "updated"
+        self._set_state('ltp_fetch_state', 'updated')
         self.holdings_last_updated = __import__('time').time()
     
     def set_holdings_updated(self):
-        """Mark holdings as updated."""
+        """Mark holdings as updated with current timestamp."""
         self.holdings_last_updated = __import__('time').time()
     
     def is_any_running(self) -> bool:
-        """Check if any operation is updating."""
+        """Check if any operation is currently updating."""
         return self.refresh_state == "updating" or self.ltp_fetch_state == "updating"
     
     def get_combined_state(self) -> str:
-        """Get combined state for UI."""
+        """Get combined state for UI (either 'updating' or 'updated')."""
         return "updating" if self.is_any_running() else "updated"
 
 

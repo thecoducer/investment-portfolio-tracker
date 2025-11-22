@@ -30,7 +30,21 @@ Before running the application, make sure you have:
 2. **Zerodha KiteConnect API credentials** ([Get them here](https://kite.trade/))
    - API Key
    - API Secret
+   - **Redirect URL** (must be configured in your Kite app settings)
 3. **Modern web browser** (Chrome, Firefox, Safari, Edge)
+
+### Setting up Zerodha KiteConnect App
+
+1. Visit [Kite Connect Developer Console](https://developers.kite.trade/)
+2. Log in with your Zerodha credentials
+3. Create a new app or use an existing one
+4. In your app settings, configure the **Redirect URL**:
+   ```
+   http://127.0.0.1:5000/callback
+   ```
+   > **Important**: This URL must match exactly what's configured in `config.json` (default values shown above). If you change the `callback_host`, `callback_port`, or `callback_path` in your config, update the redirect URL accordingly.
+   
+5. Copy your **API Key** and **API Secret** - you'll need these for `config.json`
 
 ## ⚙️ Configuration (Required)
 
@@ -53,8 +67,61 @@ Before running the application, make sure you have:
      ]
    }
    ```
+   
+   > **Note**: Ensure your KiteConnect app's redirect URL is set to `http://127.0.0.1:5000/callback` in the Zerodha developer console. If you modify the `callback_host`, `callback_port`, or `callback_path` in `config.json`, update the redirect URL in your Kite app accordingly.
 
 3. **Never commit `config.json`** - It contains sensitive credentials and is gitignored by default.
+
+### config.json Structure
+
+```json
+{
+  "accounts": [
+    {
+      "name": "Account1",
+      "api_key": "your_api_key",
+      "api_secret": "your_api_secret"
+    }
+  ],
+  "server": {
+    "callback_host": "127.0.0.1",
+    "callback_port": 5000,
+    "callback_path": "/callback",
+    "ui_host": "127.0.0.1",
+    "ui_port": 8000
+  },
+  "timeouts": {
+    "request_token_timeout_seconds": 180,
+    "ltp_fetch_interval_seconds": 60
+  },
+  "features": {
+    "auto_ltp_update": true
+  }
+}
+```
+
+### Configuration Options
+
+**accounts**: Array of Zerodha account configurations
+- `name`: Display name for the account
+- `api_key`: Your Zerodha KiteConnect API key
+- `api_secret`: Your Zerodha KiteConnect API secret
+
+**server**: Server configuration
+- `callback_host`: OAuth callback host (default: 127.0.0.1)
+- `callback_port`: OAuth callback port (default: 5000)
+- `callback_path`: OAuth callback path (default: /callback)
+- `ui_host`: UI server host (default: 127.0.0.1)
+- `ui_port`: UI server port (default: 8000)
+
+> **Important**: The callback URL must match your Kite app's redirect URL setting. The default configuration uses `http://127.0.0.1:5000/callback`. If you change these values, update the redirect URL in your [Kite Connect app settings](https://developers.kite.trade/).
+
+**timeouts**: Timing configuration
+- `request_token_timeout_seconds`: OAuth timeout (default: 180)
+- `ltp_fetch_interval_seconds`: Price update interval (default: 60)
+
+**features**: Feature toggles
+- `auto_ltp_update`: Enable automatic real-time price updates (default: true)
 
 ## 🚀 Quick Start
 
@@ -118,57 +185,6 @@ The dashboard will automatically open in your browser. If not, manually navigate
 
 5. **Access the dashboard**
    Open your browser: `http://127.0.0.1:8000/holdings`
-
-## 📝 Configuration Options
-
-### config.json Structure
-
-```json
-{
-  "accounts": [
-    {
-      "name": "Account1",
-      "api_key": "your_api_key",
-      "api_secret": "your_api_secret"
-    }
-  ],
-  "server": {
-    "callback_host": "127.0.0.1",
-    "callback_port": 5000,
-    "callback_path": "/callback",
-    "ui_host": "127.0.0.1",
-    "ui_port": 8000
-  },
-  "timeouts": {
-    "request_token_timeout_seconds": 180,
-    "ltp_fetch_interval_seconds": 60
-  },
-  "features": {
-    "auto_ltp_update": true
-  }
-}
-```
-
-### Configuration Options
-
-**accounts**: Array of Zerodha account configurations
-- `name`: Display name for the account
-- `api_key`: Your Zerodha KiteConnect API key
-- `api_secret`: Your Zerodha KiteConnect API secret
-
-**server**: Server configuration
-- `callback_host`: OAuth callback host (default: 127.0.0.1)
-- `callback_port`: OAuth callback port (default: 5000)
-- `callback_path`: OAuth callback path (default: /callback)
-- `ui_host`: UI server host (default: 127.0.0.1)
-- `ui_port`: UI server port (default: 8000)
-
-**timeouts**: Timing configuration
-- `request_token_timeout_seconds`: OAuth timeout (default: 180)
-- `ltp_fetch_interval_seconds`: Price update interval (default: 60)
-
-**features**: Feature toggles
-- `auto_ltp_update`: Enable automatic real-time price updates (default: true)
 
 ## 🏗️ Architecture
 

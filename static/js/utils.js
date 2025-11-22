@@ -67,6 +67,23 @@ class Formatter {
 }
 
 class Calculator {
+  /**
+   * Calculate basic investment metrics: current value, P/L, and P/L percentage.
+   * @param {number} invested - Total amount invested
+   * @param {number} currentValue - Current market value
+   * @returns {object} P/L and P/L percentage
+   */
+  static _calculatePL(invested, currentValue) {
+    const pl = currentValue - invested;
+    const plPct = invested ? (pl / invested * 100) : 0;
+    return { pl, plPct };
+  }
+
+  /**
+   * Calculate stock holding metrics.
+   * @param {object} holding - Stock holding data
+   * @returns {object} All calculated metrics for display
+   */
   static calculateStockMetrics(holding) {
     const qty = holding.quantity || 0;
     const avg = holding.average_price || 0;
@@ -74,9 +91,8 @@ class Calculator {
     const ltp = holding.last_price || 0;
     const dayChange = holding.day_change || 0;
 
-    const pl = ltp * qty - invested;
-    const current = invested + pl;
-    const plPct = invested ? (pl / invested * 100) : 0;
+    const current = ltp * qty;
+    const { pl, plPct } = this._calculatePL(invested, current);
     const dayChangePct = ltp ? (dayChange / ltp * 100) : 0;
 
     return {
@@ -92,6 +108,11 @@ class Calculator {
     };
   }
 
+  /**
+   * Calculate mutual fund holding metrics.
+   * @param {object} mfHolding - MF holding data
+   * @returns {object} All calculated metrics for display
+   */
   static calculateMFMetrics(mfHolding) {
     const qty = mfHolding.quantity || 0;
     const avg = mfHolding.average_price || 0;
@@ -99,8 +120,7 @@ class Calculator {
     const nav = mfHolding.last_price || 0;
 
     const current = qty * nav;
-    const pl = current - invested;
-    const plPct = invested ? (pl / invested * 100) : 0;
+    const { pl, plPct } = this._calculatePL(invested, current);
 
     return {
       qty,

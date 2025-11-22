@@ -10,7 +10,13 @@ from kiteconnect import KiteConnect
 
 
 class AuthenticationManager:
-    """Handles authentication flow with KiteConnect API."""
+    """Handles authentication flow with KiteConnect API.
+    
+    Supports three authentication strategies:
+    1. Cached token (fastest, if valid)
+    2. Token renewal (if cached token expired but renewable)
+    3. Full OAuth login (if above fail)
+    """
     
     def __init__(self, session_manager, request_token_timeout: int = 180):
         self.session_manager = session_manager
@@ -42,6 +48,15 @@ class AuthenticationManager:
         
         return req_token
     
+    def _validate_token_with_api_call(self, kite: KiteConnect, account_name: str) -> bool:
+        """Validate token by making a test API call. Returns True if valid."""
+        try:
+            kite.profile()
+            return True
+        except Exception as e:
+            print(f"Token validation failed for {account_name}: {e}")
+            return False
+    
     def _try_cached_token(self, kite: KiteConnect, account_name: str) -> bool:
         """Try to use cached token. Returns True if successful."""
         if not self.session_manager.is_valid(account_name):
@@ -49,7 +64,13 @@ class AuthenticationManager:
         
         print(f"Using cached token for {account_name}")
         kite.set_access_token(self.session_manager.get_token(account_name))
-        return True
+        return self._validate_token_with_api_call(kite, account_name)
+    
+    def _store_token(self, kite: KiteConnect, account_name: str, access_token: str) -> None:
+        """Store and apply access token to KiteConnect instance."""
+        kite.set_access_token(access_token)
+        self.session_manager.set_token(account_name, access_token)
+        self.session_manager.save()
     
     def _try_renew_token(self, kite: KiteConnect, account_name: str, api_secret: str) -> bool:
         """Try to renew expired token. Returns True if successful."""
@@ -61,9 +82,7 @@ class AuthenticationManager:
             
             if new_access_token:
                 print(f"Successfully renewed session for {account_name}")
-                kite.set_access_token(new_access_token)
-                self.session_manager.set_token(account_name, new_access_token)
-                self.session_manager.save()
+                self._store_token(kite, account_name, new_access_token)
                 return True
         except Exception as e:
             print(f"Session renewal failed for {account_name}: {e}")
@@ -82,16 +101,18 @@ class AuthenticationManager:
         if not access_token:
             raise RuntimeError("Failed to obtain access_token")
         
-        kite.set_access_token(access_token)
-        self.session_manager.set_token(account_name, access_token)
-        self.session_manager.save()
+        self._store_token(kite, account_name, access_token)
         print(f"Successfully authenticated {account_name}")
         
         return access_token
     
     def authenticate(self, account_config: Dict[str, Any], force_login: bool = False) -> KiteConnect:
-        """
-        Authenticate and return KiteConnect instance.
+        """Authenticate and return KiteConnect instance.
+        
+        Tries authentication strategies in order:
+        1. Cached token (unless force_login=True)
+        2. Token renewal (if cached exists but expired)
+        3. Full OAuth login
         
         Args:
             account_config: Account configuration with api_key, api_secret
@@ -106,18 +127,14 @@ class AuthenticationManager:
         
         kite = KiteConnect(api_key=api_key)
         
-        # Try cached token first
+        # Strategy 1: Try cached token (unless forced login)
         if not force_login and self._try_cached_token(kite, account_name):
-            try:
-                # Validate token with a test call
-                kite.profile()
-                return kite
-            except Exception as e:
-                print(f"Cached token failed for {account_name}: {e}")
-                # Try renewal before full login
-                if self._try_renew_token(kite, account_name, api_secret):
-                    return kite
+            return kite
         
-        # Fall back to full login
+        # Strategy 2: Try token renewal
+        if not force_login and self._try_renew_token(kite, account_name, api_secret):
+            return kite
+        
+        # Strategy 3: Fall back to full login
         self._perform_full_login(kite, account_name, api_secret)
         return kite
