@@ -12,13 +12,14 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 - **Multi-account support**: Track holdings across multiple Zerodha accounts
 - **Session token caching**: Auto-login on restart using cached session tokens
 - **Real-time LTP updates**: Automatic stock price updates with configurable intervals
-- **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) from Zerodha
+- **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation
 - **Interactive dashboard**: Modern UI with dark/light theme toggle
 - **Privacy mode**: Hide sensitive data with blur effect for screen sharing
 - **Search & filter**: Quick search across symbols and accounts
 - **Live animations**: Pulsating indicators during data updates
 - **Combined analytics**: Aggregated view of stocks and mutual funds
-- **NAV date tracking**: Shows when mutual fund NAV was last updated
+- **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
+- **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
 - **Responsive design**: Clean, professional interface with smooth animations
 
 ## 📋 Prerequisites
