@@ -1,5 +1,10 @@
 # Investment Portfolio Tracker
 
+[![Tests](https://github.com/thecoducer/investment-portfolio-tracker/actions/workflows/tests.yml/badge.svg)](https://github.com/thecoducer/investment-portfolio-tracker/actions/workflows/tests.yml)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 A modern, modular Flask-based web application for tracking mutual fund and stock holdings from Zerodha brokerage accounts with real-time price updates.
 
 ## ✨ Features
