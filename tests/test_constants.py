@@ -39,8 +39,8 @@ class TestConstants(unittest.TestCase):
     def test_exchange_suffix_mapping(self):
         """Test exchange suffix mapping"""
         self.assertIsInstance(EXCHANGE_SUFFIX, dict)
-        self.assertEqual(EXCHANGE_SUFFIX.get("NSE"), ":NSE")
-        self.assertEqual(EXCHANGE_SUFFIX.get("BSE"), ":BSE")
+        self.assertEqual(EXCHANGE_SUFFIX.get("NSE"), ".NS")
+        self.assertEqual(EXCHANGE_SUFFIX.get("BSE"), ".BO")
     
     def test_nse_api_url(self):
         """Test NSE API URL is valid"""
