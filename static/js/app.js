@@ -28,8 +28,8 @@ class PortfolioApp {
     // Show loading state
     this._showLoadingState();
 
-    // Fetch initial data
-    await this.updateData();
+    // Don't fetch data immediately - wait for SSE to indicate backend is ready
+    // This prevents showing empty dashboard when data endpoints haven't been populated yet
 
     // Connect to SSE for real-time updates
     this.connectEventSource();
@@ -126,19 +126,25 @@ class PortfolioApp {
     const refreshRunning = status.state === 'updating';
     this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
 
-    // Re-render tables with current data to apply/remove updating animations
+    // Check if we have any data loaded
     const hasData = this.dataManager.getHoldings().length > 0 || 
                     this.dataManager.getMFHoldings().length > 0 || 
                     this.dataManager.getSIPs().length > 0;
     
+    // Re-render tables with current data to apply/remove updating animations
     if (hasData) {
       this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
       this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
     }
 
-    // If state changed to 'updated', refresh the data
-    if (!isUpdating && this._wasUpdating) {
+    // Fetch data when:
+    // 1. State changed from 'updating' to 'updated' (normal refresh complete)
+    // 2. State is 'updated' but we have no data yet (first load after server restart)
+    const shouldFetchData = (!isUpdating && this._wasUpdating) || 
+                           (!isUpdating && !hasData);
+    
+    if (shouldFetchData) {
       this.updateData();
     }
     
