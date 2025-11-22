@@ -16,3 +16,9 @@ run_server/
 *.db
 *.sqlite
 *.sqlite3
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
