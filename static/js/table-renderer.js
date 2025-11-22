@@ -167,19 +167,25 @@ class TableRenderer {
       }
     });
     
-    // Update total amount display
-    this._updateSIPTotal(totalMonthlyAmount, refreshRunning);
+    // Add total row at the end of the table
+    tbody.innerHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);
   }
 
-  _updateSIPTotal(totalAmount, refreshRunning) {
-    const totalEl = document.getElementById('sip_total_amount');
-    if (totalEl) {
-      totalEl.innerText = totalAmount.toLocaleString(undefined, { 
-        minimumFractionDigits: 0, 
-        maximumFractionDigits: 0 
-      });
-      this._applyUpdatingClass(totalEl, refreshRunning);
-    }
+  _buildSIPTotalRow(totalAmount, dataClass) {
+    const formattedAmount = totalAmount.toLocaleString(undefined, { 
+      minimumFractionDigits: 0, 
+      maximumFractionDigits: 0 
+    });
+    
+    return `<tr style="border-top: 2px solid #e9e9e7; font-weight: 600;">
+<td style="color: #37352f;">Total Monthly SIP Amount:</td>
+<td class="${dataClass}">${formattedAmount}</td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>`;
   }
 
   _buildStockRow(holding, metrics, classes) {
