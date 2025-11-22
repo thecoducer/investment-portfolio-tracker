@@ -12,11 +12,12 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 - **Multi-account support**: Track holdings across multiple Zerodha accounts
 - **Session token caching**: Auto-login on restart using cached session tokens with encryption
 - **Server-Sent Events (SSE)**: Real-time status updates without polling
+- **Smart loading**: Dashboard waits for backend data fetching to complete before rendering
 - **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation
 - **Interactive dashboard**: Modern UI with dark/light theme toggle
 - **Privacy mode**: Hide sensitive data with blur effect for screen sharing
 - **Search & filter**: Quick search across symbols and accounts with smart table visibility
-- **Live animations**: Blur-fade indicators during data updates
+- **Live animations**: Blur-fade indicators during data updates (disabled in privacy mode)
 - **Combined analytics**: Aggregated view of stocks and mutual funds
 - **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
 - **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
@@ -194,8 +195,7 @@ The dashboard will automatically open in your browser. If not, manually navigate
 ├── server.py              # Main Flask application with SSE support
 ├── api/
 │   ├── auth.py           # Authentication & OAuth flow
-│   ├── holdings.py       # Holdings data fetching & enrichment
-│   └── sips.py           # SIP data fetching from Zerodha
+│   └── holdings.py       # Holdings data fetching & enrichment
 ├── utils.py              # State & session management with encryption
 ├── constants.py          # Application constants
 └── templates/
@@ -322,10 +322,11 @@ pip install -r requirements.txt --upgrade
 - Click "Refresh Holdings" to re-authenticate
 - Check `.session_cache.json` exists and is readable
 
-### LTP Not Updating
-1. Verify `enable_auto_refresh: true` in config.json
-2. Check market hours (9:15 AM - 3:30 PM IST, weekdays)
-3. Ensure valid stock symbols
+### Dashboard Shows "Updating" for Long Time
+- This is normal on first server restart as backend fetches data from all accounts
+- Accounts are fetched sequentially to avoid API rate limits
+- Dashboard will automatically load once data is available
+- Check browser console for any errors
 
 ### Port Already in Use
 Edit `config.json` and change `ui_port` or `callback_port` to different values
