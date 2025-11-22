@@ -1,7 +1,7 @@
 # Investment Portfolio Tracker
 
 [![Tests](https://github.com/thecoducer/investment-portfolio-tracker/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/thecoducer/investment-portfolio-tracker/actions/workflows/tests.yml)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -26,7 +26,7 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 
 Before running the application, make sure you have:
 
-1. **Python 3.8 or higher** installed on your system
+1. **Python 3.9 or higher** installed on your system
 2. **Zerodha KiteConnect API credentials** ([Get them here](https://kite.trade/))
    - API Key
    - API Secret
