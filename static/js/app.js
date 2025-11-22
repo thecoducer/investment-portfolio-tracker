@@ -174,6 +174,12 @@ class PortfolioApp {
       this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
 
+      // Update combined summary after table rendering (to reflect filtered totals)
+      this.summaryManager.updateCombinedSummary(
+        status.ltp_fetch_state === 'updating',
+        status.state === 'updating'
+      );
+
     } catch (error) {
       console.error('Error updating data:', error);
     }

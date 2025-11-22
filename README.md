@@ -10,17 +10,18 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 ## ✨ Features
 
 - **Multi-account support**: Track holdings across multiple Zerodha accounts
-- **Session token caching**: Auto-login on restart using cached session tokens
-- **Real-time LTP updates**: Automatic stock price updates with configurable intervals
+- **Session token caching**: Auto-login on restart using cached session tokens with encryption
+- **Server-Sent Events (SSE)**: Real-time status updates without polling
 - **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation
 - **Interactive dashboard**: Modern UI with dark/light theme toggle
 - **Privacy mode**: Hide sensitive data with blur effect for screen sharing
-- **Search & filter**: Quick search across symbols and accounts
-- **Live animations**: Pulsating indicators during data updates
+- **Search & filter**: Quick search across symbols and accounts with smart table visibility
+- **Live animations**: Blur-fade indicators during data updates
 - **Combined analytics**: Aggregated view of stocks and mutual funds
 - **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
 - **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
 - **Responsive design**: Clean, professional interface with smooth animations
+- **Auto-refresh**: Configurable automatic refresh of all holdings data
 
 ## 📋 Prerequisites
 
@@ -190,13 +191,12 @@ The dashboard will automatically open in your browser. If not, manually navigate
 
 ### Backend (Python/Flask)
 ```
-├── server.py              # Main Flask application & routes
+├── server.py              # Main Flask application with SSE support
 ├── api/
 │   ├── auth.py           # Authentication & OAuth flow
 │   ├── holdings.py       # Holdings data fetching & enrichment
-│   ├── sips.py           # SIP data fetching from Zerodha
-│   └── ltp.py            # Real-time price updates
-├── utils.py              # State & session management
+│   └── sips.py           # SIP data fetching from Zerodha
+├── utils.py              # State & session management with encryption
 ├── constants.py          # Application constants
 └── templates/
     └── holdings.html     # Main dashboard HTML template
@@ -239,21 +239,21 @@ To switch themes, edit `templates/holdings.html` and change the stylesheet link:
 1. Click the "Refresh Holdings" button
 2. Browser will open for Zerodha OAuth authentication
 3. Log in and authorize the app
-4. Token is cached for future use
+4. Token is cached securely with encryption for future use
 
 ### Subsequent Use
 - Cached tokens are automatically used (valid for ~24 hours)
 - Manual refresh if token expires
-- Auto-refresh every 2 seconds for UI updates
-- LTP updates every 60 seconds (configurable)
+- Auto-refresh every 60 seconds (configurable)
+- Real-time status updates via Server-Sent Events (SSE)
 
 ### Features in Action
 
-**Search & Filter**: Type in the search box to filter holdings by symbol or account
+**Search & Filter**: Type in the search box to filter holdings by symbol or account. Empty tables are automatically hidden.
 
 **Theme Toggle**: Click the theme button (🌙/☀️) to switch between dark and light modes
 
-**Privacy Mode**: Click the eye button (👁️) to blur sensitive financial data - perfect for screen sharing or presentations
+**Privacy Mode**: Click the eye button (👁️) to blur sensitive financial data - perfect for screen sharing or presentations. Colors and animations are disabled in privacy mode.
 
 **Active SIPs**: View all your systematic investment plans with:
 - Fund name (displayed in uppercase)
@@ -263,9 +263,9 @@ To switch themes, edit `templates/holdings.html` and change the stylesheet link:
 - Next due date (shown as "Today", "Tomorrow", "In X days", or specific date)
 - Total Monthly SIP Amount displayed as the last row in the table
 
-**Real-time Updates**: Watch fields pulse during refresh and LTP updates
-- Quantity, Average Price, Invested: Pulse during manual refresh
-- LTP, P/L, Current Value: Pulse during both refresh and LTP updates
+**Real-time Updates**: Watch fields fade during refresh operations
+- All numeric fields show blur-fade animation during updates
+- Animation is disabled in privacy mode to maintain data security
 
 **NAV Dates**: Mutual fund NAV shows relative date (today, yesterday, X days ago)
 

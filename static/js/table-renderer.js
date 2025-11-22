@@ -62,16 +62,19 @@ class TableRenderer {
 
   renderStocksTable(holdings, status) {
     const tbody = document.getElementById('tbody');
+    const section = document.getElementById('stocks-section');
     const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
 
     tbody.innerHTML = '';
     let totalInvested = 0;
     let totalCurrent = 0;
+    let visibleCount = 0;
 
     holdings.forEach(holding => {
       const text = (holding.tradingsymbol + holding.account).toLowerCase();
       if (!text.includes(this.searchQuery)) return;
 
+      visibleCount++;
       const metrics = Calculator.calculateStockMetrics(holding);
       totalInvested += metrics.invested;
       totalCurrent += metrics.current;
@@ -90,6 +93,9 @@ class TableRenderer {
       });
     });
 
+    // Hide section if no visible rows
+    section.style.display = visibleCount === 0 ? 'none' : 'block';
+
     this._updateStockSummary({
       totalInvested,
       totalCurrent,
@@ -102,17 +108,20 @@ class TableRenderer {
 
   renderMFTable(mfHoldings, status) {
     const tbody = document.getElementById('mf_tbody');
+    const section = document.getElementById('mf-section');
     const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
 
     tbody.innerHTML = '';
     let mfTotalInvested = 0;
     let mfTotalCurrent = 0;
+    let visibleCount = 0;
 
     mfHoldings.forEach(mf => {
       const fundName = mf.fund || mf.tradingsymbol;
       const text = (fundName + mf.account).toLowerCase();
       if (!text.includes(this.searchQuery)) return;
 
+      visibleCount++;
       const metrics = Calculator.calculateMFMetrics(mf);
       mfTotalInvested += metrics.invested;
       mfTotalCurrent += metrics.current;
@@ -129,6 +138,9 @@ class TableRenderer {
       });
     });
 
+    // Hide section if no visible rows
+    section.style.display = visibleCount === 0 ? 'none' : 'block';
+
     this._updateMFSummary({
       totalInvested: mfTotalInvested,
       totalCurrent: mfTotalCurrent,
@@ -139,17 +151,20 @@ class TableRenderer {
 
   renderSIPsTable(sips, status) {
     const tbody = document.getElementById('sips_tbody');
+    const section = document.getElementById('sips-section');
     const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
     const dataClass = this._getUpdateClass(isUpdating);
 
     tbody.innerHTML = '';
     let totalMonthlyAmount = 0;
+    let visibleCount = 0;
 
     sips.forEach(sip => {
       const fundName = (sip.fund || sip.tradingsymbol).toUpperCase();
       const text = (fundName + sip.account).toLowerCase();
       if (!text.includes(this.searchQuery)) return;
 
+      visibleCount++;
       tbody.innerHTML += this._buildSIPRow(fundName, sip, dataClass);
       
       // Calculate total monthly amount for active SIPs
@@ -167,6 +182,9 @@ class TableRenderer {
         }
       }
     });
+    
+    // Hide section if no visible rows
+    section.style.display = visibleCount === 0 ? 'none' : 'block';
     
     // Add total row at the end of the table
     tbody.innerHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);

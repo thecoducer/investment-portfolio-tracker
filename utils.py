@@ -4,10 +4,14 @@ Utility functions for session management, market operations, and common patterns
 import json
 import os
 import hashlib
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
 from cryptography.fernet import Fernet
 import platform
+from zoneinfo import ZoneInfo
+
+from constants import STATE_UPDATING, STATE_UPDATED, STATE_ERROR
 
 
 class SessionManager:
@@ -122,8 +126,8 @@ class StateManager:
     """Manages application state with thread safety."""
     
     def __init__(self):
-        self.refresh_state = "updating"  # Start with updating state
-        self.ltp_fetch_state = "updated"
+        self.refresh_state = STATE_UPDATING  # Start with updating state
+        self.ltp_fetch_state = STATE_UPDATED
         self.last_error: str = None
         self.last_run_ts: float = None
         self.holdings_last_updated: float = None
@@ -148,51 +152,49 @@ class StateManager:
     
     def set_refresh_running(self, error: str = None):
         """Set refresh state to updating."""
-        self._set_state('refresh_state', 'updating')
+        self._set_state('refresh_state', STATE_UPDATING)
         if error:
             self.last_error = error
     
     def set_refresh_idle(self):
         """Mark refresh as complete and update timestamp."""
-        self._set_state('refresh_state', 'updated')
-        self.last_run_ts = __import__('time').time()
+        self._set_state('refresh_state', STATE_UPDATED)
+        self.last_run_ts = time.time()
     
     def set_ltp_running(self):
         """Set LTP fetch to updating."""
-        self._set_state('ltp_fetch_state', 'updating')
+        self._set_state('ltp_fetch_state', STATE_UPDATING)
     
     def set_ltp_idle(self):
         """Mark LTP fetch as complete and update the holdings timestamp."""
-        self._set_state('ltp_fetch_state', 'updated')
-        self.holdings_last_updated = __import__('time').time()
+        self._set_state('ltp_fetch_state', STATE_UPDATED)
+        self.holdings_last_updated = time.time()
     
     def set_holdings_updated(self):
         """Mark holdings as updated with current timestamp."""
-        self.holdings_last_updated = __import__('time').time()
+        self.holdings_last_updated = time.time()
         self._notify_change()
     
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""
-        return self.refresh_state == "updating" or self.ltp_fetch_state == "updating"
+        return self.refresh_state == STATE_UPDATING or self.ltp_fetch_state == STATE_UPDATING
     
     def get_combined_state(self) -> str:
         """Get combined state for UI (either 'updating' or 'updated')."""
-        return "updating" if self.is_any_running() else "updated"
+        return STATE_UPDATING if self.is_any_running() else STATE_UPDATED
 
 
 def format_timestamp(ts: float) -> str:
     """Format Unix timestamp to readable format."""
     if ts is None:
         return None
-    import time
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
 
 
 def is_market_open_ist() -> bool:
     """Check if equity market is currently open."""
-    from zoneinfo import ZoneInfo
-    tz = ZoneInfo("Asia/Kolkata")
-    now = datetime.now(tz)
+    ist = ZoneInfo("Asia/Kolkata")
+    now = datetime.now(ist)
     if now.weekday() >= 5:  # Saturday or Sunday
         return False
     market_open = now.replace(hour=9, minute=0, second=0, microsecond=0)

@@ -16,18 +16,13 @@ import time
 from typing import List, Dict, Any
 import json
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Queue, Empty
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
-from flask.json.provider import DefaultJSONProvider
-from zoneinfo import ZoneInfo
-from datetime import datetime
 
-from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
+from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp
 from api import AuthenticationManager, HoldingsService, SIPService
 from constants import (
-    STATE_UPDATING,
     HTTP_ACCEPTED,
     HTTP_CONFLICT,
     SESSION_CACHE_FILENAME,
@@ -294,9 +289,8 @@ def run_background_fetch(force_login: bool = False):
             all_mf_holdings = []
             all_sips = []
 
-            # Fetch accounts in parallel using ThreadPoolExecutor
-            def fetch_single_account(account_config):
-                """Fetch holdings for a single account."""
+            # Fetch accounts sequentially
+            for account_config in ACCOUNTS_CONFIG:
                 try:
                     stock_holdings, mf_holdings, sips = fetch_account_holdings(account_config, force_login)
                     account_name = account_config["name"]
@@ -305,26 +299,12 @@ def run_background_fetch(force_login: bool = False):
                     holdings_service.add_account_info(mf_holdings, account_name)
                     sip_service.add_account_info(sips, account_name)
                     
-                    return stock_holdings, mf_holdings, sips, None
+                    all_stock_holdings.append(stock_holdings)
+                    all_mf_holdings.append(mf_holdings)
+                    all_sips.append(sips)
                 except Exception as e:
                     print(f"Error fetching for {account_config['name']}: {e}")
-                    return [], [], [], str(e)
-
-            # Execute parallel fetches
-            with ThreadPoolExecutor(max_workers=len(ACCOUNTS_CONFIG)) as executor:
-                futures = {
-                    executor.submit(fetch_single_account, account_config): account_config
-                    for account_config in ACCOUNTS_CONFIG
-                }
-                
-                for future in as_completed(futures):
-                    stock_holdings, mf_holdings, sips, error = future.result()
-                    if error:
-                        state_manager.last_error = error
-                    else:
-                        all_stock_holdings.append(stock_holdings)
-                        all_mf_holdings.append(mf_holdings)
-                        all_sips.append(sips)
+                    state_manager.last_error = str(e)
 
             merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
             merged_sips = sip_service.merge_items(all_sips)

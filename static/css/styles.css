@@ -462,6 +462,11 @@ body.dark-theme .spinner {
   animation: blur-fade 1.2s ease-in-out infinite;
 }
 
+/* Disable animation in privacy mode to prevent blur from becoming visible */
+body.privacy-mode .updating-field {
+  animation: none;
+}
+
 @keyframes blur-fade {
   0%, 100% {
     opacity: 1;
@@ -660,4 +665,23 @@ body.privacy-mode .sip-total-value {
   filter: blur(8px);
   user-select: none;
   transition: filter 0.2s ease;
+}
+
+/* Remove P/L colors in privacy mode */
+body.privacy-mode tbody tr {
+  background-color: transparent !important;
+}
+
+body.privacy-mode tbody tr td span {
+  color: inherit !important;
+}
+
+/* Remove P/L colors from summary cards */
+body.privacy-mode #combined_total_pl,
+body.privacy-mode #combined_total_pl_pct,
+body.privacy-mode #mf_total_pl,
+body.privacy-mode #mf_total_pl_pct,
+body.privacy-mode #total_pl,
+body.privacy-mode #total_pl_pct {
+  color: inherit !important;
 }
