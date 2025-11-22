@@ -205,15 +205,32 @@ The dashboard will automatically open in your browser. If not, manually navigate
 ### Frontend (JavaScript/ES6)
 ```
 ├── static/
-│   ├── js/
-│   │   ├── app.js                # Main application controller
-│   │   ├── data-manager.js       # API data fetching
-│   │   ├── table-renderer.js     # Table rendering with animations
-│   │   ├── summary-manager.js    # Portfolio summary calculations
-│   │   ├── theme-manager.js      # Dark/light theme switching
-│   │   ├── visibility-manager.js # Privacy mode for data hiding
-│   │   └── utils.js              # Formatters & calculators
-│   └── styles.css                # Styling with dark/light themes
+│   ├── css/
+│   │   ├── styles.css            # Default gradient theme
+│   │   └── styles-flat.css       # Flat minimalist Notion-style theme
+│   └── js/
+│       ├── app.js                # Main application controller
+│       ├── data-manager.js       # API data fetching
+│       ├── table-renderer.js     # Table rendering with animations
+│       ├── summary-manager.js    # Portfolio summary calculations
+│       ├── theme-manager.js      # Dark/light theme switching
+│       ├── visibility-manager.js # Privacy mode for data hiding
+│       └── utils.js              # Formatters & calculators
+```
+
+### UI Themes
+
+The application includes two design themes:
+- **styles.css**: Default design with gradients and shadows
+- **styles-flat.css**: Minimalist flat design inspired by Notion
+
+To switch themes, edit `templates/holdings.html` and change the stylesheet link:
+```html
+<!-- For gradient theme (default) -->
+<link rel="stylesheet" href="/static/css/styles.css">
+
+<!-- For flat minimalist theme -->
+<link rel="stylesheet" href="/static/css/styles-flat.css">
 ```
 
 ## 🎯 Usage
@@ -244,6 +261,7 @@ The dashboard will automatically open in your browser. If not, manually navigate
 - Frequency and installment progress
 - Status indicator (ACTIVE in green, PAUSED in yellow, CANCELLED in red)
 - Next due date (shown as "Today", "Tomorrow", "In X days", or specific date)
+- Total Monthly SIP Amount displayed as the last row in the table
 
 **Real-time Updates**: Watch fields pulse during refresh and LTP updates
 - Quantity, Average Price, Invested: Pulse during manual refresh
