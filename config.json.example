@@ -23,6 +23,6 @@
     "ltp_fetch_interval_seconds": 60
   },
   "features": {
-    "enable_ltp_fetcher": true
+    "auto_ltp_update": true
   }
 }

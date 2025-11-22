@@ -77,7 +77,7 @@ A Flask-based web application for tracking mutual fund and stock holdings from Z
   - `ltp_fetch_interval_seconds`: Price update interval (default: 60)
 
 - **features**: Feature flags
-  - `enable_ltp_fetcher`: Enable real-time price updates (default: true)
+  - `auto_ltp_update`: Enable automatic real-time price updates (default: true)
 
 ## Architecture
 
@@ -124,7 +124,7 @@ Check the browser console for errors and ensure your `.env` file or environment 
 
 ### LTP not updating
 Check that:
-1. `enable_ltp_fetcher` is `true` in config.json
+1. `auto_ltp_update` is `true` in config.json
 2. Market is open (9:15 AM to 3:30 PM IST on weekdays)
 3. Stock symbols are valid
 

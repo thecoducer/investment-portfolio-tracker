@@ -55,7 +55,7 @@ UI_PORT = SERVER_CONFIG.get("ui_port", DEFAULT_UI_PORT)
 REQUEST_TOKEN_TIMEOUT = TIMEOUT_CONFIG.get("request_token_timeout_seconds", DEFAULT_REQUEST_TOKEN_TIMEOUT)
 LTP_FETCH_INTERVAL = TIMEOUT_CONFIG.get("ltp_fetch_interval_seconds", DEFAULT_LTP_FETCH_INTERVAL)
 
-ENABLE_LTP_FETCHER = FEATURE_CONFIG.get("enable_ltp_fetcher", True)
+AUTO_LTP_UPDATE = FEATURE_CONFIG.get("auto_ltp_update", True)
 
 SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILENAME)
 
@@ -209,11 +209,11 @@ def run_ltp_fetcher():
     """
     Periodically fetch latest trading prices for stocks.
     
-    Feature Flag (ENABLE_LTP_FETCHER):
+    Feature Flag (AUTO_LTP_UPDATE):
     - True: Run LTP fetcher regardless of market open status (for testing)
     - False: Only run LTP fetcher when market is open (production behavior)
     """
-    if not ENABLE_LTP_FETCHER:
+    if not AUTO_LTP_UPDATE:
         # If disabled, just keep thread alive but do nothing
         while True:
             time.sleep(10)
@@ -228,9 +228,9 @@ def run_ltp_fetcher():
             continue
         
         # Feature flag logic:
-        # - If ENABLE_LTP_FETCHER is True: skip market check, always run
-        # - If ENABLE_LTP_FETCHER is False: check market open status
-        if not ENABLE_LTP_FETCHER and not is_market_open_ist():
+        # - If AUTO_LTP_UPDATE is True: skip market check, always run
+        # - If AUTO_LTP_UPDATE is False: check market open status
+        if not AUTO_LTP_UPDATE and not is_market_open_ist():
             time.sleep(LTP_FETCH_INTERVAL)
             continue
 
