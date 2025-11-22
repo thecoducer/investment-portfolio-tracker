@@ -390,7 +390,7 @@ body.dark-theme .spinner {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 160px;
+  min-width: 90px;
 }
 
 .btn .spinner {
@@ -575,4 +575,19 @@ body.dark-theme .section-wrapper h2 {
 body.dark-theme .footer-note {
   color: #8b7d6f;
   border-top-color: rgba(212, 204, 192, 0.1);
+}
+
+/* ============ PRIVACY MODE ============ */
+
+body.privacy-mode .summary-value,
+body.privacy-mode tbody tr td:nth-child(2),
+body.privacy-mode tbody tr td:nth-child(3),
+body.privacy-mode tbody tr td:nth-child(4),
+body.privacy-mode tbody tr td:nth-child(6),
+body.privacy-mode tbody tr td:nth-child(7),
+body.privacy-mode tbody tr td:nth-child(8),
+body.privacy-mode tbody tr td:nth-child(10) {
+  filter: blur(8px);
+  user-select: none;
+  transition: filter 0.2s ease;
 }

@@ -20,7 +20,10 @@
 <div class="controls">
 <input id="search" placeholder="Search symbol or account..." />
 <button class="btn" id="refresh_btn" onclick="triggerRefresh()">
-    <span id="refresh_btn_text">Refresh Holdings</span>
+    <span id="refresh_btn_text">Refresh</span>
+</button>
+<button class="theme-toggle" id="privacy_toggle_btn" onclick="togglePrivacy()" title="Toggle privacy mode">
+    <span id="privacy_toggle_icon">👁️</span>
 </button>
 <button class="theme-toggle" id="theme_toggle_btn" onclick="toggleTheme()" title="Toggle dark/light theme">
     <span id="theme_toggle_icon">🌙</span>
@@ -72,6 +75,18 @@
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
+</table>
+</div>
+
+<div class="section-wrapper">
+<h2>Active SIPs</h2>
+<table aria-label="SIPs table">
+<thead>
+<tr>
+<th>Fund</th><th>Amount</th><th>Frequency</th><th>Installments</th><th>Status</th><th>Next Due</th><th>Account</th>
+</tr>
+</thead>
+<tbody id="sips_tbody"></tbody>
 </table>
 </div>
 

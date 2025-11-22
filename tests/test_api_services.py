@@ -19,6 +19,7 @@ class MockKiteConnect:
         self._mock_holdings = []
         self._mock_mf_holdings = []
         self._mock_mf_instruments = []
+        self._mock_mf_sips = []
         self._mock_profile = {"user_id": "TEST123", "user_name": "Test User"}
     
     def set_access_token(self, access_token: str):
@@ -42,6 +43,14 @@ class MockKiteConnect:
         if not self._access_token:
             raise Exception("Not authenticated")
         return self._mock_mf_instruments
+    
+    def mf_sips(self, sip_id=None):
+        """Mock MF SIPs API call"""
+        if not self._access_token:
+            raise Exception("Not authenticated")
+        if sip_id:
+            return [sip for sip in self._mock_mf_sips if sip.get('sip_id') == sip_id]
+        return self._mock_mf_sips
     
     def profile(self):
         """Mock profile API call"""
@@ -409,6 +418,97 @@ class TestAuthenticationManager(unittest.TestCase):
         
         self.assertIn("access_token", renewed_data)
         self.assertIn("old_refresh_token", renewed_data["access_token"])
+
+
+class TestSIPService(unittest.TestCase):
+    """Test SIPService class"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        from api.sips import SIPService
+        self.service = SIPService()
+    
+    def test_fetch_sips(self):
+        """Test fetching SIPs from KiteConnect"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        mock_kite.set_access_token("test_token")
+        mock_kite._mock_mf_sips = [
+            {
+                "sip_id": "SIP001",
+                "tradingsymbol": "INF174K01LS2",
+                "fund": "HDFC Equity Fund",
+                "instalment_amount": 5000,
+                "frequency": "monthly",
+                "instalments": 12,
+                "completed_instalments": 5,
+                "status": "ACTIVE",
+                "next_instalment": "2025-12-01"
+            }
+        ]
+        
+        sips = self.service.fetch_sips(mock_kite)
+        
+        self.assertEqual(len(sips), 1)
+        self.assertEqual(sips[0]["sip_id"], "SIP001")
+        self.assertEqual(sips[0]["instalment_amount"], 5000)
+        self.assertEqual(sips[0]["status"], "ACTIVE")
+    
+    def test_fetch_sips_empty(self):
+        """Test fetching SIPs when none exist"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        mock_kite.set_access_token("test_token")
+        mock_kite._mock_mf_sips = []
+        
+        sips = self.service.fetch_sips(mock_kite)
+        
+        self.assertEqual(len(sips), 0)
+    
+    def test_add_account_info(self):
+        """Test adding account information to SIPs"""
+        sips = [
+            {"sip_id": "SIP001", "instalment_amount": 5000},
+            {"sip_id": "SIP002", "instalment_amount": 3000}
+        ]
+        
+        self.service.add_account_info(sips, "Account1")
+        
+        self.assertEqual(sips[0]["account"], "Account1")
+        self.assertEqual(sips[1]["account"], "Account1")
+    
+    def test_merge_sips_single_account(self):
+        """Test merging SIPs from single account"""
+        all_sips = [
+            [{"sip_id": "SIP001"}, {"sip_id": "SIP002"}]
+        ]
+        
+        merged = self.service.merge_sips(all_sips)
+        
+        self.assertEqual(len(merged), 2)
+        self.assertEqual(merged[0]["sip_id"], "SIP001")
+        self.assertEqual(merged[1]["sip_id"], "SIP002")
+    
+    def test_merge_sips_multiple_accounts(self):
+        """Test merging SIPs from multiple accounts"""
+        all_sips = [
+            [{"sip_id": "SIP001", "account": "Account1"}],
+            [{"sip_id": "SIP002", "account": "Account2"}],
+            [{"sip_id": "SIP003", "account": "Account3"}]
+        ]
+        
+        merged = self.service.merge_sips(all_sips)
+        
+        self.assertEqual(len(merged), 3)
+        self.assertEqual(merged[0]["account"], "Account1")
+        self.assertEqual(merged[1]["account"], "Account2")
+        self.assertEqual(merged[2]["account"], "Account3")
+    
+    def test_merge_sips_empty_lists(self):
+        """Test merging empty SIP lists"""
+        all_sips = [[], [], []]
+        
+        merged = self.service.merge_sips(all_sips)
+        
+        self.assertEqual(len(merged), 0)
 
 
 if __name__ == '__main__':

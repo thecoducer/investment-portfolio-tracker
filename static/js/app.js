@@ -4,6 +4,7 @@ import DataManager from './data-manager.js';
 import TableRenderer from './table-renderer.js';
 import SummaryManager from './summary-manager.js';
 import ThemeManager from './theme-manager.js';
+import PrivacyManager from './visibility-manager.js';
 
 class PortfolioApp {
   constructor() {
@@ -11,12 +12,14 @@ class PortfolioApp {
     this.tableRenderer = new TableRenderer();
     this.summaryManager = new SummaryManager();
     this.themeManager = new ThemeManager();
+    this.privacyManager = new PrivacyManager();
     this.updateInterval = null;
   }
 
   async init() {
-    // Initialize theme
+    // Initialize theme and privacy
     this.themeManager.init();
+    this.privacyManager.init();
 
     // Set up event listeners
     this._setupEventListeners();
@@ -37,6 +40,9 @@ class PortfolioApp {
     // Theme toggle (assuming button will call this via global function)
     window.toggleTheme = () => this.themeManager.toggle();
 
+    // Privacy toggle
+    window.togglePrivacy = () => this.privacyManager.toggle();
+
     // Refresh button (assuming button will call this via global function)
     window.triggerRefresh = () => this.handleRefresh();
   }
@@ -48,6 +54,7 @@ class PortfolioApp {
     // Re-render with current data
     const holdings = this.dataManager.getHoldings();
     const mfHoldings = this.dataManager.getMFHoldings();
+    const sips = this.dataManager.getSIPs();
     
     // Need current status - fetch it
     this.updateData();
@@ -55,7 +62,7 @@ class PortfolioApp {
 
   async updateData() {
     try {
-      const { holdings, mfHoldings, status } = await this.dataManager.fetchAllData();
+      const { holdings, mfHoldings, sips, status } = await this.dataManager.fetchAllData();
 
       // Update data manager state
       const searchQuery = document.getElementById('search').value;
@@ -63,6 +70,7 @@ class PortfolioApp {
       
       this.dataManager.updateHoldings(holdings, forceUpdate);
       this.dataManager.updateMFHoldings(mfHoldings, forceUpdate);
+      this.dataManager.updateSIPs(sips, forceUpdate);
 
       // Update search query in renderer
       this.tableRenderer.setSearchQuery(searchQuery);
@@ -70,6 +78,7 @@ class PortfolioApp {
       // Render tables
       this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
       this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+      this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
 
       // Update combined summary
       const ltpUpdating = status.ltp_fetch_state === 'updating';
@@ -100,7 +109,7 @@ class PortfolioApp {
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Fetch all data including status
-        const { holdings, mfHoldings, status: currentStatus } = await this.dataManager.fetchAllData();
+        const { holdings, mfHoldings, sips, status: currentStatus } = await this.dataManager.fetchAllData();
         status = currentStatus;
         
         // Update status display during polling
@@ -113,11 +122,13 @@ class PortfolioApp {
         // Update data manager and render tables with current status
         this.dataManager.updateHoldings(holdings, true);
         this.dataManager.updateMFHoldings(mfHoldings, true);
+        this.dataManager.updateSIPs(sips, true);
         
         const searchQuery = document.getElementById('search').value;
         this.tableRenderer.setSearchQuery(searchQuery);
         this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
         this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+        this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
         
         const ltpUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
         const refreshRunning = status.state === 'updating';
@@ -131,7 +142,7 @@ class PortfolioApp {
       alert('Error triggering refresh: ' + error.message);
       await this.updateData();
     } finally {
-      btnText.innerText = 'Refresh Holdings';
+      btnText.innerText = 'Refresh';
     }
   }
 

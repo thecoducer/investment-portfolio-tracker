@@ -22,7 +22,7 @@ from pytz import timezone
 from datetime import datetime
 
 from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
-from api import AuthenticationManager, HoldingsService, LTPService
+from api import AuthenticationManager, HoldingsService, LTPService, SIPService
 from constants import (
     STATE_UPDATING,
     HTTP_ACCEPTED,
@@ -72,6 +72,7 @@ app_ui.static_folder = os.path.join(os.path.dirname(__file__), "static")
 # Global state
 merged_holdings_global: List[Dict[str, Any]] = []
 merged_mf_holdings_global: List[Dict[str, Any]] = []
+merged_sips_global: List[Dict[str, Any]] = []
 
 fetch_in_progress = threading.Event()
 
@@ -81,6 +82,7 @@ state_manager = StateManager()
 auth_manager = AuthenticationManager(session_manager, REQUEST_TOKEN_TIMEOUT)
 holdings_service = HoldingsService()
 ltp_service = LTPService()
+sip_service = SIPService()
 
 
 # --------------------------
@@ -130,6 +132,13 @@ def mf_holdings_data():
     return jsonify(sorted_mf)
 
 
+@app_ui.route("/sips_data", methods=["GET"])
+def sips_data():
+    """Return active SIPs as JSON."""
+    sorted_sips = sorted(merged_sips_global, key=lambda s: s.get("tradingsymbol", ""))
+    return jsonify(sorted_sips)
+
+
 @app_ui.route("/refresh", methods=["POST"])
 def refresh_route():
     """Trigger a refresh of holdings data."""
@@ -151,23 +160,25 @@ def holdings_page():
 # --------------------------
 # DATA FETCHING
 # --------------------------
-def fetch_account_holdings(account_config: Dict[str, Any], force_login: bool = False) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+def fetch_account_holdings(account_config: Dict[str, Any], force_login: bool = False) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
-    Authenticate and fetch holdings for an account.
+    Authenticate and fetch holdings and SIPs for an account.
     
     Args:
         account_config: Account configuration dict with name and env variable keys
         force_login: Force new login even if cached token exists
     
     Returns:
-        Tuple of (stock_holdings, mf_holdings)
+        Tuple of (stock_holdings, mf_holdings, sips)
     """
     kite = auth_manager.authenticate(account_config, force_login)
-    return holdings_service.fetch_holdings(kite)
+    stock_holdings, mf_holdings = holdings_service.fetch_holdings(kite)
+    sips = sip_service.fetch_sips(kite)
+    return stock_holdings, mf_holdings, sips
 
 
 def run_background_fetch(force_login: bool = False):
-    """Fetch holdings in background thread."""
+    """Fetch holdings and SIPs in background thread."""
     def _target():
         try:
             fetch_in_progress.set()
@@ -175,26 +186,31 @@ def run_background_fetch(force_login: bool = False):
             
             all_stock_holdings = []
             all_mf_holdings = []
+            all_sips = []
 
             for account_config in ACCOUNTS_CONFIG:
                 try:
-                    stock_holdings, mf_holdings = fetch_account_holdings(account_config, force_login)
+                    stock_holdings, mf_holdings, sips = fetch_account_holdings(account_config, force_login)
                     account_name = account_config["name"]
                     
                     holdings_service.add_account_info(stock_holdings, account_name)
                     holdings_service.add_account_info(mf_holdings, account_name)
+                    sip_service.add_account_info(sips, account_name)
                     
                     all_stock_holdings.append(stock_holdings)
                     all_mf_holdings.append(mf_holdings)
+                    all_sips.append(sips)
                 except Exception as e:
                     print(f"Error fetching for {account_config['name']}: {e}")
                     state_manager.last_error = str(e)
 
             merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
+            merged_sips = sip_service.merge_sips(all_sips)
             
-            global merged_holdings_global, merged_mf_holdings_global
+            global merged_holdings_global, merged_mf_holdings_global, merged_sips_global
             merged_holdings_global = merged_stocks
             merged_mf_holdings_global = merged_mfs
+            merged_sips_global = merged_sips
             state_manager.set_holdings_updated()
             state_manager.set_refresh_idle()
 

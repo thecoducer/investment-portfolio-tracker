@@ -4,8 +4,10 @@ class DataManager {
   constructor() {
     this.latestHoldings = [];
     this.latestMFHoldings = [];
+    this.latestSIPs = [];
     this.lastRenderedJSON = "";
     this.lastRenderedMFJSON = "";
+    this.lastRenderedSIPsJSON = "";
   }
 
   async fetchHoldings() {
@@ -18,18 +20,24 @@ class DataManager {
     return await response.json();
   }
 
+  async fetchSIPs() {
+    const response = await fetch('/sips_data');
+    return await response.json();
+  }
+
   async fetchStatus() {
     const response = await fetch('/status');
     return await response.json();
   }
 
   async fetchAllData() {
-    const [holdings, mfHoldings, status] = await Promise.all([
+    const [holdings, mfHoldings, sips, status] = await Promise.all([
       this.fetchHoldings(),
       this.fetchMFHoldings(),
+      this.fetchSIPs(),
       this.fetchStatus()
     ]);
-    return { holdings, mfHoldings, status };
+    return { holdings, mfHoldings, sips, status };
   }
 
   updateHoldings(holdings, forceUpdate = false) {
@@ -52,12 +60,26 @@ class DataManager {
     return false;
   }
 
+  updateSIPs(sips, forceUpdate = false) {
+    const sipsJSON = JSON.stringify(sips);
+    if (sipsJSON !== this.lastRenderedSIPsJSON || forceUpdate) {
+      this.latestSIPs = sips;
+      this.lastRenderedSIPsJSON = sipsJSON;
+      return true;
+    }
+    return false;
+  }
+
   getHoldings() {
     return this.latestHoldings;
   }
 
   getMFHoldings() {
     return this.latestMFHoldings;
+  }
+
+  getSIPs() {
+    return this.latestSIPs;
   }
 
   async triggerRefresh() {

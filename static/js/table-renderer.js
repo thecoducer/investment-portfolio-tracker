@@ -100,6 +100,23 @@ class TableRenderer {
     }, ltpRunning);
   }
 
+  renderSIPsTable(sips, status) {
+    const tbody = document.getElementById('sips_tbody');
+    const refreshRunning = status.state === 'updating';
+
+    tbody.innerHTML = '';
+
+    sips.forEach(sip => {
+      const fundName = (sip.fund || sip.tradingsymbol).toUpperCase();
+      const text = (fundName + sip.account).toLowerCase();
+      if (!text.includes(this.searchQuery)) return;
+
+      const dataClass = refreshRunning ? 'updating-field' : '';
+
+      tbody.innerHTML += this._buildSIPRow(fundName, sip, dataClass);
+    });
+  }
+
   _buildStockRow(holding, metrics, classes) {
     return `<tr style="background-color:${Formatter.rowColor(metrics.pl)}">
 <td>${holding.tradingsymbol}</td>
@@ -158,6 +175,67 @@ class TableRenderer {
 <td><span class="${classes.plClass}" style="color:${Formatter.colorPL(metrics.pl)};font-weight:600">${Formatter.formatNumber(metrics.pl)}</span></td>
 <td class="${classes.currentClass}">${Formatter.formatNumber(metrics.current)} <span class="pl_pct_small" style="color:${Formatter.colorPL(metrics.pl)}">${metrics.plPct.toFixed(2)}%</span></td>
 <td>${mf.account}</td>
+</tr>`;
+  }
+
+  _buildSIPRow(fundName, sip, dataClass) {
+    // Format frequency
+    const frequency = sip.frequency || '-';
+    
+    // Format installments - handle -1 as perpetual/unlimited
+    let installments = '-';
+    if (sip.instalments && sip.instalments !== -1) {
+      const completed = sip.completed_instalments || 0;
+      installments = `${completed}/${sip.instalments}`;
+    } else if (sip.completed_instalments && sip.completed_instalments > 0) {
+      // For perpetual SIPs, just show completed count
+      installments = `${sip.completed_instalments}`;
+    }
+    
+    // Format status with color
+    const status = sip.status || 'UNKNOWN';
+    let statusColor = '#666';
+    if (status === 'ACTIVE') statusColor = '#28a745';
+    else if (status === 'PAUSED') statusColor = '#ffc107';
+    else if (status === 'CANCELLED') statusColor = '#dc3545';
+    
+    // Format next due date
+    let nextDueText = '-';
+    if (sip.next_instalment && status === 'ACTIVE') {
+      try {
+        const nextDate = new Date(sip.next_instalment);
+        if (!isNaN(nextDate.getTime())) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const compareDate = new Date(nextDate);
+          compareDate.setHours(0, 0, 0, 0);
+          
+          const diffTime = compareDate.getTime() - today.getTime();
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          
+          if (diffDays === 0) {
+            nextDueText = 'Today';
+          } else if (diffDays === 1) {
+            nextDueText = 'Tomorrow';
+          } else if (diffDays > 1 && diffDays <= 7) {
+            nextDueText = `In ${diffDays} days`;
+          } else {
+            nextDueText = nextDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+          }
+        }
+      } catch (e) {
+        nextDueText = sip.next_instalment;
+      }
+    }
+    
+    return `<tr>
+<td class="${dataClass}">${fundName}</td>
+<td class="${dataClass}">₹${(sip.instalment_amount || 0).toLocaleString()}</td>
+<td class="${dataClass}">${frequency}</td>
+<td class="${dataClass}">${installments}</td>
+<td class="${dataClass}"><span style="color:${statusColor};font-weight:600">${status}</span></td>
+<td class="${dataClass}">${nextDueText}</td>
+<td class="${dataClass}">${sip.account}</td>
 </tr>`;
   }
 

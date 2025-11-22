@@ -21,6 +21,7 @@ class MockKiteConnect:
         self._mock_holdings = []
         self._mock_mf_holdings = []
         self._mock_mf_instruments = []
+        self._mock_mf_sips = []
     
     def set_access_token(self, access_token: str):
         self._access_token = access_token
@@ -39,6 +40,13 @@ class MockKiteConnect:
         if not self._access_token:
             raise Exception("Not authenticated")
         return self._mock_mf_instruments
+    
+    def mf_sips(self, sip_id=None):
+        if not self._access_token:
+            raise Exception("Not authenticated")
+        if sip_id:
+            return [sip for sip in self._mock_mf_sips if sip.get('sip_id') == sip_id]
+        return self._mock_mf_sips
     
     def profile(self):
         if not self._access_token:
