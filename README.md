@@ -14,11 +14,45 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 - **NAV date tracking**: Shows when mutual fund NAV was last updated
 - **Responsive design**: Clean, professional interface with smooth animations
 
+## 📋 Prerequisites
+
+Before running the application, make sure you have:
+
+1. **Python 3.8 or higher** installed on your system
+2. **Zerodha KiteConnect API credentials** ([Get them here](https://kite.trade/))
+   - API Key
+   - API Secret
+3. **Modern web browser** (Chrome, Firefox, Safari, Edge)
+
+## ⚙️ Configuration (Required)
+
+**Important:** You must configure your API credentials before running the application.
+
+1. **Copy the example configuration:**
+   ```bash
+   cp config.json.example config.json
+   ```
+
+2. **Edit `config.json` with your Zerodha API credentials:**
+   ```json
+   {
+     "accounts": [
+       {
+         "name": "YourAccountName",
+         "api_key": "your_kite_api_key",
+         "api_secret": "your_kite_api_secret"
+       }
+     ]
+   }
+   ```
+
+3. **Never commit `config.json`** - It contains sensitive credentials and is gitignored by default.
+
 ## 🚀 Quick Start
 
 ### One-Command Setup
 
-Simply run the startup script:
+After configuring your API credentials in `config.json`, simply run:
 
 ```bash
 ./start.sh
@@ -26,10 +60,11 @@ Simply run the startup script:
 
 This script will:
 - ✅ Check Python installation
+- ✅ Validate your configuration
 - ✅ Create virtual environment
 - ✅ Install all dependencies
-- ✅ Validate configuration
 - ✅ Start the server
+- ✅ Open dashboard in browser
 
 **Dashboard URL**: `http://127.0.0.1:8000/holdings`
 
@@ -76,13 +111,7 @@ The dashboard will automatically open in your browser. If not, manually navigate
 5. **Access the dashboard**
    Open your browser: `http://127.0.0.1:8000/holdings`
 
-## 📋 Prerequisites
-
-- Python 3.8 or higher
-- Zerodha KiteConnect API credentials ([Get them here](https://kite.trade/))
-- Modern web browser (Chrome, Firefox, Safari, Edge)
-
-## ⚙️ Configuration
+## 📝 Configuration Options
 
 ### config.json Structure
 
