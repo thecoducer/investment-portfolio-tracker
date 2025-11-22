@@ -1,141 +1,265 @@
 # Investment Portfolio Tracker
 
-A Flask-based web application for tracking mutual fund and stock holdings from Zerodha brokerage accounts.
+A modern, modular Flask-based web application for tracking mutual fund and stock holdings from Zerodha brokerage accounts with real-time price updates.
 
-## Features
+## ✨ Features
 
 - **Multi-account support**: Track holdings across multiple Zerodha accounts
-- **Session token caching**: Auto-login on restart using cached tokens
-- **Real-time LTP updates**: Automatic stock price updates during market hours
-- **Summary dashboard**: Combined view of total invested, current value, and P/L
+- **Session token caching**: Auto-login on restart using cached session tokens
+- **Real-time LTP updates**: Automatic stock price updates with configurable intervals
+- **Interactive dashboard**: Modern UI with dark/light theme toggle
 - **Search & filter**: Quick search across symbols and accounts
-- **Responsive UI**: Modern, clean dashboard interface
+- **Live animations**: Pulsating indicators during data updates
+- **Combined analytics**: Aggregated view of stocks and mutual funds
+- **NAV date tracking**: Shows when mutual fund NAV was last updated
+- **Responsive design**: Clean, professional interface with smooth animations
 
-## Installation
+## 🚀 Quick Start
 
-### Prerequisites
-- Python 3.8+
-- Zerodha KiteConnect API credentials
-- pip
+### One-Command Setup
 
-### Setup
+Simply run the startup script:
 
-1. **Clone/Extract the project**
+```bash
+./start.sh
+```
+
+This script will:
+- ✅ Check Python installation
+- ✅ Create virtual environment
+- ✅ Install all dependencies
+- ✅ Validate configuration
+- ✅ Start the server
+
+### Manual Setup
+
+1. **Clone the repository**
    ```bash
-   cd portfolio_tracker
+   git clone https://github.com/thecoducer/investment-portfolio-tracker.git
+   cd investment-portfolio-tracker
    ```
 
-2. **Install dependencies**
+2. **Create configuration**
    ```bash
+   cp config.json.example config.json
+   ```
+   
+   Edit `config.json` and add your Zerodha API credentials:
+   ```json
+   {
+     "accounts": [
+       {
+         "name": "YourAccount",
+         "api_key": "your_kite_api_key",
+         "api_secret": "your_kite_api_secret"
+       }
+     ]
+   }
+   ```
+
+3. **Install dependencies**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
-3. **Configure your accounts**
-   Edit `config.json` and update the `api_key_env` and `api_secret_env` fields to match your environment variable names.
-
-4. **Set environment variables**
+4. **Run the server**
    ```bash
-   export KITE_API_KEY_MAYUKH=your_api_key
-   export KITE_API_SECRET_MAYUKH=your_api_secret
-   export KITE_API_KEY_MOTHER=your_api_key
-   export KITE_API_SECRET_MOTHER=your_api_secret
+   python3 server.py
    ```
 
-   Or create a `.env` file in the project root:
-   ```
-   KITE_API_KEY_MAYUKH=your_api_key
-   KITE_API_SECRET_MAYUKH=your_api_secret
-   KITE_API_KEY_MOTHER=your_api_key
-   KITE_API_SECRET_MOTHER=your_api_secret
-   ```
+5. **Access the dashboard**
+   Open your browser: `http://127.0.0.1:8000/holdings`
 
-5. **Run the server**
-   ```bash
-   python server.py
-   ```
+## 📋 Prerequisites
 
-6. **Access the dashboard**
-   Open your browser and navigate to: `http://127.0.0.1:8000/holdings`
+- Python 3.8 or higher
+- Zerodha KiteConnect API credentials ([Get them here](https://kite.trade/))
+- Modern web browser (Chrome, Firefox, Safari, Edge)
 
-## Configuration
+## ⚙️ Configuration
 
-### config.json
+### config.json Structure
 
-- **accounts**: List of account configurations
-  - `name`: Display name for the account
-  - `api_key_env`: Environment variable name for API key
-  - `api_secret_env`: Environment variable name for API secret
-
-- **server**: Server configuration
-  - `callback_host`: OAuth callback host (default: 127.0.0.1)
-  - `callback_port`: OAuth callback port (default: 5000)
-  - `ui_host`: UI server host (default: 127.0.0.1)
-  - `ui_port`: UI server port (default: 8000)
-
-- **timeouts**: Timeout configuration
-  - `request_token_timeout_seconds`: Auth timeout (default: 180)
-  - `ltp_fetch_interval_seconds`: Price update interval (default: 60)
-
-- **features**: Feature flags
-  - `auto_ltp_update`: Enable automatic real-time price updates (default: true)
-
-## Architecture
-
-- `server.py`: Main Flask application
-- `utils.py`: Utility classes and functions
-- `templates.py`: HTML template provider
-- `static/styles.css`: Stylesheet
-- `static/app.js`: Frontend JavaScript
-- `config.json`: Configuration file
-- `.session_cache.json`: Cached session tokens (auto-generated)
-
-## Usage
-
-### First Login
-On first run, clicking "Refresh Holdings" will open your browser for KiteConnect OAuth login. After authentication, your token is cached locally.
-
-### Subsequent Runs
-If your token hasn't expired, the app uses the cached token silently. If expired, it will prompt for re-login.
-
-### Real-time Updates
-The dashboard automatically refreshes every 2 seconds. Stock prices update every minute during market hours.
-
-### Search & Filter
-Use the search box to filter holdings by symbol name or account.
-
-## Security Notes
-
-- Session tokens are cached locally in `.session_cache.json`
-- Tokens are set to expire after ~24 hours
-- Never commit `.session_cache.json` or `.env` to version control
-- API keys/secrets should only be set via environment variables
-
-## Troubleshooting
-
-### "Missing API credentials" error
-Ensure all environment variables defined in `config.json` are set. Check:
-```bash
-echo $KITE_API_KEY_MAYUKH
-echo $KITE_API_SECRET_MAYUKH
+```json
+{
+  "accounts": [
+    {
+      "name": "Account1",
+      "api_key": "your_api_key",
+      "api_secret": "your_api_secret"
+    }
+  ],
+  "server": {
+    "callback_host": "127.0.0.1",
+    "callback_port": 5000,
+    "callback_path": "/callback",
+    "ui_host": "127.0.0.1",
+    "ui_port": 8000
+  },
+  "timeouts": {
+    "request_token_timeout_seconds": 180,
+    "ltp_fetch_interval_seconds": 60
+  },
+  "features": {
+    "auto_ltp_update": true
+  }
+}
 ```
 
-### Token expired, login not triggered
-Check the browser console for errors and ensure your `.env` file or environment variables are set.
+### Configuration Options
 
-### LTP not updating
-Check that:
-1. `auto_ltp_update` is `true` in config.json
-2. Market is open (9:15 AM to 3:30 PM IST on weekdays)
-3. Stock symbols are valid
+**accounts**: Array of Zerodha account configurations
+- `name`: Display name for the account
+- `api_key`: Your Zerodha KiteConnect API key
+- `api_secret`: Your Zerodha KiteConnect API secret
 
-## Development
+**server**: Server configuration
+- `callback_host`: OAuth callback host (default: 127.0.0.1)
+- `callback_port`: OAuth callback port (default: 5000)
+- `callback_path`: OAuth callback path (default: /callback)
+- `ui_host`: UI server host (default: 127.0.0.1)
+- `ui_port`: UI server port (default: 8000)
 
-The codebase is structured for easy extension:
-- Add new routes in `server.py`
-- Add utilities in `utils.py`
-- Modify styles in `static/styles.css`
-- Update frontend logic in `static/app.js`
+**timeouts**: Timing configuration
+- `request_token_timeout_seconds`: OAuth timeout (default: 180)
+- `ltp_fetch_interval_seconds`: Price update interval (default: 60)
 
-## License
+**features**: Feature toggles
+- `auto_ltp_update`: Enable automatic real-time price updates (default: true)
 
-This project is for personal use.
+## 🏗️ Architecture
+
+### Backend (Python/Flask)
+```
+├── server.py              # Main Flask application & routes
+├── api/
+│   ├── auth.py           # Authentication & OAuth flow
+│   ├── holdings.py       # Holdings data fetching & enrichment
+│   └── ltp.py            # Real-time price updates
+├── utils.py              # State & session management
+├── constants.py          # Application constants
+└── templates.py          # HTML template provider
+```
+
+### Frontend (JavaScript/ES6)
+```
+├── static/
+│   ├── js/
+│   │   ├── app.js            # Main application controller
+│   │   ├── data-manager.js   # API data fetching
+│   │   ├── table-renderer.js # Table rendering with animations
+│   │   ├── summary-manager.js # Portfolio summary calculations
+│   │   ├── theme-manager.js   # Dark/light theme switching
+│   │   └── utils.js          # Formatters & calculators
+│   └── styles.css            # Styling with dark/light themes
+```
+
+## 🎯 Usage
+
+### First Login
+1. Click the "Refresh Holdings" button
+2. Browser will open for Zerodha OAuth authentication
+3. Log in and authorize the app
+4. Token is cached for future use
+
+### Subsequent Use
+- Cached tokens are automatically used (valid for ~24 hours)
+- Manual refresh if token expires
+- Auto-refresh every 2 seconds for UI updates
+- LTP updates every 60 seconds (configurable)
+
+### Features in Action
+
+**Search & Filter**: Type in the search box to filter holdings by symbol or account
+
+**Theme Toggle**: Click the theme button (🌙/☀️) to switch between dark and light modes
+
+**Real-time Updates**: Watch fields pulse during refresh and LTP updates
+- Quantity, Average Price, Invested: Pulse during manual refresh
+- LTP, P/L, Current Value: Pulse during both refresh and LTP updates
+
+**NAV Dates**: Mutual fund NAV shows relative date (today, yesterday, X days ago)
+
+## 🔒 Security
+
+- ⚠️ **Never commit `config.json`** - Contains sensitive API credentials
+- ✅ Session tokens cached in `.session_cache.json` (auto-generated, gitignored)
+- ✅ All sensitive files excluded via `.gitignore`
+- ✅ OAuth flow for secure authentication
+- ✅ Token auto-renewal when possible
+
+**Files to keep private:**
+- `config.json`
+- `.session_cache.json`
+- `.env` (if used)
+
+## 🛠️ Development
+
+### Project Structure
+The codebase follows modular architecture with clear separation of concerns:
+
+- **Backend services**: Authentication, holdings, LTP fetching
+- **Frontend modules**: ES6 imports with dedicated managers
+- **State management**: Centralized state handling
+- **Configuration**: JSON-based config with validation
+
+### Adding Features
+1. **New API endpoints**: Add routes in `server.py`
+2. **Backend logic**: Extend services in `api/` directory
+3. **Frontend features**: Add modules in `static/js/`
+4. **Styling**: Update `static/styles.css`
+
+### Running Tests
+```bash
+# Activate virtual environment
+source venv/bin/activate
+
+# Run the server
+python3 server.py
+```
+
+## 📦 Dependencies
+
+- `flask==2.3.3` - Web framework
+- `kiteconnect==5.0.1` - Zerodha API client
+- `requests==2.31.0` - HTTP library
+- `pytz==2023.3` - Timezone handling
+- `python-dotenv==1.0.0` - Environment variable management
+
+## 🐛 Troubleshooting
+
+### Configuration Issues
+```bash
+./start.sh  # Will validate config and show specific errors
+```
+
+### Missing Dependencies
+```bash
+pip install -r requirements.txt --upgrade
+```
+
+### Token Expired
+- Click "Refresh Holdings" to re-authenticate
+- Check `.session_cache.json` exists and is readable
+
+### LTP Not Updating
+1. Verify `auto_ltp_update: true` in config.json
+2. Check market hours (9:15 AM - 3:30 PM IST, weekdays)
+3. Ensure valid stock symbols
+
+### Port Already in Use
+Edit `config.json` and change `ui_port` or `callback_port` to different values
+
+## 📝 License
+
+This project is for personal use. Feel free to fork and modify for your needs.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit issues or pull requests.
+
+## 📧 Contact
+
+For questions or support, please open an issue on GitHub.
