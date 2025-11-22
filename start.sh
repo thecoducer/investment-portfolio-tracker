@@ -173,9 +173,24 @@ source "$VENV_DIR/bin/activate" || {
 }
 print_success "Virtual environment activated"
 
+# Verify pip is available in venv
+if ! command -v pip &> /dev/null; then
+    print_error "pip not found in virtual environment"
+    print_info "Attempting to reinstall virtual environment..."
+    rm -rf "$VENV_DIR"
+    python3 -m venv "$VENV_DIR" || {
+        print_error "Failed to recreate virtual environment"
+        exit 1
+    }
+    source "$VENV_DIR/bin/activate" || {
+        print_error "Failed to activate virtual environment"
+        exit 1
+    }
+fi
+
 # Upgrade pip in virtual environment
 print_info "Upgrading pip..."
-pip install --upgrade pip --quiet
+python -m pip install --upgrade pip --quiet
 
 # Install requirements
 print_info "Installing/updating requirements..."
@@ -184,7 +199,7 @@ if [ ! -f "requirements.txt" ]; then
     exit 1
 fi
 
-pip install -r requirements.txt --quiet || {
+python -m pip install -r requirements.txt --quiet || {
     print_error "Failed to install requirements"
     deactivate
     exit 1
