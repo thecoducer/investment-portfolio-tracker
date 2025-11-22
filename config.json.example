@@ -1,0 +1,28 @@
+{
+  "accounts": [
+    {
+      "name": "Account1",
+      "api_key": "your_kite_api_key_here",
+      "api_secret": "your_kite_api_secret_here"
+    },
+    {
+      "name": "Account2",
+      "api_key": "your_kite_api_key_here",
+      "api_secret": "your_kite_api_secret_here"
+    }
+  ],
+  "server": {
+    "callback_host": "127.0.0.1",
+    "callback_port": 5000,
+    "callback_path": "/callback",
+    "ui_host": "127.0.0.1",
+    "ui_port": 8000
+  },
+  "timeouts": {
+    "request_token_timeout_seconds": 180,
+    "ltp_fetch_interval_seconds": 60
+  },
+  "features": {
+    "enable_ltp_fetcher": true
+  }
+}
