@@ -24,11 +24,14 @@ class PortfolioApp {
     // Set up event listeners
     this._setupEventListeners();
 
-    // Start periodic updates
+    // Show loading state
+    this._showLoadingState();
+
+    // Start periodic updates (will handle initial data fetch)
     this.startPeriodicUpdates(2000);
 
-    // Initial data fetch
-    await this.updateData();
+    // Fetch initial data without blocking
+    this.updateData();
   }
 
   _setupEventListeners() {
@@ -45,6 +48,13 @@ class PortfolioApp {
 
     // Refresh button (assuming button will call this via global function)
     window.triggerRefresh = () => this.handleRefresh();
+  }
+
+  _showLoadingState() {
+    const statusTag = document.getElementById('status_tag');
+    const statusText = document.getElementById('status_text');
+    statusTag.className = 'updating';
+    statusText.innerText = 'loading';
   }
 
   handleSearch() {

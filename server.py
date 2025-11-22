@@ -16,8 +16,10 @@ import time
 from typing import List, Dict, Any
 import json
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
+from flask.json.provider import DefaultJSONProvider
 from zoneinfo import ZoneInfo
 from datetime import datetime
 
@@ -69,6 +71,10 @@ app_ui = Flask("ui_server")
 app_ui.template_folder = os.path.join(os.path.dirname(__file__), "templates")
 app_ui.static_folder = os.path.join(os.path.dirname(__file__), "static")
 
+# Enable JSON compression for faster responses
+app_ui.config['JSON_SORT_KEYS'] = False
+app_ui.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+
 # Global state
 merged_holdings_global: List[Dict[str, Any]] = []
 merged_mf_holdings_global: List[Dict[str, Any]] = []
@@ -108,7 +114,7 @@ def status():
     ltp_state = state_manager.ltp_fetch_state
     
     # Return raw internal states for the UI to interpret
-    return jsonify({
+    response = jsonify({
         "state": state,
         "ltp_fetch_state": ltp_state,
         "last_error": state_manager.last_error,
@@ -116,27 +122,37 @@ def status():
         "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
         "session_validity": session_manager.get_validity()
     })
+    # Don't cache status as it changes frequently
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return response
 
 
 @app_ui.route("/holdings_data", methods=["GET"])
 def holdings_data():
     """Return stock holdings as JSON."""
     sorted_holdings = sorted(merged_holdings_global, key=lambda h: h.get("tradingsymbol", ""))
-    return jsonify(sorted_holdings)
+    response = jsonify(sorted_holdings)
+    # Add cache control for faster reloads
+    response.headers['Cache-Control'] = 'private, max-age=30'
+    return response
 
 
 @app_ui.route("/mf_holdings_data", methods=["GET"])
 def mf_holdings_data():
     """Return MF holdings as JSON."""
     sorted_mf = sorted(merged_mf_holdings_global, key=lambda h: h.get("tradingsymbol", ""))
-    return jsonify(sorted_mf)
+    response = jsonify(sorted_mf)
+    response.headers['Cache-Control'] = 'private, max-age=30'
+    return response
 
 
 @app_ui.route("/sips_data", methods=["GET"])
 def sips_data():
     """Return active SIPs as JSON."""
     sorted_sips = sorted(merged_sips_global, key=lambda s: s.get("tradingsymbol", ""))
-    return jsonify(sorted_sips)
+    response = jsonify(sorted_sips)
+    response.headers['Cache-Control'] = 'private, max-age=30'
+    return response
 
 
 @app_ui.route("/refresh", methods=["POST"])
@@ -188,7 +204,9 @@ def run_background_fetch(force_login: bool = False):
             all_mf_holdings = []
             all_sips = []
 
-            for account_config in ACCOUNTS_CONFIG:
+            # Fetch accounts in parallel using ThreadPoolExecutor
+            def fetch_single_account(account_config):
+                """Fetch holdings for a single account."""
                 try:
                     stock_holdings, mf_holdings, sips = fetch_account_holdings(account_config, force_login)
                     account_name = account_config["name"]
@@ -197,12 +215,26 @@ def run_background_fetch(force_login: bool = False):
                     holdings_service.add_account_info(mf_holdings, account_name)
                     sip_service.add_account_info(sips, account_name)
                     
-                    all_stock_holdings.append(stock_holdings)
-                    all_mf_holdings.append(mf_holdings)
-                    all_sips.append(sips)
+                    return stock_holdings, mf_holdings, sips, None
                 except Exception as e:
                     print(f"Error fetching for {account_config['name']}: {e}")
-                    state_manager.last_error = str(e)
+                    return [], [], [], str(e)
+
+            # Execute parallel fetches
+            with ThreadPoolExecutor(max_workers=len(ACCOUNTS_CONFIG)) as executor:
+                futures = {
+                    executor.submit(fetch_single_account, account_config): account_config
+                    for account_config in ACCOUNTS_CONFIG
+                }
+                
+                for future in as_completed(futures):
+                    stock_holdings, mf_holdings, sips, error = future.result()
+                    if error:
+                        state_manager.last_error = error
+                    else:
+                        all_stock_holdings.append(stock_holdings)
+                        all_mf_holdings.append(mf_holdings)
+                        all_sips.append(sips)
 
             merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
             merged_sips = sip_service.merge_items(all_sips)
