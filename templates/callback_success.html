@@ -10,26 +10,26 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: white;
         }
         .message {
-            background: white;
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
             text-align: center;
+            padding: 20px;
         }
         .checkmark {
             color: #4CAF50;
-            font-size: 60px;
-            margin-bottom: 20px;
+            font-size: 48px;
+            margin-bottom: 15px;
         }
         h1 {
             color: #333;
+            font-size: 24px;
+            font-weight: 500;
             margin: 0 0 10px 0;
         }
         p {
             color: #666;
+            font-size: 14px;
             margin: 0;
         }
     </style>
@@ -37,8 +37,8 @@
 <body>
     <div class="message">
         <div class="checkmark">✓</div>
-        <h1>Authentication Successful!</h1>
-        <p>This window will close automatically...</p>
+        <h1>Authentication Successful</h1>
+        <p>You can close this tab now.</p>
     </div>
     <script>
         // Try multiple methods to close the window
@@ -51,13 +51,6 @@
                 window.open('', '_self', '');
                 window.close();
             }, 500);
-            
-            // Method 3: If still open after 1 second, update message
-            setTimeout(function() {
-                if (!window.closed) {
-                    document.querySelector('.message p').textContent = 'You can close this tab now.';
-                }
-            }, 1000);
         })();
     </script>
 </body>
