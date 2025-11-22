@@ -275,10 +275,15 @@ def main():
         print(f"Starting callback server at {REDIRECT_URL}")
         start_server(app_callback, CALLBACK_HOST, CALLBACK_PORT)
         
-        print(f"Starting UI server at http://{UI_HOST}:{UI_PORT}/holdings")
+        dashboard_url = f"http://{UI_HOST}:{UI_PORT}/holdings"
+        print(f"Starting UI server at {dashboard_url}")
         start_server(app_ui, UI_HOST, UI_PORT)
         
         print("Server is ready. Press CTRL+C to stop.")
+        
+        # Open browser automatically
+        print(f"Opening dashboard in browser: {dashboard_url}")
+        threading.Timer(1.5, lambda: webbrowser.open(dashboard_url)).start()
         
         # Trigger initial holdings refresh and set status to updating
         print("Triggering initial holdings refresh...")

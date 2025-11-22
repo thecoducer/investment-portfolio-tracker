@@ -31,6 +31,10 @@ This script will:
 - ✅ Validate configuration
 - ✅ Start the server
 
+**Dashboard URL**: `http://127.0.0.1:8000/holdings`
+
+The dashboard will automatically open in your browser. If not, manually navigate to the URL above.
+
 ### Manual Setup
 
 1. **Clone the repository**
