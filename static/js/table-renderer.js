@@ -55,8 +55,8 @@ class TableRenderer {
    */
   _buildValueWithPctCell(value, percentage, cssClass = '') {
     const formatted = Formatter.formatNumber(value);
-    const color = Formatter.colorPL(value);
-    const pctText = `${Formatter.formatSign(value)}${percentage.toFixed(2)}%`;
+    const color = Formatter.colorPL(percentage);
+    const pctText = `${Formatter.formatSign(percentage)}${Math.abs(percentage).toFixed(2)}%`;
     return `<td class="${cssClass}">${formatted} <span class="pl_pct_small" style="color:${color}">${pctText}</span></td>`;
   }
 
