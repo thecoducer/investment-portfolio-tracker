@@ -59,8 +59,8 @@ This script will:
 
 3. **Install dependencies**
    ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python3 -m venv run_server
+   source run_server/bin/activate  # On Windows: run_server\Scripts\activate
    pip install -r requirements.txt
    ```
 
@@ -214,7 +214,7 @@ The codebase follows modular architecture with clear separation of concerns:
 ### Running Tests
 ```bash
 # Activate virtual environment
-source venv/bin/activate
+source run_server/bin/activate
 
 # Run the server
 python3 server.py
