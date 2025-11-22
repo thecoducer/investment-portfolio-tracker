@@ -140,7 +140,8 @@ This script will:
 │   └── ltp.py            # Real-time price updates
 ├── utils.py              # State & session management
 ├── constants.py          # Application constants
-└── templates.py          # HTML template provider
+└── templates/
+    └── holdings.html     # Main dashboard HTML template
 ```
 
 ### Frontend (JavaScript/ES6)
