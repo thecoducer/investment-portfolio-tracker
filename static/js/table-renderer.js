@@ -105,6 +105,7 @@ class TableRenderer {
     const refreshRunning = status.state === 'updating';
 
     tbody.innerHTML = '';
+    let totalMonthlyAmount = 0;
 
     sips.forEach(sip => {
       const fundName = (sip.fund || sip.tradingsymbol).toUpperCase();
@@ -114,7 +115,40 @@ class TableRenderer {
       const dataClass = refreshRunning ? 'updating-field' : '';
 
       tbody.innerHTML += this._buildSIPRow(fundName, sip, dataClass);
+      
+      // Calculate total monthly amount for active SIPs
+      if (sip.status === 'ACTIVE' && sip.instalment_amount) {
+        const frequency = sip.frequency || 'monthly';
+        const amount = sip.instalment_amount;
+        
+        // Convert to monthly equivalent
+        if (frequency.toLowerCase() === 'monthly') {
+          totalMonthlyAmount += amount;
+        } else if (frequency.toLowerCase() === 'weekly') {
+          totalMonthlyAmount += amount * 4.33; // Average weeks per month
+        } else if (frequency.toLowerCase() === 'quarterly') {
+          totalMonthlyAmount += amount / 3;
+        }
+      }
     });
+    
+    // Update total amount display
+    this._updateSIPTotal(totalMonthlyAmount, refreshRunning);
+  }
+
+  _updateSIPTotal(totalAmount, refreshRunning) {
+    const totalEl = document.getElementById('sip_total_amount');
+    if (totalEl) {
+      totalEl.innerText = '₹' + totalAmount.toLocaleString(undefined, { 
+        minimumFractionDigits: 0, 
+        maximumFractionDigits: 0 
+      });
+      if (refreshRunning) {
+        totalEl.classList.add('updating-field');
+      } else {
+        totalEl.classList.remove('updating-field');
+      }
+    }
   }
 
   _buildStockRow(holding, metrics, classes) {

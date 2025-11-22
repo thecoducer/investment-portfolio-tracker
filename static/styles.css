@@ -302,6 +302,35 @@ body.dark-theme .theme-toggle:hover {
   font-family: 'Raleway', sans-serif;
 }
 
+/* SIP Total Summary */
+.sip-total {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: #fff;
+  border: 1px solid rgba(139, 119, 101, 0.1);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  margin-top: -14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.sip-total-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6d5e52;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sip-total-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #28a745;
+}
+
 /* ============ TABLES ============ */
 
 table {
@@ -568,6 +597,19 @@ body.dark-theme tbody tr:hover {
   box-shadow: inset 0 0 10px rgba(212, 204, 192, 0.08);
 }
 
+body.dark-theme .sip-total {
+  background: #1a1613;
+  border-color: rgba(212, 204, 192, 0.1);
+}
+
+body.dark-theme .sip-total-label {
+  color: #a89984;
+}
+
+body.dark-theme .sip-total-value {
+  color: #50c878;
+}
+
 body.dark-theme .section-wrapper h2 {
   color: #d4ccc0;
 }
@@ -586,7 +628,8 @@ body.privacy-mode tbody tr td:nth-child(4),
 body.privacy-mode tbody tr td:nth-child(6),
 body.privacy-mode tbody tr td:nth-child(7),
 body.privacy-mode tbody tr td:nth-child(8),
-body.privacy-mode tbody tr td:nth-child(10) {
+body.privacy-mode tbody tr td:nth-child(10),
+body.privacy-mode .sip-total-value {
   filter: blur(8px);
   user-select: none;
   transition: filter 0.2s ease;

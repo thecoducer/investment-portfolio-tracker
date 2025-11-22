@@ -18,7 +18,7 @@ import json
 import webbrowser
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
-from pytz import timezone
+from zoneinfo import ZoneInfo
 from datetime import datetime
 
 from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist

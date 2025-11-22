@@ -277,8 +277,8 @@ python3 server.py
 - `flask==2.3.3` - Web framework
 - `kiteconnect==5.0.1` - Zerodha API client
 - `requests==2.31.0` - HTTP library
-- `pytz==2023.3` - Timezone handling
 - `python-dotenv==1.0.0` - Environment variable management
+- `zoneinfo` (Python 3.9+) - Timezone handling (built-in)
 
 ## 🐛 Troubleshooting
 

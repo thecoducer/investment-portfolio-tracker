@@ -10,6 +10,7 @@ omit =
     */.venv/*
     setup.py
     */site-packages/*
+disable_warnings = module-not-imported
 
 [report]
 exclude_lines =

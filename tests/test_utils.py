@@ -7,7 +7,7 @@ import json
 import tempfile
 from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
-import pytz
+from zoneinfo import ZoneInfo
 
 from utils import (
     SessionManager,
@@ -249,8 +249,8 @@ class TestMarketHours(unittest.TestCase):
     def test_market_open_weekday_during_hours(self, mock_datetime):
         """Test market open on weekday during trading hours"""
         # Mock a Wednesday at 10:00 AM IST
-        ist = pytz.timezone('Asia/Kolkata')
-        mock_now = ist.localize(datetime(2025, 11, 26, 10, 0, 0))  # Wednesday
+        ist = ZoneInfo('Asia/Kolkata')
+        mock_now = datetime(2025, 11, 26, 10, 0, 0, tzinfo=ist)  # Wednesday
         mock_datetime.now.return_value = mock_now
         
         result = is_market_open_ist()
@@ -259,8 +259,8 @@ class TestMarketHours(unittest.TestCase):
     @patch('utils.datetime')
     def test_market_closed_before_hours(self, mock_datetime):
         """Test market closed before trading hours"""
-        ist = pytz.timezone('Asia/Kolkata')
-        mock_now = ist.localize(datetime(2025, 11, 26, 8, 0, 0))  # 8 AM
+        ist = ZoneInfo('Asia/Kolkata')
+        mock_now = datetime(2025, 11, 26, 8, 0, 0, tzinfo=ist)  # 8 AM
         mock_datetime.now.return_value = mock_now
         
         result = is_market_open_ist()
@@ -269,8 +269,8 @@ class TestMarketHours(unittest.TestCase):
     @patch('utils.datetime')
     def test_market_closed_after_hours(self, mock_datetime):
         """Test market closed after trading hours"""
-        ist = pytz.timezone('Asia/Kolkata')
-        mock_now = ist.localize(datetime(2025, 11, 26, 17, 0, 0))  # 5 PM (after 4:30 PM close)
+        ist = ZoneInfo('Asia/Kolkata')
+        mock_now = datetime(2025, 11, 26, 17, 0, 0, tzinfo=ist)  # 5 PM (after 4:30 PM close)
         mock_datetime.now.return_value = mock_now
         
         result = is_market_open_ist()
@@ -279,8 +279,8 @@ class TestMarketHours(unittest.TestCase):
     @patch('utils.datetime')
     def test_market_closed_weekend_saturday(self, mock_datetime):
         """Test market closed on Saturday"""
-        ist = pytz.timezone('Asia/Kolkata')
-        mock_now = ist.localize(datetime(2025, 11, 22, 10, 0, 0))  # Saturday
+        ist = ZoneInfo('Asia/Kolkata')
+        mock_now = datetime(2025, 11, 22, 10, 0, 0, tzinfo=ist)  # Saturday
         mock_datetime.now.return_value = mock_now
         
         result = is_market_open_ist()
@@ -289,8 +289,8 @@ class TestMarketHours(unittest.TestCase):
     @patch('utils.datetime')
     def test_market_closed_weekend_sunday(self, mock_datetime):
         """Test market closed on Sunday"""
-        ist = pytz.timezone('Asia/Kolkata')
-        mock_now = ist.localize(datetime(2025, 11, 23, 10, 0, 0))  # Sunday
+        ist = ZoneInfo('Asia/Kolkata')
+        mock_now = datetime(2025, 11, 23, 10, 0, 0, tzinfo=ist)  # Sunday
         mock_datetime.now.return_value = mock_now
         
         result = is_market_open_ist()

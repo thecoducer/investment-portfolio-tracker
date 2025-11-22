@@ -134,8 +134,8 @@ def format_timestamp(ts: float) -> str:
 
 def is_market_open_ist() -> bool:
     """Check if equity market is currently open."""
-    import pytz
-    tz = pytz.timezone("Asia/Kolkata")
+    from zoneinfo import ZoneInfo
+    tz = ZoneInfo("Asia/Kolkata")
     now = datetime.now(tz)
     if now.weekday() >= 5:  # Saturday or Sunday
         return False
