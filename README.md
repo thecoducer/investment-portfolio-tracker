@@ -22,7 +22,7 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 - **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
 - **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
 - **Responsive design**: Clean, professional interface with smooth animations
-- **Auto-refresh**: Configurable automatic refresh of all holdings data
+- **Auto-refresh**: Automatic refresh during market hours (9 AM - 4:30 PM IST, weekdays), with optional 24/7 mode
 
 ## 📋 Prerequisites
 
@@ -97,7 +97,7 @@ Before running the application, make sure you have:
     "auto_refresh_interval_seconds": 60
   },
   "features": {
-    "enable_auto_refresh": true
+    "auto_refresh_outside_market_hours": false
   }
 }
 ```
@@ -123,7 +123,7 @@ Before running the application, make sure you have:
 - `auto_refresh_interval_seconds`: Automatic refresh interval (default: 60)
 
 **features**: Feature toggles
-- `enable_auto_refresh`: Enable automatic periodic refresh of all holdings data (default: true)
+- `auto_refresh_outside_market_hours`: Enable auto-refresh outside market hours (9 AM - 4:30 PM IST, weekdays). When false, auto-refresh only runs during market hours. When true, auto-refresh runs 24/7 (default: false)
 
 ## 🚀 Quick Start
 

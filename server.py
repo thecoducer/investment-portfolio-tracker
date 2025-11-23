@@ -21,7 +21,7 @@ from queue import Queue, Empty
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
 
-from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp
+from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
 from api import AuthenticationManager, HoldingsService, SIPService
 from constants import (
     HTTP_ACCEPTED,
@@ -57,7 +57,7 @@ UI_PORT = SERVER_CONFIG.get("ui_port", DEFAULT_UI_PORT)
 REQUEST_TOKEN_TIMEOUT = TIMEOUT_CONFIG.get("request_token_timeout_seconds", DEFAULT_REQUEST_TOKEN_TIMEOUT)
 AUTO_REFRESH_INTERVAL = TIMEOUT_CONFIG.get("auto_refresh_interval_seconds", DEFAULT_AUTO_REFRESH_INTERVAL)
 
-ENABLE_AUTO_REFRESH = FEATURE_CONFIG.get("enable_auto_refresh", True)
+AUTO_REFRESH_OUTSIDE_MARKET_HOURS = FEATURE_CONFIG.get("auto_refresh_outside_market_hours", False)
 
 SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILENAME)
 
@@ -333,19 +333,25 @@ def run_auto_refresh():
     """
     Periodically trigger full holdings refresh (same as refresh button).
     
-    Feature Flag (ENABLE_AUTO_REFRESH):
-    - True: Run auto refresh at specified intervals
-    - False: Disabled
-    """
-    if not ENABLE_AUTO_REFRESH:
-        # If disabled, just keep thread alive but do nothing
-        while True:
-            time.sleep(10)
-        return
+    Auto-refresh behavior:
+    - During market hours (9 AM - 4:30 PM IST, weekdays): Always runs
+    - Outside market hours: Only runs if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True
     
+    Feature Flag (AUTO_REFRESH_OUTSIDE_MARKET_HOURS):
+    - True: Run auto refresh 24/7 at specified intervals
+    - False: Run auto refresh only during market hours (default)
+    """
     while True:
         # Wait for the configured interval
         time.sleep(AUTO_REFRESH_INTERVAL)
+        
+        # Check if we should run auto-refresh based on market hours
+        market_open = is_market_open_ist()
+        
+        # Skip if outside market hours and flag is disabled
+        if not market_open and not AUTO_REFRESH_OUTSIDE_MARKET_HOURS:
+            print(f"Auto-refresh skipped: market closed and auto_refresh_outside_market_hours disabled")
+            continue
         
         # Skip if a manual refresh is already in progress
         if fetch_in_progress.is_set():
@@ -353,7 +359,8 @@ def run_auto_refresh():
             continue
         
         # Trigger full refresh (same as refresh button)
-        print(f"Auto-refresh triggered at {datetime.now().strftime('%H:%M:%S')}")
+        status_msg = "outside market hours" if not market_open else "during market hours"
+        print(f"Auto-refresh triggered at {datetime.now().strftime('%H:%M:%S')} ({status_msg})")
         run_background_fetch(force_login=False)
 
 
