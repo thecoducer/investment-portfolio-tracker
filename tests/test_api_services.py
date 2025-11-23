@@ -108,6 +108,18 @@ class TestHoldingsService(unittest.TestCase):
         self.assertEqual(holdings[0]["account"], "TestAccount")
         self.assertEqual(holdings[0]["invested"], 0.0)
     
+    def test_add_account_info_with_t1_quantity(self):
+        """Test adding account info includes T1 quantity"""
+        holdings = [
+            {"quantity": 10, "t1_quantity": 5, "average_price": 100.0}
+        ]
+        
+        self.service.add_account_info(holdings, "TestAccount")
+        
+        # Total quantity should include T1
+        self.assertEqual(holdings[0]["quantity"], 15)
+        self.assertEqual(holdings[0]["invested"], 1500.0)
+    
     def test_merge_holdings_single_account(self):
         """Test merging holdings from single account"""
         stock_holdings = [[{"symbol": "RELIANCE"}]]
@@ -262,14 +274,12 @@ class TestAuthenticationManager(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(mock_kite._access_token, "some_token")
     
-    @patch('api.auth.webbrowser.open')
-    def test_wait_for_request_token_timeout(self, mock_browser):
+    def test_wait_for_request_token_timeout(self):
         """Test timeout when waiting for request token"""
-        mock_kite = MockKiteConnect(api_key="test_api_key")
-        
-        # Set short timeout for test
+        # Set very short timeout for test
         self.auth_manager.request_token_timeout = 0.1
         
+        # Don't set any request token, so it will timeout
         with self.assertRaises(TimeoutError) as context:
             self.auth_manager._wait_for_request_token("TestAccount")
         
@@ -293,6 +303,120 @@ class TestAuthenticationManager(unittest.TestCase):
         
         self.assertIn("access_token", renewed_data)
         self.assertIn("old_refresh_token", renewed_data["access_token"])
+    
+    def test_perform_full_login(self):
+        """Test full login flow"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        
+        # Mock both _wait_for_request_token and webbrowser.open
+        with patch.object(self.auth_manager, '_wait_for_request_token') as mock_wait, \
+             patch('api.auth.webbrowser.open') as mock_browser:
+            mock_wait.return_value = "test_request_token"
+            
+            access_token = self.auth_manager._perform_full_login(
+                mock_kite, "TestAccount", "test_secret"
+            )
+            
+            self.assertIsNotNone(access_token)
+            self.assertIn("test_request_token", access_token)
+            mock_wait.assert_called_once_with("TestAccount")
+            mock_browser.assert_called_once()
+    
+    def test_validate_token_with_api_call_success(self):
+        """Test successful token validation"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        mock_kite.set_access_token("valid_token")
+        
+        result = self.auth_manager._validate_token_with_api_call(mock_kite, "TestAccount")
+        
+        self.assertTrue(result)
+    
+    def test_validate_token_with_api_call_failure(self):
+        """Test failed token validation"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        # No access token set
+        
+        result = self.auth_manager._validate_token_with_api_call(mock_kite, "TestAccount")
+        
+        self.assertFalse(result)
+    
+    def test_store_token(self):
+        """Test storing access token"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        
+        self.auth_manager._store_token(mock_kite, "TestAccount", "new_access_token")
+        
+        self.assertEqual(mock_kite._access_token, "new_access_token")
+        self.session_manager.set_token.assert_called_once_with(
+            "TestAccount", "new_access_token"
+        )
+        self.session_manager.save.assert_called_once()
+    
+    def test_try_renew_token_success(self):
+        """Test successful token renewal"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        self.session_manager.get_token.return_value = "old_token"
+        
+        result = self.auth_manager._try_renew_token(mock_kite, "TestAccount", "api_secret")
+        
+        self.assertTrue(result)
+        self.assertIsNotNone(mock_kite._access_token)
+        self.session_manager.save.assert_called()
+    
+    def test_try_renew_token_failure(self):
+        """Test failed token renewal"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        self.session_manager.get_token.return_value = "old_token"
+        
+        # Make renew_access_token fail
+        def raise_error(*args):
+            raise Exception("Renewal failed")
+        mock_kite.renew_access_token = raise_error
+        
+        result = self.auth_manager._try_renew_token(mock_kite, "TestAccount", "api_secret")
+        
+        self.assertFalse(result)
+    
+    @patch('api.auth.KiteConnect')
+    def test_authenticate_with_cached_token(self, mock_kite_class):
+        """Test authenticate using cached token"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        mock_kite_class.return_value = mock_kite
+        
+        self.session_manager.is_valid.return_value = True
+        self.session_manager.get_token.return_value = "cached_token"
+        
+        account_config = {
+            "name": "TestAccount",
+            "api_key": "test_api_key",
+            "api_secret": "test_api_secret"
+        }
+        
+        kite = self.auth_manager.authenticate(account_config, force_login=False)
+        
+        self.assertIsNotNone(kite)
+        self.assertEqual(kite._access_token, "cached_token")
+    
+    @patch('api.auth.KiteConnect')
+    def test_authenticate_with_force_login(self, mock_kite_class):
+        """Test authenticate with force_login=True"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        mock_kite_class.return_value = mock_kite
+        
+        # Mock the _perform_full_login to avoid waiting for request token
+        with patch.object(self.auth_manager, '_perform_full_login') as mock_login:
+            mock_login.return_value = "force_login_token"
+            
+            account_config = {
+                "name": "TestAccount",
+                "api_key": "test_api_key",
+                "api_secret": "test_api_secret"
+            }
+            
+            kite = self.auth_manager.authenticate(account_config, force_login=True)
+            
+            self.assertIsNotNone(kite)
+            mock_login.assert_called_once()
 
 
 class TestSIPService(unittest.TestCase):
@@ -336,6 +460,21 @@ class TestSIPService(unittest.TestCase):
         
         sips = self.service.fetch_sips(mock_kite)
         
+        self.assertEqual(len(sips), 0)
+    
+    def test_fetch_sips_api_error(self):
+        """Test handling API error when fetching SIPs"""
+        mock_kite = MockKiteConnect(api_key="test_api_key")
+        mock_kite.set_access_token("test_token")
+        
+        # Make mf_sips raise an exception
+        def raise_error(*args, **kwargs):
+            raise Exception("API Error")
+        mock_kite.mf_sips = raise_error
+        
+        sips = self.service.fetch_sips(mock_kite)
+        
+        # Should handle gracefully and return empty list
         self.assertEqual(len(sips), 0)
     
     def test_add_account_info(self):

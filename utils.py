@@ -11,7 +11,16 @@ from cryptography.fernet import Fernet
 import platform
 from zoneinfo import ZoneInfo
 
-from constants import STATE_UPDATING, STATE_UPDATED, STATE_ERROR
+from constants import (
+    STATE_UPDATING,
+    STATE_UPDATED,
+    STATE_ERROR,
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+    MARKET_CLOSE_HOUR,
+    MARKET_CLOSE_MINUTE,
+    WEEKEND_SATURDAY
+)
 
 
 class SessionManager:
@@ -188,13 +197,31 @@ def format_timestamp(ts: float) -> str:
 
 
 def is_market_open_ist() -> bool:
-    """Check if equity market is currently open."""
+    """Check if equity market is currently open.
+    
+    Market hours: 9:00 AM - 4:30 PM IST, Monday-Friday
+    """
     ist = ZoneInfo("Asia/Kolkata")
     now = datetime.now(ist)
-    if now.weekday() >= 5:  # Saturday or Sunday
+    
+    # Check if weekend
+    if now.weekday() >= WEEKEND_SATURDAY:
         return False
-    market_open = now.replace(hour=9, minute=0, second=0, microsecond=0)
-    market_close = now.replace(hour=16, minute=30, second=0, microsecond=0)
+    
+    # Define market hours
+    market_open = now.replace(
+        hour=MARKET_OPEN_HOUR,
+        minute=MARKET_OPEN_MINUTE,
+        second=0,
+        microsecond=0
+    )
+    market_close = now.replace(
+        hour=MARKET_CLOSE_HOUR,
+        minute=MARKET_CLOSE_MINUTE,
+        second=0,
+        microsecond=0
+    )
+    
     return market_open <= now <= market_close
 
 

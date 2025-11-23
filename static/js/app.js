@@ -35,6 +35,10 @@ class PortfolioApp {
     this.connectEventSource();
   }
 
+  _isStatusUpdating(status) {
+    return status.state === 'updating' || status.ltp_fetch_state === 'updating';
+  }
+
   _setupEventListeners() {
     // Search functionality
     document.getElementById('search').addEventListener('input', () => {
@@ -96,7 +100,7 @@ class PortfolioApp {
     // Update status display
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
-    const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
+    const isUpdating = this._isStatusUpdating(status);
     
     // Force animation restart by removing and re-adding class
     const currentClass = statusTag.className;
@@ -114,12 +118,7 @@ class PortfolioApp {
       : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
 
     // Update refresh button
-    const btnText = document.getElementById('refresh_btn_text');
-    if (status.state === 'updating') {
-      btnText.innerHTML = '<span class="spinner"></span>';
-    } else {
-      btnText.innerText = 'Refresh';
-    }
+    this._updateRefreshButton(status.state === 'updating');
     
     // Check if we have any data loaded
     const hasData = this.dataManager.getHoldings().length > 0 || 
@@ -189,7 +188,7 @@ class PortfolioApp {
 
       // Update all summary cards with totals from rendered tables
       // isUpdating is already calculated from status
-      const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
+      const isUpdating = this._isStatusUpdating(status);
       this.summaryManager.updateAllSummaries(stockTotals, mfTotals, isUpdating);
 
     } catch (error) {
@@ -198,7 +197,6 @@ class PortfolioApp {
   }
 
   async handleRefresh() {
-    const btnText = document.getElementById('refresh_btn_text');
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     
@@ -207,7 +205,7 @@ class PortfolioApp {
     void statusTag.offsetWidth;
     statusTag.className = 'updating';
     
-    btnText.innerHTML = '<span class="spinner"></span>';
+    this._updateRefreshButton(true);
     statusText.innerText = 'updating';
 
     try {
@@ -218,6 +216,15 @@ class PortfolioApp {
 
     } catch (error) {
       alert('Error triggering refresh: ' + error.message);
+      btnText.innerText = 'Refresh';
+    }
+  }
+
+  _updateRefreshButton(isUpdating) {
+    const btnText = document.getElementById('refresh_btn_text');
+    if (isUpdating) {
+      btnText.innerHTML = '<span class="spinner"></span>';
+    } else {
       btnText.innerText = 'Refresh';
     }
   }

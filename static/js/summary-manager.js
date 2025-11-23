@@ -2,6 +2,28 @@
 
 import { Formatter, Calculator } from './utils.js';
 
+// Element ID constants
+const ELEMENT_IDS = {
+  STOCK: {
+    INVESTED: 'total_invested',
+    CURRENT: 'current_value',
+    PL: 'total_pl',
+    PL_PCT: 'total_pl_pct'
+  },
+  MF: {
+    INVESTED: 'mf_total_invested',
+    CURRENT: 'mf_current_value',
+    PL: 'mf_total_pl',
+    PL_PCT: 'mf_total_pl_pct'
+  },
+  COMBINED: {
+    INVESTED: 'combined_total_invested',
+    CURRENT: 'combined_current_value',
+    PL: 'combined_total_pl',
+    PL_PCT: 'combined_total_pl_pct'
+  }
+};
+
 class SummaryManager {
   /**
    * Update all three summary cards with provided totals
@@ -35,65 +57,67 @@ class SummaryManager {
   }
 
   _updateStockCard(totals) {
-    const totalInvestedEl = document.getElementById('total_invested');
-    const currentValueEl = document.getElementById('current_value');
-    const totalPlEl = document.getElementById('total_pl');
-    const totalPlPctEl = document.getElementById('total_pl_pct');
-
-    totalInvestedEl.innerText = Formatter.formatNumber(totals.invested);
-    currentValueEl.innerText = Formatter.formatNumber(totals.current);
-    totalPlEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
-    totalPlEl.style.color = Formatter.colorPL(totals.pl);
-    totalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
-    totalPlPctEl.style.color = Formatter.colorPL(totals.pl);
+    this._updateCard(
+      ELEMENT_IDS.STOCK.INVESTED,
+      ELEMENT_IDS.STOCK.CURRENT,
+      ELEMENT_IDS.STOCK.PL,
+      ELEMENT_IDS.STOCK.PL_PCT,
+      totals
+    );
   }
 
   _updateMFCard(totals) {
-    const mfTotalInvestedEl = document.getElementById('mf_total_invested');
-    const mfCurrentValueEl = document.getElementById('mf_current_value');
-    const mfTotalPlEl = document.getElementById('mf_total_pl');
-    const mfTotalPlPctEl = document.getElementById('mf_total_pl_pct');
-
-    mfTotalInvestedEl.innerText = Formatter.formatNumber(totals.invested);
-    mfCurrentValueEl.innerText = Formatter.formatNumber(totals.current);
-    mfTotalPlEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
-    mfTotalPlEl.style.color = Formatter.colorPL(totals.pl);
-    mfTotalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
-    mfTotalPlPctEl.style.color = Formatter.colorPL(totals.pl);
+    this._updateCard(
+      ELEMENT_IDS.MF.INVESTED,
+      ELEMENT_IDS.MF.CURRENT,
+      ELEMENT_IDS.MF.PL,
+      ELEMENT_IDS.MF.PL_PCT,
+      totals
+    );
   }
 
   _updateCombinedCard(totals) {
-    const combinedTotalInvestedEl = document.getElementById('combined_total_invested');
-    const combinedCurrentValueEl = document.getElementById('combined_current_value');
-    const combinedTotalPlEl = document.getElementById('combined_total_pl');
-    const combinedTotalPlPctEl = document.getElementById('combined_total_pl_pct');
+    this._updateCard(
+      ELEMENT_IDS.COMBINED.INVESTED,
+      ELEMENT_IDS.COMBINED.CURRENT,
+      ELEMENT_IDS.COMBINED.PL,
+      ELEMENT_IDS.COMBINED.PL_PCT,
+      totals
+    );
+  }
 
-    combinedTotalInvestedEl.innerText = Formatter.formatNumber(totals.invested);
-    combinedCurrentValueEl.innerText = Formatter.formatNumber(totals.current);
-    combinedTotalPlEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
-    combinedTotalPlEl.style.color = Formatter.colorPL(totals.pl);
-    combinedTotalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
-    combinedTotalPlPctEl.style.color = Formatter.colorPL(totals.pl);
+  _updateCard(investedId, currentId, plId, plPctId, totals) {
+    const investedEl = document.getElementById(investedId);
+    const currentEl = document.getElementById(currentId);
+    const plEl = document.getElementById(plId);
+    const plPctEl = document.getElementById(plPctId);
+
+    investedEl.innerText = Formatter.formatNumber(totals.invested);
+    currentEl.innerText = Formatter.formatNumber(totals.current);
+    plEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
+    plEl.style.color = Formatter.colorPL(totals.pl);
+    plPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
+    plPctEl.style.color = Formatter.colorPL(totals.pl);
   }
 
   _applyAnimations(isUpdating) {
     // Get all elements from all three cards
     const allElements = [
       // Combined card
-      document.getElementById('combined_total_invested'),
-      document.getElementById('combined_current_value'),
-      document.getElementById('combined_total_pl'),
-      document.getElementById('combined_total_pl_pct'),
+      document.getElementById(ELEMENT_IDS.COMBINED.INVESTED),
+      document.getElementById(ELEMENT_IDS.COMBINED.CURRENT),
+      document.getElementById(ELEMENT_IDS.COMBINED.PL),
+      document.getElementById(ELEMENT_IDS.COMBINED.PL_PCT),
       // Stock card
-      document.getElementById('total_invested'),
-      document.getElementById('current_value'),
-      document.getElementById('total_pl'),
-      document.getElementById('total_pl_pct'),
+      document.getElementById(ELEMENT_IDS.STOCK.INVESTED),
+      document.getElementById(ELEMENT_IDS.STOCK.CURRENT),
+      document.getElementById(ELEMENT_IDS.STOCK.PL),
+      document.getElementById(ELEMENT_IDS.STOCK.PL_PCT),
       // MF card
-      document.getElementById('mf_total_invested'),
-      document.getElementById('mf_current_value'),
-      document.getElementById('mf_total_pl'),
-      document.getElementById('mf_total_pl_pct')
+      document.getElementById(ELEMENT_IDS.MF.INVESTED),
+      document.getElementById(ELEMENT_IDS.MF.CURRENT),
+      document.getElementById(ELEMENT_IDS.MF.PL),
+      document.getElementById(ELEMENT_IDS.MF.PL_PCT)
     ];
     
     allElements.forEach(el => {

@@ -282,20 +282,51 @@ The codebase follows modular architecture with clear separation of concerns:
 - **State management**: Centralized state handling
 - **Configuration**: JSON-based config with validation
 
+### Running Tests
+
+The project includes a comprehensive test suite with 97 tests covering 83% of the codebase.
+
+```bash
+# Run all tests with coverage report
+./run_tests.sh
+
+# Or manually:
+source run_server/bin/activate
+python -m pytest tests/ --cov=. --cov-report=term-missing
+
+# Run specific test file
+python -m pytest tests/test_api_services.py -v
+
+# Run specific test
+python -m pytest tests/test_api_services.py::TestHoldingsService::test_fetch_holdings -v
+```
+
+**Test Coverage:**
+- ✅ API Services (auth, holdings, SIPs)
+- ✅ Server routes and SSE
+- ✅ Utilities (session management, state management)
+- ✅ Integration tests
+- ✅ Edge cases
+
+**Test Results:**
+```
+97 passed in ~2s
+Coverage: 83%
+```
+
 ### Adding Features
 1. **New API endpoints**: Add routes in `server.py`
 2. **Backend logic**: Extend services in `api/` directory
 3. **Frontend features**: Add modules in `static/js/`
 4. **Styling**: Update `static/styles.css`
+5. **Tests**: Add corresponding tests in `tests/` directory
 
-### Running Tests
-```bash
-# Activate virtual environment
-source run_server/bin/activate
-
-# Run the server
-python3 server.py
-```
+### Development Best Practices
+- Write tests for new features
+- Use ES6 modules for frontend code
+- Follow existing code patterns
+- Update documentation when adding features
+- Run tests before committing changes
 
 ## 📦 Dependencies
 

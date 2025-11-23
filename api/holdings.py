@@ -54,39 +54,40 @@ class HoldingsService(BaseDataService):
                 symbol = holding.get('tradingsymbol')
                 if symbol and symbol in instruments_map:
                     instrument = instruments_map[symbol]
-                    if 'last_price_date' in instrument:
-                        holding['last_price_date'] = instrument['last_price_date']
-                    elif 'last_price_date' in holding:
-                        pass
-                    else:
-                        holding['last_price_date'] = None
+                    # Set NAV date from instrument data if available
+                    holding['last_price_date'] = instrument.get(
+                        'last_price_date',
+                        holding.get('last_price_date')
+                    )
+                else:
+                    # Set to None if symbol not found in instruments
+                    holding.setdefault('last_price_date', None)
                         
         except Exception as e:
             print(f"Error fetching MF instruments for NAV dates: {e}")
+            # Ensure all holdings have last_price_date field
             for holding in mf_holdings:
-                if 'last_price_date' not in holding:
-                    holding['last_price_date'] = None
+                holding.setdefault('last_price_date', None)
     
     def add_account_info(self, holdings: List[Dict[str, Any]], account_name: str) -> None:
-        """
-        Add account name and calculate invested amount for holdings.
-        Also adds T1 quantity to the main quantity for accurate totals.
+        """Add account name and calculate invested amount for holdings.
+        
+        T1 quantity (unsettled shares) is added to the main quantity for accurate totals.
+        Invested amount is calculated as: (quantity + t1_quantity) * average_price
         
         Args:
             holdings: List of holdings to enrich
             account_name: Name of the account
         """
         super().add_account_info(holdings, account_name)
+        
         for holding in holdings:
-            # Add T1 quantity (unsettled shares) to the main quantity
+            # Include T1 (unsettled) quantity in total quantity
             base_quantity = holding.get("quantity", 0)
             t1_quantity = holding.get("t1_quantity", 0)
             total_quantity = base_quantity + t1_quantity
             
-            # Update the quantity to include T1 shares
             holding["quantity"] = total_quantity
-            
-            # Calculate invested amount with total quantity
             holding["invested"] = total_quantity * holding.get("average_price", 0)
     
     def merge_holdings(

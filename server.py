@@ -79,6 +79,21 @@ merged_sips_global: List[Dict[str, Any]] = []
 
 fetch_in_progress = threading.Event()
 
+
+# --------------------------
+# HELPER FUNCTIONS
+# --------------------------
+def log_error(context: str, error: Exception, account_name: str = None) -> None:
+    """Log error with consistent formatting.
+    
+    Args:
+        context: Description of what failed
+        error: The exception that occurred
+        account_name: Optional account name for context
+    """
+    account_info = f" for {account_name}" if account_name else ""
+    print(f"Error {context}{account_info}: {error}")
+
 # SSE (Server-Sent Events) support
 sse_clients: List[Queue] = []
 sse_lock = threading.Lock()
@@ -292,9 +307,11 @@ def run_background_fetch(force_login: bool = False):
 
             # Fetch accounts sequentially
             for account_config in ACCOUNTS_CONFIG:
+                account_name = account_config["name"]
                 try:
-                    stock_holdings, mf_holdings, sips = fetch_account_holdings(account_config, force_login)
-                    account_name = account_config["name"]
+                    stock_holdings, mf_holdings, sips = fetch_account_holdings(
+                        account_config, force_login
+                    )
                     
                     holdings_service.add_account_info(stock_holdings, account_name)
                     holdings_service.add_account_info(mf_holdings, account_name)
@@ -304,7 +321,7 @@ def run_background_fetch(force_login: bool = False):
                     all_mf_holdings.append(mf_holdings)
                     all_sips.append(sips)
                 except Exception as e:
-                    print(f"Error fetching for {account_config['name']}: {e}")
+                    log_error("fetching holdings", e, account_name)
                     state_manager.last_error = str(e)
 
             merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
@@ -350,7 +367,10 @@ def run_auto_refresh():
         
         # Skip if outside market hours and flag is disabled
         if not market_open and not AUTO_REFRESH_OUTSIDE_MARKET_HOURS:
-            print(f"Auto-refresh skipped: market closed and auto_refresh_outside_market_hours disabled")
+            print(
+                "Auto-refresh skipped: market closed and "
+                "auto_refresh_outside_market_hours disabled"
+            )
             continue
         
         # Skip if a manual refresh is already in progress
@@ -359,8 +379,9 @@ def run_auto_refresh():
             continue
         
         # Trigger full refresh (same as refresh button)
-        status_msg = "outside market hours" if not market_open else "during market hours"
-        print(f"Auto-refresh triggered at {datetime.now().strftime('%H:%M:%S')} ({status_msg})")
+        market_status = "outside market hours" if not market_open else "during market hours"
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        print(f"Auto-refresh triggered at {timestamp} ({market_status})")
         run_background_fetch(force_login=False)
 
 

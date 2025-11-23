@@ -96,8 +96,6 @@ class TableRenderer {
     // Hide section if no visible rows
     section.style.display = visibleCount === 0 ? 'none' : 'block';
 
-    this._updateStatusDisplay(status);
-
     // Return totals for summary manager
     return {
       invested: totalInvested,
@@ -290,16 +288,6 @@ ${this._buildCell(mf.account, classes.accountClass)}
 </tr>`;
   }
 
-  _updateStatusDisplay(status) {
-    const statusTag = document.getElementById('status_tag');
-    const statusText = document.getElementById('status_text');
-
-    const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
-    statusTag.className = isUpdating ? 'updating' : 'updated';
-    statusText.innerText = isUpdating 
-      ? 'updating' 
-      : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
-  }
 }
 
 export default TableRenderer;

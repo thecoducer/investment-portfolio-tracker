@@ -1,0 +1,158 @@
+
+[1m[0;36m════════════════════════════════════════════════════════════════[0m
+[1m[0;36m  Investment Portfolio Tracker - Test Suite Runner[0m
+[1m[0;36m════════════════════════════════════════════════════════════════[0m
+
+
+[1m[0;35m▶ 1. Checking Python Installation[0m
+[0;35m────────────────────────────────────────────────────────[0m
+[0;32m[✓][0m Found Python 3.13.7
+
+[1m[0;35m▶ 2. Setting Up Virtual Environment[0m
+[0;35m────────────────────────────────────────────────────────[0m
+[0;32m[✓][0m Virtual environment exists: run_server
+[0;34m[INFO][0m Activating virtual environment...
+[0;32m[✓][0m Virtual environment activated
+
+[1m[0;35m▶ 3. Installing Dependencies[0m
+[0;35m────────────────────────────────────────────────────────[0m
+[0;34m[INFO][0m Installing dependencies...
+[0;32m[✓][0m Dependencies installed from requirements.txt
+
+[1m[0;35m▶ Running Tests[0m
+[0;35m────────────────────────────────────────────────────────[0m
+[0;34m[INFO][0m Running all tests (unit + integration)
+[0;32m[✓][0m Using pytest test runner
+
+[0;36mCommand: [0mpython -m pytest tests/ --cov=. --cov-report=term-missing
+
+[1m[0;36m════════════════════════════════════════════════════════════════[0m
+
+============================= test session starts ==============================
+platform darwin -- Python 3.13.7, pytest-7.4.3, pluggy-1.6.0 -- /Users/mayukh/Documents/portfolio_tracker/run_server/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/mayukh/Documents/portfolio_tracker
+configfile: pytest.ini
+plugins: cov-4.1.0, mock-3.12.0
+collecting ... collected 97 items
+
+tests/test_api_services.py::TestHoldingsService::test_add_account_info PASSED [  1%]
+tests/test_api_services.py::TestHoldingsService::test_add_account_info_missing_fields PASSED [  2%]
+tests/test_api_services.py::TestHoldingsService::test_add_account_info_with_t1_quantity PASSED [  3%]
+tests/test_api_services.py::TestHoldingsService::test_add_nav_dates_api_error PASSED [  4%]
+tests/test_api_services.py::TestHoldingsService::test_add_nav_dates_missing_instrument PASSED [  5%]
+tests/test_api_services.py::TestHoldingsService::test_add_nav_dates_with_instruments PASSED [  6%]
+tests/test_api_services.py::TestHoldingsService::test_fetch_holdings PASSED [  7%]
+tests/test_api_services.py::TestHoldingsService::test_merge_holdings_empty_lists PASSED [  8%]
+tests/test_api_services.py::TestHoldingsService::test_merge_holdings_multiple_accounts PASSED [  9%]
+tests/test_api_services.py::TestHoldingsService::test_merge_holdings_single_account PASSED [ 10%]
+tests/test_api_services.py::TestAuthenticationManager::test_authenticate_with_cached_token PASSED [ 11%]
+tests/test_api_services.py::TestAuthenticationManager::test_authenticate_with_force_login PASSED [ 12%]
+tests/test_api_services.py::TestAuthenticationManager::test_generate_session_mock PASSED [ 13%]
+tests/test_api_services.py::TestAuthenticationManager::test_perform_full_login PASSED [ 14%]
+tests/test_api_services.py::TestAuthenticationManager::test_renew_access_token_mock PASSED [ 15%]
+tests/test_api_services.py::TestAuthenticationManager::test_set_and_get_request_token PASSED [ 16%]
+tests/test_api_services.py::TestAuthenticationManager::test_store_token PASSED [ 17%]
+tests/test_api_services.py::TestAuthenticationManager::test_try_cached_token_invalid PASSED [ 18%]
+tests/test_api_services.py::TestAuthenticationManager::test_try_cached_token_none PASSED [ 19%]
+tests/test_api_services.py::TestAuthenticationManager::test_try_cached_token_valid PASSED [ 20%]
+tests/test_api_services.py::TestAuthenticationManager::test_try_renew_token_failure PASSED [ 21%]
+tests/test_api_services.py::TestAuthenticationManager::test_try_renew_token_success PASSED [ 22%]
+tests/test_api_services.py::TestAuthenticationManager::test_validate_token_with_api_call_failure PASSED [ 23%]
+tests/test_api_services.py::TestAuthenticationManager::test_validate_token_with_api_call_success PASSED [ 24%]
+tests/test_api_services.py::TestAuthenticationManager::test_wait_for_request_token_timeout PASSED [ 25%]
+tests/test_api_services.py::TestSIPService::test_add_account_info PASSED [ 26%]
+tests/test_api_services.py::TestSIPService::test_fetch_sips PASSED       [ 27%]
+tests/test_api_services.py::TestSIPService::test_fetch_sips_api_error PASSED [ 28%]
+tests/test_api_services.py::TestSIPService::test_fetch_sips_empty PASSED [ 29%]
+tests/test_api_services.py::TestSIPService::test_merge_sips_empty_lists PASSED [ 30%]
+tests/test_api_services.py::TestSIPService::test_merge_sips_multiple_accounts PASSED [ 31%]
+tests/test_api_services.py::TestSIPService::test_merge_sips_single_account PASSED [ 32%]
+tests/test_constants.py::TestConstants::test_default_values PASSED       [ 34%]
+tests/test_constants.py::TestConstants::test_http_status_constants PASSED [ 35%]
+tests/test_constants.py::TestConstants::test_state_constants PASSED      [ 36%]
+tests/test_integration.py::TestIntegration::test_complete_holdings_flow PASSED [ 37%]
+tests/test_integration.py::TestIntegration::test_error_handling_chain PASSED [ 38%]
+tests/test_integration.py::TestIntegration::test_mf_holdings_with_nav_dates PASSED [ 39%]
+tests/test_integration.py::TestIntegration::test_multi_account_merge PASSED [ 40%]
+tests/test_integration.py::TestIntegration::test_session_token_workflow PASSED [ 41%]
+tests/test_integration.py::TestIntegration::test_state_transitions PASSED [ 42%]
+tests/test_integration.py::TestEdgeCases::test_empty_holdings PASSED     [ 43%]
+tests/test_integration.py::TestEdgeCases::test_negative_prices PASSED    [ 44%]
+tests/test_integration.py::TestEdgeCases::test_unicode_symbols PASSED    [ 45%]
+tests/test_integration.py::TestEdgeCases::test_very_large_numbers PASSED [ 46%]
+tests/test_integration.py::TestEdgeCases::test_zero_quantity_holdings PASSED [ 47%]
+tests/test_server.py::TestCallbackServer::test_callback_error PASSED     [ 48%]
+tests/test_server.py::TestCallbackServer::test_callback_success PASSED   [ 49%]
+tests/test_server.py::TestUIServerRoutes::test_holdings_data_endpoint PASSED [ 50%]
+tests/test_server.py::TestUIServerRoutes::test_holdings_page PASSED      [ 51%]
+tests/test_server.py::TestUIServerRoutes::test_mf_holdings_data_endpoint PASSED [ 52%]
+tests/test_server.py::TestUIServerRoutes::test_refresh_route_conflict PASSED [ 53%]
+tests/test_server.py::TestUIServerRoutes::test_refresh_route_needs_login PASSED [ 54%]
+tests/test_server.py::TestUIServerRoutes::test_refresh_route_success PASSED [ 55%]
+tests/test_server.py::TestUIServerRoutes::test_sips_data_endpoint PASSED [ 56%]
+tests/test_server.py::TestUIServerRoutes::test_status_endpoint PASSED    [ 57%]
+tests/test_server.py::TestSSE::test_broadcast_state_change PASSED        [ 58%]
+tests/test_server.py::TestSSE::test_events_endpoint PASSED               [ 59%]
+tests/test_server.py::TestDataFetching::test_fetch_account_holdings PASSED [ 60%]
+tests/test_server.py::TestDataFetching::test_fetch_account_holdings_force_login PASSED [ 61%]
+tests/test_server.py::TestDataFetching::test_run_background_fetch PASSED [ 62%]
+tests/test_server.py::TestServerManagement::test_start_server PASSED     [ 63%]
+tests/test_utils.py::TestSessionManager::test_clear_token PASSED         [ 64%]
+tests/test_utils.py::TestSessionManager::test_corrupted_cache_file PASSED [ 65%]
+tests/test_utils.py::TestSessionManager::test_get_token_empty_cache PASSED [ 67%]
+tests/test_utils.py::TestSessionManager::test_multiple_accounts PASSED   [ 68%]
+tests/test_utils.py::TestSessionManager::test_save_and_get_token PASSED  [ 69%]
+tests/test_utils.py::TestSessionManager::test_token_expiry PASSED        [ 70%]
+tests/test_utils.py::TestStateManager::test_change_listener PASSED       [ 71%]
+tests/test_utils.py::TestStateManager::test_change_listener_error_handling PASSED [ 72%]
+tests/test_utils.py::TestStateManager::test_combined_state_all_idle PASSED [ 73%]
+tests/test_utils.py::TestStateManager::test_combined_state_ltp_running PASSED [ 74%]
+tests/test_utils.py::TestStateManager::test_combined_state_refresh_running PASSED [ 75%]
+tests/test_utils.py::TestStateManager::test_error_tracking PASSED        [ 76%]
+tests/test_utils.py::TestStateManager::test_initial_state PASSED         [ 77%]
+tests/test_utils.py::TestStateManager::test_is_any_running_false PASSED  [ 78%]
+tests/test_utils.py::TestStateManager::test_is_any_running_true PASSED   [ 79%]
+tests/test_utils.py::TestStateManager::test_set_holdings_updated PASSED  [ 80%]
+tests/test_utils.py::TestStateManager::test_set_ltp_idle PASSED          [ 81%]
+tests/test_utils.py::TestStateManager::test_set_ltp_running PASSED       [ 82%]
+tests/test_utils.py::TestStateManager::test_set_refresh_idle PASSED      [ 83%]
+tests/test_utils.py::TestStateManager::test_set_refresh_running PASSED   [ 84%]
+tests/test_utils.py::TestConfigLoader::test_load_config_json_parse_error PASSED [ 85%]
+tests/test_utils.py::TestConfigLoader::test_load_missing_config PASSED   [ 86%]
+tests/test_utils.py::TestConfigLoader::test_load_valid_config PASSED     [ 87%]
+tests/test_utils.py::TestConfigLoader::test_validate_accounts_empty_list PASSED [ 88%]
+tests/test_utils.py::TestConfigLoader::test_validate_accounts_missing_api_key PASSED [ 89%]
+tests/test_utils.py::TestConfigLoader::test_validate_accounts_missing_name PASSED [ 90%]
+tests/test_utils.py::TestConfigLoader::test_validate_accounts_valid PASSED [ 91%]
+tests/test_utils.py::TestFormatTimestamp::test_format_none_timestamp PASSED [ 92%]
+tests/test_utils.py::TestFormatTimestamp::test_format_timestamp_with_timezone PASSED [ 93%]
+tests/test_utils.py::TestFormatTimestamp::test_format_valid_timestamp PASSED [ 94%]
+tests/test_utils.py::TestMarketHours::test_market_closed_after_hours PASSED [ 95%]
+tests/test_utils.py::TestMarketHours::test_market_closed_before_hours PASSED [ 96%]
+tests/test_utils.py::TestMarketHours::test_market_closed_weekend_saturday PASSED [ 97%]
+tests/test_utils.py::TestMarketHours::test_market_closed_weekend_sunday PASSED [ 98%]
+tests/test_utils.py::TestMarketHours::test_market_open_weekday_during_hours PASSED [100%]
+
+---------- coverage: platform darwin, python 3.13.7-final-0 ----------
+Name                  Stmts   Miss  Cover   Missing
+---------------------------------------------------
+api/__init__.py           4      0   100%
+api/auth.py              79      7    91%   43-49, 102, 136
+api/base_service.py      10      0   100%
+api/holdings.py          43      3    93%   59-62
+api/sips.py              11      0   100%
+constants.py             16      0   100%
+server.py               206     61    70%   116-121, 190-197, 206-207, 295-308, 320-322, 344-364, 383-418
+utils.py                138     13    91%   41-42, 47, 58-60, 72-73, 91-92, 102, 118, 153
+---------------------------------------------------
+TOTAL                   507     84    83%
+Coverage HTML written to dir htmlcov
+
+
+============================== 97 passed in 1.85s ==============================
+
+[1m[0;36m════════════════════════════════════════════════════════════════[0m
+[1m[0;32m✓ All tests passed![0m
+[1m[0;36m════════════════════════════════════════════════════════════════[0m
+

@@ -149,6 +149,38 @@ class TestStateManager(unittest.TestCase):
         error_msg = "Test error message"
         self.state_manager.last_error = error_msg
         self.assertEqual(self.state_manager.last_error, error_msg)
+    
+    def test_change_listener(self):
+        """Test adding and triggering change listener"""
+        callback_called = []
+        
+        def callback():
+            callback_called.append(True)
+        
+        self.state_manager.add_change_listener(callback)
+        self.state_manager.set_refresh_running()
+        
+        self.assertTrue(len(callback_called) > 0)
+    
+    def test_change_listener_error_handling(self):
+        """Test change listener handles exceptions gracefully"""
+        def bad_callback():
+            raise Exception("Callback error")
+        
+        self.state_manager.add_change_listener(bad_callback)
+        
+        # Should not raise, just print error
+        self.state_manager.set_refresh_running()
+    
+    def test_is_any_running_true(self):
+        """Test is_any_running returns True when refresh is running"""
+        self.state_manager.set_refresh_running()
+        self.assertTrue(self.state_manager.is_any_running())
+    
+    def test_is_any_running_false(self):
+        """Test is_any_running returns False when updated"""
+        self.state_manager.set_refresh_idle()
+        self.assertFalse(self.state_manager.is_any_running())
 
 
 class TestConfigLoader(unittest.TestCase):
@@ -216,6 +248,18 @@ class TestConfigLoader(unittest.TestCase):
         """Test validating empty accounts list"""
         # Empty list doesn't raise, only missing credentials do
         validate_accounts([])
+    
+    def test_load_config_json_parse_error(self):
+        """Test loading config with invalid JSON"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+            f.write("{ invalid json }")
+            temp_path = f.name
+        
+        try:
+            result = load_config(temp_path)
+            self.assertEqual(result, {})
+        finally:
+            os.unlink(temp_path)
 
 
 class TestFormatTimestamp(unittest.TestCase):
