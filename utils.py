@@ -24,10 +24,8 @@ class SessionManager:
     
     def _get_cipher(self) -> Fernet:
         """Generate a cipher using machine-specific data for encryption key."""
-        # Use machine-specific identifiers to generate a consistent key
         machine_id = platform.node() + platform.machine()
         key_material = hashlib.sha256(machine_id.encode()).digest()
-        # Fernet requires base64-encoded 32-byte key
         from base64 import urlsafe_b64encode
         key = urlsafe_b64encode(key_material)
         return Fernet(key)
@@ -41,7 +39,6 @@ class SessionManager:
         try:
             return self._cipher.decrypt(encrypted_token.encode()).decode()
         except Exception:
-            # If decryption fails, assume it's an old plain text token
             return encrypted_token
     
     def load(self):
@@ -80,7 +77,6 @@ class SessionManager:
         try:
             cache_data = {}
             for account_name, session_info in self.sessions.items():
-                # Encrypt the access token before saving
                 encrypted_token = self._encrypt_token(session_info.get("access_token"))
                 
                 cache_data[account_name] = {

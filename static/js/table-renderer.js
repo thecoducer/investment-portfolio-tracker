@@ -96,14 +96,15 @@ class TableRenderer {
     // Hide section if no visible rows
     section.style.display = visibleCount === 0 ? 'none' : 'block';
 
-    this._updateStockSummary({
-      totalInvested,
-      totalCurrent,
-      totalPL: totalCurrent - totalInvested,
-      totalPLPct: totalInvested ? ((totalCurrent - totalInvested) / totalInvested * 100) : 0
-    }, isUpdating);
-
     this._updateStatusDisplay(status);
+
+    // Return totals for summary manager
+    return {
+      invested: totalInvested,
+      current: totalCurrent,
+      pl: totalCurrent - totalInvested,
+      plPct: totalInvested ? ((totalCurrent - totalInvested) / totalInvested * 100) : 0
+    };
   }
 
   renderMFTable(mfHoldings, status) {
@@ -141,12 +142,13 @@ class TableRenderer {
     // Hide section if no visible rows
     section.style.display = visibleCount === 0 ? 'none' : 'block';
 
-    this._updateMFSummary({
-      totalInvested: mfTotalInvested,
-      totalCurrent: mfTotalCurrent,
-      totalPL: mfTotalCurrent - mfTotalInvested,
-      totalPLPct: mfTotalInvested ? ((mfTotalCurrent - mfTotalInvested) / mfTotalInvested * 100) : 0
-    }, isUpdating);
+    // Return totals for summary manager
+    return {
+      invested: mfTotalInvested,
+      current: mfTotalCurrent,
+      pl: mfTotalCurrent - mfTotalInvested,
+      plPct: mfTotalInvested ? ((mfTotalCurrent - mfTotalInvested) / mfTotalInvested * 100) : 0
+    };
   }
 
   renderSIPsTable(sips, status) {
@@ -286,38 +288,6 @@ ${this._buildCell(mf.account, classes.accountClass)}
 <td class="${dataClass}">${nextDueText}</td>
 <td class="${dataClass}">${sip.account}</td>
 </tr>`;
-  }
-
-  _updateStockSummary(totals, isUpdating) {
-    const totalInvestedEl = document.getElementById('total_invested');
-    const currentValueEl = document.getElementById('current_value');
-    const totalPlEl = document.getElementById('total_pl');
-    const totalPlPctEl = document.getElementById('total_pl_pct');
-
-    totalInvestedEl.innerText = Formatter.formatNumber(totals.totalInvested);
-    currentValueEl.innerText = Formatter.formatNumber(totals.totalCurrent);
-    totalPlEl.innerText = Formatter.formatSign(totals.totalPL) + Formatter.formatNumber(totals.totalPL);
-    totalPlEl.style.color = Formatter.colorPL(totals.totalPL);
-    totalPlPctEl.innerText = Formatter.formatSign(totals.totalPL) + totals.totalPLPct.toFixed(2) + '%';
-    totalPlPctEl.style.color = Formatter.colorPL(totals.totalPL);
-
-    [totalInvestedEl, currentValueEl, totalPlEl, totalPlPctEl].forEach(el => this._applyUpdatingClass(el, isUpdating));
-  }
-
-  _updateMFSummary(totals, isUpdating) {
-    const mfTotalInvestedEl = document.getElementById('mf_total_invested');
-    const mfCurrentValueEl = document.getElementById('mf_current_value');
-    const mfTotalPlEl = document.getElementById('mf_total_pl');
-    const mfTotalPlPctEl = document.getElementById('mf_total_pl_pct');
-
-    mfTotalInvestedEl.innerText = Formatter.formatNumber(totals.totalInvested);
-    mfCurrentValueEl.innerText = Formatter.formatNumber(totals.totalCurrent);
-    mfTotalPlEl.innerText = Formatter.formatSign(totals.totalPL) + Formatter.formatNumber(totals.totalPL);
-    mfTotalPlEl.style.color = Formatter.colorPL(totals.totalPL);
-    mfTotalPlPctEl.innerText = Formatter.formatSign(totals.totalPL) + totals.totalPLPct.toFixed(2) + '%';
-    mfTotalPlPctEl.style.color = Formatter.colorPL(totals.totalPL);
-
-    [mfTotalInvestedEl, mfCurrentValueEl, mfTotalPlEl, mfTotalPlPctEl].forEach(el => this._applyUpdatingClass(el, isUpdating));
   }
 
   _updateStatusDisplay(status) {

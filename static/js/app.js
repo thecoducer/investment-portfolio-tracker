@@ -55,7 +55,7 @@ class PortfolioApp {
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     statusTag.className = 'updating';
-    statusText.innerText = 'loading';
+    statusText.innerText = 'updating';
   }
 
   connectEventSource() {
@@ -120,22 +120,25 @@ class PortfolioApp {
     } else {
       btnText.innerText = 'Refresh';
     }
-
-    // Update summary
-    const ltpUpdating = status.ltp_fetch_state === 'updating';
-    const refreshRunning = status.state === 'updating';
-    this.summaryManager.updateCombinedSummary(ltpUpdating, refreshRunning);
-
+    
     // Check if we have any data loaded
     const hasData = this.dataManager.getHoldings().length > 0 || 
                     this.dataManager.getMFHoldings().length > 0 || 
                     this.dataManager.getSIPs().length > 0;
     
-    // Re-render tables with current data to apply/remove updating animations
     if (hasData) {
-      this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
-      this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+      // Re-render tables and get totals
+      const stockTotals = this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
+      const mfTotals = this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
+      this.summaryManager.updateAllSummaries(stockTotals, mfTotals, isUpdating);
+    } else {
+      // First load - show zeros with animation
+      this.summaryManager.updateAllSummaries(
+        { invested: 0, current: 0, pl: 0, plPct: 0 },
+        { invested: 0, current: 0, pl: 0, plPct: 0 },
+        isUpdating
+      );
     }
 
     // Fetch data when:
@@ -179,16 +182,15 @@ class PortfolioApp {
       // Update search query in renderer
       this.tableRenderer.setSearchQuery(searchQuery);
 
-      // Render tables
-      this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
-      this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+      // Render tables and get totals
+      const stockTotals = this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
+      const mfTotals = this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
 
-      // Update combined summary after table rendering (to reflect filtered totals)
-      this.summaryManager.updateCombinedSummary(
-        status.ltp_fetch_state === 'updating',
-        status.state === 'updating'
-      );
+      // Update all summary cards with totals from rendered tables
+      // isUpdating is already calculated from status
+      const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
+      this.summaryManager.updateAllSummaries(stockTotals, mfTotals, isUpdating);
 
     } catch (error) {
       console.error('Error updating data:', error);

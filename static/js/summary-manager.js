@@ -3,34 +3,67 @@
 import { Formatter, Calculator } from './utils.js';
 
 class SummaryManager {
-  updateCombinedSummary(ltpUpdating = false, refreshRunning = false) {
-    const stockInvested = this._parseValue('total_invested');
-    const stockCurrent = this._parseValue('current_value');
-    const mfInvested = this._parseValue('mf_total_invested');
-    const mfCurrent = this._parseValue('mf_current_value');
+  /**
+   * Update all three summary cards with provided totals
+   * @param {Object} stockTotals - { invested, current, pl, plPct }
+   * @param {Object} mfTotals - { invested, current, pl, plPct }
+   * @param {boolean} isUpdating - Whether refresh/update is in progress
+   */
+  updateAllSummaries(stockTotals, mfTotals, isUpdating = false) {
+    // Provide default values if undefined
+    const stock = stockTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
+    const mf = mfTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
 
-    const combinedInvested = stockInvested + mfInvested;
-    const combinedCurrent = stockCurrent + mfCurrent;
+    // Calculate combined totals
+    const combinedInvested = stock.invested + mf.invested;
+    const combinedCurrent = stock.current + mf.current;
     const combinedPL = combinedCurrent - combinedInvested;
     const combinedPLPct = combinedInvested ? (combinedPL / combinedInvested * 100) : 0;
 
-    this._updateCombinedDisplay({
+    // Update all three cards
+    this._updateStockCard(stock);
+    this._updateMFCard(mf);
+    this._updateCombinedCard({
       invested: combinedInvested,
       current: combinedCurrent,
       pl: combinedPL,
       plPct: combinedPLPct
-    }, ltpUpdating, refreshRunning);
+    });
+
+    // Apply animations to all cards
+    this._applyAnimations(isUpdating);
   }
 
-  _parseValue(elementId) {
-    const text = document.getElementById(elementId).innerText;
-    return parseFloat(text.replace(/,/g, '') || 0);
+  _updateStockCard(totals) {
+    const totalInvestedEl = document.getElementById('total_invested');
+    const currentValueEl = document.getElementById('current_value');
+    const totalPlEl = document.getElementById('total_pl');
+    const totalPlPctEl = document.getElementById('total_pl_pct');
+
+    totalInvestedEl.innerText = Formatter.formatNumber(totals.invested);
+    currentValueEl.innerText = Formatter.formatNumber(totals.current);
+    totalPlEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
+    totalPlEl.style.color = Formatter.colorPL(totals.pl);
+    totalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
+    totalPlPctEl.style.color = Formatter.colorPL(totals.pl);
   }
 
-  _updateCombinedDisplay(totals, ltpUpdating, refreshRunning) {
+  _updateMFCard(totals) {
+    const mfTotalInvestedEl = document.getElementById('mf_total_invested');
+    const mfCurrentValueEl = document.getElementById('mf_current_value');
+    const mfTotalPlEl = document.getElementById('mf_total_pl');
+    const mfTotalPlPctEl = document.getElementById('mf_total_pl_pct');
+
+    mfTotalInvestedEl.innerText = Formatter.formatNumber(totals.invested);
+    mfCurrentValueEl.innerText = Formatter.formatNumber(totals.current);
+    mfTotalPlEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
+    mfTotalPlEl.style.color = Formatter.colorPL(totals.pl);
+    mfTotalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
+    mfTotalPlPctEl.style.color = Formatter.colorPL(totals.pl);
+  }
+
+  _updateCombinedCard(totals) {
     const combinedTotalInvestedEl = document.getElementById('combined_total_invested');
-    const stockInvestedEl = document.getElementById('total_invested');
-    const mfInvestedEl = document.getElementById('mf_total_invested');
     const combinedCurrentValueEl = document.getElementById('combined_current_value');
     const combinedTotalPlEl = document.getElementById('combined_total_pl');
     const combinedTotalPlPctEl = document.getElementById('combined_total_pl_pct');
@@ -41,12 +74,26 @@ class SummaryManager {
     combinedTotalPlEl.style.color = Formatter.colorPL(totals.pl);
     combinedTotalPlPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
     combinedTotalPlPctEl.style.color = Formatter.colorPL(totals.pl);
+  }
 
-    // Apply animation to all fields during refresh (no separate LTP updates anymore)
-    const isUpdating = refreshRunning || ltpUpdating;
+  _applyAnimations(isUpdating) {
+    // Get all elements from all three cards
     const allElements = [
-      combinedTotalInvestedEl, stockInvestedEl, mfInvestedEl,
-      combinedCurrentValueEl, combinedTotalPlEl, combinedTotalPlPctEl
+      // Combined card
+      document.getElementById('combined_total_invested'),
+      document.getElementById('combined_current_value'),
+      document.getElementById('combined_total_pl'),
+      document.getElementById('combined_total_pl_pct'),
+      // Stock card
+      document.getElementById('total_invested'),
+      document.getElementById('current_value'),
+      document.getElementById('total_pl'),
+      document.getElementById('total_pl_pct'),
+      // MF card
+      document.getElementById('mf_total_invested'),
+      document.getElementById('mf_current_value'),
+      document.getElementById('mf_total_pl'),
+      document.getElementById('mf_total_pl_pct')
     ];
     
     allElements.forEach(el => {
