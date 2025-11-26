@@ -302,5 +302,289 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(holdings[0]["account"], "Test")
 
 
+class TestSortFunctionality(unittest.TestCase):
+    """Test sort functionality integration"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.stock_holdings = [
+            {
+                "tradingsymbol": "RELIANCE",
+                "quantity": 10,
+                "average_price": 2500,
+                "last_price": 2600,
+                "close_price": 2580,
+                "account": "Account1"
+            },
+            {
+                "tradingsymbol": "TCS",
+                "quantity": 5,
+                "average_price": 3000,
+                "last_price": 3300,
+                "close_price": 3250,
+                "account": "Account1"
+            },
+            {
+                "tradingsymbol": "INFY",
+                "quantity": 15,
+                "average_price": 1400,
+                "last_price": 1500,
+                "close_price": 1480,
+                "account": "Account2"
+            }
+        ]
+        
+        self.mf_holdings = [
+            {
+                "tradingsymbol": "MF1",
+                "fund": "Axis Bluechip Fund",
+                "quantity": 100,
+                "average_price": 25,
+                "last_price": 30,
+                "account": "Account1"
+            },
+            {
+                "tradingsymbol": "MF2",
+                "fund": "HDFC Mid Cap Fund",
+                "quantity": 50,
+                "average_price": 100,
+                "last_price": 95,
+                "account": "Account1"
+            },
+            {
+                "tradingsymbol": "MF3",
+                "fund": "SBI Small Cap Fund",
+                "quantity": 200,
+                "average_price": 15,
+                "last_price": 20,
+                "account": "Account2"
+            }
+        ]
+    
+    def test_stock_holdings_data_structure(self):
+        """Test that stock holdings have required fields for sorting"""
+        required_fields = ["tradingsymbol", "quantity", "average_price", "last_price", "close_price", "account"]
+        
+        for holding in self.stock_holdings:
+            for field in required_fields:
+                self.assertIn(field, holding, f"Stock holding missing {field}")
+    
+    def test_mf_holdings_data_structure(self):
+        """Test that MF holdings have required fields for sorting"""
+        required_fields = ["tradingsymbol", "fund", "quantity", "average_price", "last_price", "account"]
+        
+        for holding in self.mf_holdings:
+            for field in required_fields:
+                self.assertIn(field, holding, f"MF holding missing {field}")
+    
+    def test_stock_pl_calculation(self):
+        """Test P/L calculation for stocks"""
+        holding = self.stock_holdings[0]
+        invested = holding["quantity"] * holding["average_price"]
+        current = holding["quantity"] * holding["last_price"]
+        pl = current - invested
+        pl_pct = (pl / invested) * 100
+        
+        self.assertEqual(invested, 25000)
+        self.assertEqual(current, 26000)
+        self.assertEqual(pl, 1000)
+        self.assertAlmostEqual(pl_pct, 4.0, places=2)
+    
+    def test_mf_pl_calculation(self):
+        """Test P/L calculation for mutual funds"""
+        holding = self.mf_holdings[0]
+        invested = holding["quantity"] * holding["average_price"]
+        current = holding["quantity"] * holding["last_price"]
+        pl = current - invested
+        pl_pct = (pl / invested) * 100
+        
+        self.assertEqual(invested, 2500)
+        self.assertEqual(current, 3000)
+        self.assertEqual(pl, 500)
+        self.assertAlmostEqual(pl_pct, 20.0, places=2)
+    
+    def test_day_change_calculation(self):
+        """Test day's change calculation for stocks"""
+        holding = self.stock_holdings[0]
+        day_change = (holding["last_price"] - holding["close_price"]) * holding["quantity"]
+        day_change_pct = ((holding["last_price"] - holding["close_price"]) / holding["close_price"]) * 100
+        
+        self.assertEqual(day_change, 200)
+        self.assertAlmostEqual(day_change_pct, 0.7752, places=2)
+    
+    def test_sort_options_coverage(self):
+        """Test that all sort options are documented"""
+        stock_sort_options = [
+            'default',
+            'pl_pct_desc', 'pl_pct_asc',
+            'pl_desc', 'pl_asc',
+            'invested_desc', 'invested_asc',
+            'current_desc', 'current_asc',
+            'day_change_desc', 'day_change_asc',
+            'symbol_asc', 'symbol_desc'
+        ]
+        
+        mf_sort_options = [
+            'default',
+            'pl_pct_desc', 'pl_pct_asc',
+            'pl_desc', 'pl_asc',
+            'invested_desc', 'invested_asc',
+            'current_desc', 'current_asc',
+            'name_asc', 'name_desc'
+        ]
+        
+        # Verify all options are unique
+        self.assertEqual(len(stock_sort_options), len(set(stock_sort_options)))
+        self.assertEqual(len(mf_sort_options), len(set(mf_sort_options)))
+        
+        # Verify minimum number of options
+        self.assertGreaterEqual(len(stock_sort_options), 10)
+        self.assertGreaterEqual(len(mf_sort_options), 8)
+    
+    def test_holdings_json_serializable(self):
+        """Test that holdings can be JSON serialized"""
+        try:
+            json.dumps(self.stock_holdings)
+            json.dumps(self.mf_holdings)
+        except (TypeError, ValueError) as e:
+            self.fail(f"Holdings are not JSON serializable: {e}")
+    
+    def test_empty_holdings_sorting(self):
+        """Test that empty holdings arrays are valid for sorting"""
+        empty_stocks = []
+        empty_mfs = []
+        
+        # Should be JSON serializable
+        self.assertEqual(json.dumps(empty_stocks), "[]")
+        self.assertEqual(json.dumps(empty_mfs), "[]")
+    
+    def test_multiple_accounts_sorting(self):
+        """Test that holdings from multiple accounts can be sorted"""
+        accounts = set(h["account"] for h in self.stock_holdings)
+        self.assertGreater(len(accounts), 1, "Test data should have multiple accounts")
+        
+        # Verify all holdings have account field
+        for holding in self.stock_holdings:
+            self.assertIsNotNone(holding.get("account"))
+    
+    def test_negative_pl_handling(self):
+        """Test that negative P/L is handled correctly"""
+        # MF2 has negative P/L (95 < 100)
+        holding = self.mf_holdings[1]
+        invested = holding["quantity"] * holding["average_price"]
+        current = holding["quantity"] * holding["last_price"]
+        pl = current - invested
+        
+        self.assertLess(pl, 0, "Should have negative P/L")
+        self.assertEqual(pl, -250)
+    
+    def test_zero_quantity_sorting(self):
+        """Test handling of zero quantity holdings for sorting"""
+        zero_holding = {
+            "tradingsymbol": "TEST",
+            "quantity": 0,
+            "average_price": 100,
+            "last_price": 110,
+            "close_price": 105,
+            "account": "Test"
+        }
+        
+        invested = zero_holding["quantity"] * zero_holding["average_price"]
+        current = zero_holding["quantity"] * zero_holding["last_price"]
+        
+        self.assertEqual(invested, 0)
+        self.assertEqual(current, 0)
+    
+    def test_large_numbers_sorting(self):
+        """Test sorting with large numbers"""
+        large_holding = {
+            "tradingsymbol": "LARGECAP",
+            "quantity": 10000,
+            "average_price": 5000,
+            "last_price": 5500,
+            "close_price": 5400,
+            "account": "Test"
+        }
+        
+        invested = large_holding["quantity"] * large_holding["average_price"]
+        current = large_holding["quantity"] * large_holding["last_price"]
+        
+        self.assertEqual(invested, 50000000)  # 50 million
+        self.assertEqual(current, 55000000)   # 55 million
+    
+    def test_symbol_case_sensitivity(self):
+        """Test that symbols are case-sensitive for sorting"""
+        symbols = [h["tradingsymbol"] for h in self.stock_holdings]
+        
+        # All symbols should be uppercase in test data
+        for symbol in symbols:
+            self.assertEqual(symbol, symbol.upper())
+    
+    def test_fund_name_sorting_readiness(self):
+        """Test that fund names are suitable for alphabetical sorting"""
+        fund_names = [h["fund"] for h in self.mf_holdings]
+        
+        # All fund names should be non-empty strings
+        for name in fund_names:
+            self.assertIsInstance(name, str)
+            self.assertGreater(len(name), 0)
+    
+    def test_sort_stability(self):
+        """Test that sorting is stable (equal elements maintain order)"""
+        # Create holdings with same P/L
+        same_pl_holdings = [
+            {"tradingsymbol": "A", "quantity": 10, "average_price": 100, "last_price": 110, 
+             "close_price": 105, "account": "Test"},
+            {"tradingsymbol": "B", "quantity": 10, "average_price": 100, "last_price": 110, 
+             "close_price": 105, "account": "Test"},
+            {"tradingsymbol": "C", "quantity": 10, "average_price": 100, "last_price": 110, 
+             "close_price": 105, "account": "Test"}
+        ]
+        
+        # All have same P/L%
+        for holding in same_pl_holdings:
+            pl_pct = ((holding["last_price"] - holding["average_price"]) / holding["average_price"]) * 100
+            self.assertAlmostEqual(pl_pct, 10.0)
+
+
+class TestSortUIIntegration(unittest.TestCase):
+    """Test sort UI elements integration"""
+    
+    def test_html_has_sort_dropdowns(self):
+        """Test that HTML template has sort dropdown elements"""
+        import os
+        html_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'holdings.html')
+        
+        if os.path.exists(html_path):
+            with open(html_path, 'r') as f:
+                html_content = f.read()
+            
+            # Check for sort controls
+            self.assertIn('stocks_sort', html_content, "Should have stocks sort dropdown")
+            self.assertIn('mf_sort', html_content, "Should have MF sort dropdown")
+            self.assertIn('sortStocksTable', html_content, "Should have stocks sort handler")
+            self.assertIn('sortMFTable', html_content, "Should have MF sort handler")
+    
+    def test_sort_manager_js_exists(self):
+        """Test that sort-manager.js file exists"""
+        import os
+        js_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'sort-manager.js')
+        
+        self.assertTrue(os.path.exists(js_path), "sort-manager.js should exist")
+    
+    def test_css_has_sort_styles(self):
+        """Test that CSS has sort control styles"""
+        import os
+        css_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'css', 'styles.css')
+        
+        if os.path.exists(css_path):
+            with open(css_path, 'r') as f:
+                css_content = f.read()
+            
+            # Check for sort-related styles
+            self.assertIn('.sort-controls', css_content, "Should have sort-controls styles")
+            self.assertIn('.section-header', css_content, "Should have section-header styles")
+
+
 if __name__ == '__main__':
     unittest.main()

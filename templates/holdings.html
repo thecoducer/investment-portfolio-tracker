@@ -58,11 +58,29 @@
 </div>
 
 <div class="section-wrapper" id="mf-section">
+<div class="section-header">
 <h2>Mutual Funds</h2>
+<div class="sort-controls">
+<label for="mf_sort">Sort by:</label>
+<select id="mf_sort" onchange="window.sortMFTable(this.value)">
+<option value="default">Default</option>
+<option value="pl_pct_desc">P/L % (High to Low)</option>
+<option value="pl_pct_asc">P/L % (Low to High)</option>
+<option value="pl_desc">P/L Amount (High to Low)</option>
+<option value="pl_asc">P/L Amount (Low to High)</option>
+<option value="invested_desc">Invested (High to Low)</option>
+<option value="invested_asc">Invested (Low to High)</option>
+<option value="current_desc">Current Value (High to Low)</option>
+<option value="current_asc">Current Value (Low to High)</option>
+<option value="name_asc">Fund Name (A to Z)</option>
+<option value="name_desc">Fund Name (Z to A)</option>
+</select>
+</div>
+</div>
 <table aria-label="MF Holdings table">
 <thead>
 <tr>
-<th>Fund</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>NAV</th><th>P/L</th><th>Current</th><th>Account</th>
+<th>Fund</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>Current</th><th>NAV</th><th>P/L</th><th>Account</th>
 </tr>
 </thead>
 <tbody id="mf_tbody"></tbody>
@@ -70,11 +88,31 @@
 </div>
 
 <div class="section-wrapper" id="stocks-section">
+<div class="section-header">
 <h2>Stocks</h2>
+<div class="sort-controls">
+<label for="stocks_sort">Sort by:</label>
+<select id="stocks_sort" onchange="window.sortStocksTable(this.value)">
+<option value="default">Default</option>
+<option value="pl_pct_desc">P/L % (High to Low)</option>
+<option value="pl_pct_asc">P/L % (Low to High)</option>
+<option value="pl_desc">P/L Amount (High to Low)</option>
+<option value="pl_asc">P/L Amount (Low to High)</option>
+<option value="invested_desc">Invested (High to Low)</option>
+<option value="invested_asc">Invested (Low to High)</option>
+<option value="current_desc">Current Value (High to Low)</option>
+<option value="current_asc">Current Value (Low to High)</option>
+<option value="day_change_desc">Day's Change (High to Low)</option>
+<option value="day_change_asc">Day's Change (Low to High)</option>
+<option value="symbol_asc">Symbol (A to Z)</option>
+<option value="symbol_desc">Symbol (Z to A)</option>
+</select>
+</div>
+</div>
 <table aria-label="Holdings table">
 <thead>
 <tr>
-<th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>LTP</th><th>P/L</th><th>Day's Change</th><th>Current</th><th>Exchange</th><th>Account</th>
+<th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>Current</th><th>LTP</th><th>P/L</th><th>Day's Change</th><th>Exchange</th><th>Account</th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>

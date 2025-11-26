@@ -216,10 +216,10 @@ ${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
 ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
 ${this._buildCell(avg.toLocaleString(), classes.avgClass)}
 ${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
+${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
 ${this._buildCell(ltp.toLocaleString(), classes.ltpClass)}
 ${this._buildPLCell(pl, classes.plClass)}
 <td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatNumber(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${dayChangePct.toFixed(2)}%</span></td>
-${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
 ${this._buildCell(holding.exchange, classes.exchangeClass)}
 ${this._buildCell(holding.account, classes.accountClass)}
 </tr>`;
@@ -242,9 +242,9 @@ ${this._buildCell(fundName, classes.fundClass)}
 ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
 ${this._buildCell(avg.toLocaleString(), classes.avgClass)}
 ${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
+${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
 ${this._buildCell(nav.toLocaleString() + navDateText, classes.navClass)}
 ${this._buildPLCell(pl, classes.plClass)}
-${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
 ${this._buildCell(mf.account, classes.accountClass)}
 </tr>`;
   }

@@ -3,6 +3,7 @@
 import DataManager from './data-manager.js';
 import TableRenderer from './table-renderer.js';
 import SummaryManager from './summary-manager.js';
+import SortManager from './sort-manager.js';
 import ThemeManager from './theme-manager.js';
 import PrivacyManager from './visibility-manager.js';
 
@@ -11,6 +12,7 @@ class PortfolioApp {
     this.dataManager = new DataManager();
     this.tableRenderer = new TableRenderer();
     this.summaryManager = new SummaryManager();
+    this.sortManager = new SortManager();
     this.themeManager = new ThemeManager();
     this.privacyManager = new PrivacyManager();
     this.updateInterval = null;
@@ -53,6 +55,10 @@ class PortfolioApp {
 
     // Refresh button (assuming button will call this via global function)
     window.triggerRefresh = () => this.handleRefresh();
+
+    // Sort handlers
+    window.sortStocksTable = (sortBy) => this.handleStocksSort(sortBy);
+    window.sortMFTable = (sortBy) => this.handleMFSort(sortBy);
   }
 
   _showLoadingState() {
@@ -126,9 +132,18 @@ class PortfolioApp {
                     this.dataManager.getSIPs().length > 0;
     
     if (hasData) {
-      // Re-render tables and get totals
-      const stockTotals = this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
-      const mfTotals = this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+      // Re-render tables and get totals with current sort order
+      const sortedHoldings = this.sortManager.sortStocks(
+        this.dataManager.getHoldings(),
+        this.sortManager.getStocksSortOrder()
+      );
+      const sortedMFHoldings = this.sortManager.sortMF(
+        this.dataManager.getMFHoldings(),
+        this.sortManager.getMFSortOrder()
+      );
+      
+      const stockTotals = this.tableRenderer.renderStocksTable(sortedHoldings, status);
+      const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
       this.summaryManager.updateAllSummaries(stockTotals, mfTotals, isUpdating);
     } else {
@@ -181,9 +196,19 @@ class PortfolioApp {
       // Update search query in renderer
       this.tableRenderer.setSearchQuery(searchQuery);
 
+      // Apply current sort orders
+      const sortedHoldings = this.sortManager.sortStocks(
+        this.dataManager.getHoldings(),
+        this.sortManager.getStocksSortOrder()
+      );
+      const sortedMFHoldings = this.sortManager.sortMF(
+        this.dataManager.getMFHoldings(),
+        this.sortManager.getMFSortOrder()
+      );
+
       // Render tables and get totals
-      const stockTotals = this.tableRenderer.renderStocksTable(this.dataManager.getHoldings(), status);
-      const mfTotals = this.tableRenderer.renderMFTable(this.dataManager.getMFHoldings(), status);
+      const stockTotals = this.tableRenderer.renderStocksTable(sortedHoldings, status);
+      const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
 
       // Update all summary cards with totals from rendered tables
@@ -194,6 +219,16 @@ class PortfolioApp {
     } catch (error) {
       console.error('Error updating data:', error);
     }
+  }
+
+  handleStocksSort(sortBy) {
+    this.sortManager.setStocksSortOrder(sortBy);
+    this.updateData();
+  }
+
+  handleMFSort(sortBy) {
+    this.sortManager.setMFSortOrder(sortBy);
+    this.updateData();
   }
 
   async handleRefresh() {

@@ -284,7 +284,7 @@ The codebase follows modular architecture with clear separation of concerns:
 
 ### Running Tests
 
-The project includes a comprehensive test suite with 97 tests covering 83% of the codebase.
+The project includes a comprehensive test suite with 115 tests covering 84% of the codebase.
 
 ```bash
 # Run all tests with coverage report
@@ -296,6 +296,7 @@ python -m pytest tests/ --cov=. --cov-report=term-missing
 
 # Run specific test file
 python -m pytest tests/test_api_services.py -v
+python -m pytest tests/test_sort_integration.py -v
 
 # Run specific test
 python -m pytest tests/test_api_services.py::TestHoldingsService::test_fetch_holdings -v
@@ -305,13 +306,22 @@ python -m pytest tests/test_api_services.py::TestHoldingsService::test_fetch_hol
 - ✅ API Services (auth, holdings, SIPs)
 - ✅ Server routes and SSE
 - ✅ Utilities (session management, state management)
+- ✅ Sort functionality (data structure, calculations, UI integration)
 - ✅ Integration tests
 - ✅ Edge cases
 
 **Test Results:**
 ```
-97 passed in ~2s
-Coverage: 83%
+115 passed in ~2s
+Coverage: 84%
+```
+
+**JavaScript Tests:**
+The project also includes JavaScript unit tests for the SortManager:
+```bash
+# Run JavaScript tests (requires Node.js)
+cd /Users/mayukh/Documents/portfolio_tracker
+node --experimental-modules tests/test_sort_manager.js
 ```
 
 ### Adding Features
