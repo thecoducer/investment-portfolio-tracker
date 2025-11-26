@@ -166,6 +166,8 @@ class Nifty50App {
   renderNifty50Table(status = null) {
     const tbody = document.getElementById('nifty50_tbody');
     if (!tbody) return;
+    const loadingRow = document.getElementById('nifty50_table_loading');
+    if (loadingRow) loadingRow.style.display = 'none';
 
     const isUpdating = status ? this._isStatusUpdating(status) : false;
     const updateClass = isUpdating ? 'updating-field' : '';
