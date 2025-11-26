@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nifty 50 Stocks - Investment Portfolio</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/styles.css">
+<link rel="preload" href="/static/js/nifty50.js" as="script">
+</head>
+<body>
+<div class="container">
+<header>
+<div class="nav-menu" id="navMenu">
+<button class="nav-menu-btn" onclick="toggleNavMenu(event)">
+<span class="hamburger-icon">
+<span></span>
+<span></span>
+<span></span>
+</span>
+</button>
+<div class="nav-menu-content">
+<a href="/holdings" class="nav-menu-item">
+<span class="menu-icon">📊</span>Portfolio
+</a>
+<a href="/nifty50" class="nav-menu-item active">
+<span class="menu-icon">📈</span>Nifty 50
+</a>
+</div>
+</div>
+<div id="header_left">
+<h1 id="header-title">Nifty 50 Stocks</h1>
+</div>
+<div id="status_tag" class="">
+<span class="status-dot"></span>
+<span id="status_text">loading...</span>
+</div>
+<div class="controls">
+<button class="btn" id="refresh_btn" onclick="triggerRefresh()">
+    <span id="refresh_btn_text">Refresh</span>
+</button>
+<button class="theme-toggle" id="theme_toggle_btn" onclick="toggleTheme()" title="Toggle dark/light theme">
+    <span id="theme_toggle_icon">🌙</span>
+</button>
+</div>
+</header>
+
+<div class="section-wrapper" id="nifty50-section">
+<div class="section-header">
+<div class="nifty50-controls">
+<div class="sort-controls">
+<span class="sort-icon">⇅</span>
+<select id="nifty50_sort" onchange="window.sortNifty50Table(this.value)">
+<option value="default">Default Order</option>
+<option value="change_desc">🔥 Change % (High to Low)</option>
+<option value="change_asc">❄️ Change % (Low to High)</option>
+<option value="ltp_desc">💵 LTP (High to Low)</option>
+<option value="ltp_asc">💴 LTP (Low to High)</option>
+<option value="symbol_asc">🔤 Symbol (A-Z)</option>
+<option value="symbol_desc">🔠 Symbol (Z-A)</option>
+<option value="name_asc">📝 Company (A-Z)</option>
+<option value="name_desc">📋 Company (Z-A)</option>
+</select>
+</div>
+<div class="pagination-controls">
+<label for="nifty50_page_size">Show:</label>
+<select id="nifty50_page_size" onchange="window.changeNifty50PageSize(this.value)">
+<option value="10">10</option>
+<option value="25" selected>25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table aria-label="Nifty 50 table">
+<thead>
+<tr>
+<th>Symbol</th><th>Company</th><th>LTP</th><th>Change</th><th>Open</th><th>High</th><th>Low</th><th>Prev Close</th>
+</tr>
+</thead>
+<tbody id="nifty50_tbody">
+<tr class="loading-placeholder" id="nifty50_table_loading"><td colspan="8"><span class="spinner"></span> Loading data...</td></tr>
+</tbody>
+</table>
+<div class="pagination-info" id="nifty50_pagination_info"></div>
+<div class="pagination-buttons" id="nifty50_pagination_buttons"></div>
+</div>
+
+<div class="footer-note">
+Note: Data is sourced from NSE India and refreshes automatically with your portfolio updates.
+</div>
+</div>
+
+<script>
+// Navigation menu toggle
+function toggleNavMenu(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('navMenu');
+  menu.classList.toggle('active');
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', function(event) {
+  const menu = document.getElementById('navMenu');
+  if (menu && !menu.contains(event.target)) {
+    menu.classList.remove('active');
+  }
+});
+</script>
+
+<script type="module" src="/static/js/nifty50.js"></script>
+</body>
+</html>

@@ -13,12 +13,29 @@
 <body>
 <div class="container">
 <header>
+<div class="nav-menu" id="navMenu">
+<button class="nav-menu-btn" onclick="toggleNavMenu(event)">
+<span class="hamburger-icon">
+<span></span>
+<span></span>
+<span></span>
+</span>
+</button>
+<div class="nav-menu-content">
+<a href="/holdings" class="nav-menu-item active">
+<span class="menu-icon">📊</span>Portfolio
+</a>
+<a href="/nifty50" class="nav-menu-item">
+<span class="menu-icon">📈</span>Nifty 50
+</a>
+</div>
+</div>
 <div id="header_left">
 <h1 id="header-title">Investment Portfolio</h1>
 </div>
-<div id="status_tag" class="updated">
+<div id="status_tag" class="">
 <span class="status-dot"></span>
-<span id="status_text">updated</span>
+<span id="status_text">loading...</span>
 </div>
 <div class="controls">
 <input id="search" placeholder="Search symbol or account..." />
@@ -36,77 +53,64 @@
 
 <div class="summary-cards">
 <div class="card" id="combined_summary">
-    <div class="summary-item"><span class="summary-label">Total Invested</span><span class="summary-value" id="combined_total_invested">0.00</span></div>
+    <h3 class="card-title">Overall</h3>
+    <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="combined_total_invested">0.00</span></div>
     <div class="summary-item"><span class="summary-label">Current Value</span><span class="summary-value" id="combined_current_value">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Total P/L</span><span class="summary-value" id="combined_total_pl">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Total P/L %</span><span class="summary-value" id="combined_total_pl_pct">0.00%</span></div>
-</div>
-
-<div class="card" id="mf_summary">
-    <div class="summary-item"><span class="summary-label">MF Invested</span><span class="summary-value" id="mf_total_invested">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">MF Value</span><span class="summary-value" id="mf_current_value">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">MF P/L</span><span class="summary-value" id="mf_total_pl">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">MF P/L %</span><span class="summary-value" id="mf_total_pl_pct">0.00%</span></div>
+    <div class="summary-item"><span class="summary-label">P/L Amount</span><span class="summary-value" id="combined_total_pl">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="combined_total_pl_pct">0.00%</span></div>
+    <div class="loading-placeholder" id="combined_summary_loading" style="display:none;text-align:center;padding:8px 0;color:#8b7765;font-size:13px;">Loading data...</div>
 </div>
 
 <div class="card" id="portfolio_summary">
-    <div class="summary-item"><span class="summary-label">Stock Invested</span><span class="summary-value" id="total_invested">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Stock Value</span><span class="summary-value" id="current_value">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Stock P/L</span><span class="summary-value" id="total_pl">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Stock P/L %</span><span class="summary-value" id="total_pl_pct">0.00%</span></div>
-</div>
+    <h3 class="card-title">Stocks</h3>
+    <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="total_invested">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">Current Value</span><span class="summary-value" id="current_value">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">P/L Amount</span><span class="summary-value" id="total_pl">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="total_pl_pct">0.00%</span></div>
+    <div class="loading-placeholder" id="portfolio_summary_loading" style="display:none;text-align:center;padding:8px 0;color:#8b7765;font-size:13px;">Loading data...</div>
 </div>
 
-<div class="section-wrapper" id="mf-section">
-<div class="section-header">
-<h2>Mutual Funds</h2>
-<div class="sort-controls">
-<label for="mf_sort">Sort by:</label>
-<select id="mf_sort" onchange="window.sortMFTable(this.value)">
-<option value="default">Default</option>
-<option value="pl_pct_desc">P/L % (High to Low)</option>
-<option value="pl_pct_asc">P/L % (Low to High)</option>
-<option value="pl_desc">P/L Amount (High to Low)</option>
-<option value="pl_asc">P/L Amount (Low to High)</option>
-<option value="invested_desc">Invested (High to Low)</option>
-<option value="invested_asc">Invested (Low to High)</option>
-<option value="current_desc">Current Value (High to Low)</option>
-<option value="current_asc">Current Value (Low to High)</option>
-<option value="name_asc">Fund Name (A to Z)</option>
-<option value="name_desc">Fund Name (Z to A)</option>
-</select>
+<div class="card" id="mf_summary">
+    <h3 class="card-title">Mutual Funds</h3>
+    <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="mf_total_invested">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">Current Value</span><span class="summary-value" id="mf_current_value">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">P/L Amount</span><span class="summary-value" id="mf_total_pl">0.00</span></div>
+    <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="mf_total_pl_pct">0.00%</span></div>
+    <div class="loading-placeholder" id="mf_summary_loading" style="display:none;text-align:center;padding:8px 0;color:#8b7765;font-size:13px;">Loading data...</div>
 </div>
-</div>
-<table aria-label="MF Holdings table">
-<thead>
-<tr>
-<th>Fund</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>Current</th><th>NAV</th><th>P/L</th><th>Account</th>
-</tr>
-</thead>
-<tbody id="mf_tbody"></tbody>
-</table>
 </div>
 
 <div class="section-wrapper" id="stocks-section">
 <div class="section-header">
 <h2>Stocks</h2>
+<div class="controls-container">
 <div class="sort-controls">
-<label for="stocks_sort">Sort by:</label>
+<span class="sort-icon">⇅</span>
 <select id="stocks_sort" onchange="window.sortStocksTable(this.value)">
-<option value="default">Default</option>
-<option value="pl_pct_desc">P/L % (High to Low)</option>
-<option value="pl_pct_asc">P/L % (Low to High)</option>
-<option value="pl_desc">P/L Amount (High to Low)</option>
-<option value="pl_asc">P/L Amount (Low to High)</option>
-<option value="invested_desc">Invested (High to Low)</option>
-<option value="invested_asc">Invested (Low to High)</option>
-<option value="current_desc">Current Value (High to Low)</option>
-<option value="current_asc">Current Value (Low to High)</option>
-<option value="day_change_desc">Day's Change (High to Low)</option>
-<option value="day_change_asc">Day's Change (Low to High)</option>
-<option value="symbol_asc">Symbol (A to Z)</option>
-<option value="symbol_desc">Symbol (Z to A)</option>
+<option value="default">Default Order</option>
+<option value="pl_pct_desc">🔥 P/L % (High to Low)</option>
+<option value="pl_pct_asc">❄️ P/L % (Low to High)</option>
+<option value="pl_desc">💰 P/L Amount (High to Low)</option>
+<option value="pl_asc">💸 P/L Amount (Low to High)</option>
+<option value="invested_desc">📈 Invested (High to Low)</option>
+<option value="invested_asc">📉 Invested (Low to High)</option>
+<option value="current_desc">💵 Current (High to Low)</option>
+<option value="current_asc">💴 Current (Low to High)</option>
+<option value="day_change_desc">📊 Day's Change (High to Low)</option>
+<option value="day_change_asc">📉 Day's Change (Low to High)</option>
+<option value="symbol_asc">🔤 Symbol (A-Z)</option>
+<option value="symbol_desc">🔠 Symbol (Z-A)</option>
 </select>
+</div>
+<div class="pagination-controls">
+<label for="stocks_page_size">Show:</label>
+<select id="stocks_page_size" onchange="window.changeStocksPageSize(this.value)">
+<option value="10">10</option>
+<option value="25" selected>25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
 </div>
 </div>
 <table aria-label="Holdings table">
@@ -115,19 +119,61 @@
 <th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>Current</th><th>LTP</th><th>P/L</th><th>Day's Change</th><th>Exchange</th><th>Account</th>
 </tr>
 </thead>
-<tbody id="tbody"></tbody>
+<tbody id="tbody">
+<tr class="loading-placeholder" id="stocks_table_loading"><td colspan="10"><span class="spinner"></span> Loading data...</td></tr>
+</tbody>
+</table>
+<div class="pagination-info" id="stocks_pagination_info"></div>
+<div class="pagination-buttons" id="stocks_pagination_buttons"></div>
+</div>
+
+<div class="section-wrapper" id="mf-section">
+<div class="section-header">
+<h2>Mutual Funds</h2>
+<div class="controls-container">
+<div class="sort-controls">
+<span class="sort-icon">⇅</span>
+<select id="mf_sort" onchange="window.sortMFTable(this.value)">
+<option value="default">Default Order</option>
+<option value="pl_pct_desc">🔥 P/L % (High to Low)</option>
+<option value="pl_pct_asc">❄️ P/L % (Low to High)</option>
+<option value="pl_desc">💰 P/L Amount (High to Low)</option>
+<option value="pl_asc">💸 P/L Amount (Low to High)</option>
+<option value="invested_desc">📈 Invested (High to Low)</option>
+<option value="invested_asc">📉 Invested (Low to High)</option>
+<option value="current_desc">💵 Current (High to Low)</option>
+<option value="current_asc">💴 Current (Low to High)</option>
+<option value="name_asc">🔤 Fund Name (A-Z)</option>
+<option value="name_desc">🔠 Fund Name (Z-A)</option>
+</select>
+</div>
+</div>
+</div>
+<table aria-label="MF Holdings table">
+<thead>
+<tr>
+<th>Fund</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>Current</th><th>NAV</th><th>P/L</th><th>Account</th>
+</tr>
+</thead>
+<tbody id="mf_tbody">
+<tr class="loading-placeholder" id="mf_table_loading"><td colspan="8"><span class="spinner"></span> Loading data...</td></tr>
+</tbody>
 </table>
 </div>
 
 <div class="section-wrapper" id="sips-section">
+<div class="section-header">
 <h2>Active SIPs</h2>
+</div>
 <table aria-label="SIPs table">
 <thead>
 <tr>
 <th>Fund</th><th>Amount</th><th>Frequency</th><th>Installments</th><th>Status</th><th>Next Due</th><th>Account</th>
 </tr>
 </thead>
-<tbody id="sips_tbody"></tbody>
+<tbody id="sips_tbody">
+<tr class="loading-placeholder" id="sips_table_loading"><td colspan="7"><span class="spinner"></span> Loading data...</td></tr>
+</tbody>
 </table>
 </div>
 
@@ -135,6 +181,23 @@
 Note: Refresh will only prompt login if session token is expired; otherwise it runs silently.
 </div>
 </div>
+
+<script>
+// Navigation menu toggle
+function toggleNavMenu(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('navMenu');
+  menu.classList.toggle('active');
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', function(event) {
+  const menu = document.getElementById('navMenu');
+  if (menu && !menu.contains(event.target)) {
+    menu.classList.remove('active');
+  }
+});
+</script>
 
 <script type="module" src="/static/js/app.js"></script>
 </body>

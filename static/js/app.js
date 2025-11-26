@@ -20,20 +20,16 @@ class PortfolioApp {
   }
 
   async init() {
-    // Initialize theme and privacy
     this.themeManager.init();
     this.privacyManager.init();
-
-    // Set up event listeners
     this._setupEventListeners();
-
-    // Show loading state
-    this._showLoadingState();
-
-    // Don't fetch data immediately - wait for SSE to indicate backend is ready
-    // This prevents showing empty dashboard when data endpoints haven't been populated yet
-
-    // Connect to SSE for real-time updates
+    // Show loading placeholders
+    document.getElementById('combined_summary_loading').style.display = '';
+    document.getElementById('portfolio_summary_loading').style.display = '';
+    document.getElementById('mf_summary_loading').style.display = '';
+    document.getElementById('stocks_table_loading').style.display = '';
+    document.getElementById('mf_table_loading').style.display = '';
+    document.getElementById('sips_table_loading').style.display = '';
     this.connectEventSource();
   }
 
@@ -47,25 +43,28 @@ class PortfolioApp {
       this.handleSearch();
     });
 
-    // Theme toggle (assuming button will call this via global function)
+    // Theme toggle
     window.toggleTheme = () => this.themeManager.toggle();
 
     // Privacy toggle
     window.togglePrivacy = () => this.privacyManager.toggle();
 
-    // Refresh button (assuming button will call this via global function)
+    // Refresh button
     window.triggerRefresh = () => this.handleRefresh();
 
     // Sort handlers
     window.sortStocksTable = (sortBy) => this.handleStocksSort(sortBy);
     window.sortMFTable = (sortBy) => this.handleMFSort(sortBy);
-  }
 
-  _showLoadingState() {
-    const statusTag = document.getElementById('status_tag');
-    const statusText = document.getElementById('status_text');
-    statusTag.className = 'updating';
-    statusText.innerText = 'updating';
+    // Stocks pagination handlers
+    window.changeStocksPageSize = (size) => {
+      this.tableRenderer.changeStocksPageSize(size);
+      this.updateData();
+    };
+    window.goToStocksPage = (page) => {
+      this.tableRenderer.goToStocksPage(page);
+      this.updateData();
+    };
   }
 
   connectEventSource() {
@@ -103,30 +102,21 @@ class PortfolioApp {
   }
 
   handleStatusUpdate(status) {
-    // Update status display
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     const isUpdating = this._isStatusUpdating(status);
     
-    // Force animation restart by removing and re-adding class
-    const currentClass = statusTag.className;
-    const newClass = isUpdating ? 'updating' : 'updated';
-    
-    if (currentClass !== newClass) {
-      statusTag.className = '';
-      // Force reflow to restart animation
-      void statusTag.offsetWidth;
-      statusTag.className = newClass;
-    }
+    // Update status class
+    statusTag.classList.toggle('updating', isUpdating);
+    statusTag.classList.toggle('updated', !isUpdating);
+    statusTag.classList.toggle('market_closed', status.market_open === false);
     
     statusText.innerText = isUpdating 
       ? 'updating' 
       : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
 
-    // Update refresh button
     this._updateRefreshButton(status.state === 'updating');
     
-    // Check if we have any data loaded
     const hasData = this.dataManager.getHoldings().length > 0 || 
                     this.dataManager.getMFHoldings().length > 0 || 
                     this.dataManager.getSIPs().length > 0;
@@ -184,6 +174,13 @@ class PortfolioApp {
   async updateData() {
     try {
       const { holdings, mfHoldings, sips, status } = await this.dataManager.fetchAllData();
+      // Hide loading placeholders
+      document.getElementById('combined_summary_loading').style.display = 'none';
+      document.getElementById('portfolio_summary_loading').style.display = 'none';
+      document.getElementById('mf_summary_loading').style.display = 'none';
+      document.getElementById('stocks_table_loading').style.display = 'none';
+      document.getElementById('mf_table_loading').style.display = 'none';
+      document.getElementById('sips_table_loading').style.display = 'none';
 
       // Update data manager state
       const searchQuery = document.getElementById('search').value;
@@ -235,7 +232,6 @@ class PortfolioApp {
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     
-    // Force animation restart
     statusTag.className = '';
     void statusTag.offsetWidth;
     statusTag.className = 'updating';
@@ -244,37 +240,18 @@ class PortfolioApp {
     statusText.innerText = 'updating';
 
     try {
-      // Trigger refresh on server
       await this.dataManager.triggerRefresh();
-
-      // SSE will handle the status updates and trigger data refresh when complete
-
     } catch (error) {
       alert('Error triggering refresh: ' + error.message);
-      btnText.innerText = 'Refresh';
     }
   }
 
   _updateRefreshButton(isUpdating) {
     const btnText = document.getElementById('refresh_btn_text');
-    if (isUpdating) {
-      btnText.innerHTML = '<span class="spinner"></span>';
-    } else {
-      btnText.innerText = 'Refresh';
-    }
-  }
-
-  startPeriodicUpdates(intervalMs) {
-    // No longer needed - SSE handles real-time updates
-    console.log('Periodic polling disabled - using SSE for real-time updates');
-  }
-
-  stopPeriodicUpdates() {
-    // No longer needed
+    btnText.innerHTML = isUpdating ? '<span class="spinner"></span>' : 'Refresh';
   }
 
   disconnect() {
-    // Clean up SSE connection
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;

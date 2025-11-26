@@ -32,6 +32,14 @@ class SummaryManager {
    * @param {boolean} isUpdating - Whether refresh/update is in progress
    */
   updateAllSummaries(stockTotals, mfTotals, isUpdating = false) {
+    // Hide loading placeholders
+    const combinedLoading = document.getElementById('combined_summary_loading');
+    if (combinedLoading) combinedLoading.style.display = 'none';
+    const stocksLoading = document.getElementById('portfolio_summary_loading');
+    if (stocksLoading) stocksLoading.style.display = 'none';
+    const mfLoading = document.getElementById('mf_summary_loading');
+    if (mfLoading) mfLoading.style.display = 'none';
+
     // Provide default values if undefined
     const stock = stockTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const mf = mfTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };

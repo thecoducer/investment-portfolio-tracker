@@ -5,6 +5,8 @@ import { Formatter, Calculator } from './utils.js';
 class TableRenderer {
   constructor() {
     this.searchQuery = '';
+    this.stocksPageSize = 25;
+    this.stocksCurrentPage = 1;
   }
 
   setSearchQuery(query) {
@@ -63,22 +65,38 @@ class TableRenderer {
   renderStocksTable(holdings, status) {
     const tbody = document.getElementById('tbody');
     const section = document.getElementById('stocks-section');
+    const loadingRow = document.getElementById('stocks_table_loading');
+    if (loadingRow) loadingRow.style.display = 'none';
     const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
 
-    tbody.innerHTML = '';
     let totalInvested = 0;
     let totalCurrent = 0;
-    let visibleCount = 0;
+    let filteredHoldings = [];
 
+    // Filter and calculate totals
     holdings.forEach(holding => {
       const text = (holding.tradingsymbol + holding.account).toLowerCase();
-      if (!text.includes(this.searchQuery)) return;
+      if (text.includes(this.searchQuery)) {
+        filteredHoldings.push(holding);
+        const metrics = Calculator.calculateStockMetrics(holding);
+        totalInvested += metrics.invested;
+        totalCurrent += metrics.current;
+      }
+    });
 
-      visibleCount++;
+    // Pagination
+    const totalItems = filteredHoldings.length;
+    const pageSize = this.stocksPageSize === 100 ? totalItems : this.stocksPageSize;
+    const totalPages = Math.ceil(totalItems / pageSize) || 1;
+    const currentPage = Math.min(this.stocksCurrentPage, totalPages);
+    
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalItems);
+    const pageData = filteredHoldings.slice(startIndex, endIndex);
+
+    tbody.innerHTML = '';
+    pageData.forEach(holding => {
       const metrics = Calculator.calculateStockMetrics(holding);
-      totalInvested += metrics.invested;
-      totalCurrent += metrics.current;
-
       tbody.innerHTML += this._buildStockRow(holding, metrics, {
         symbolClass: this._getUpdateClass(isUpdating),
         qtyClass: this._getUpdateClass(isUpdating),
@@ -93,10 +111,9 @@ class TableRenderer {
       });
     });
 
-    // Hide section if no visible rows
-    section.style.display = visibleCount === 0 ? 'none' : 'block';
+    section.style.display = filteredHoldings.length === 0 ? 'none' : 'block';
+    this._updateStocksPagination(currentPage, totalPages, totalItems, startIndex, endIndex);
 
-    // Return totals for summary manager
     return {
       invested: totalInvested,
       current: totalCurrent,
@@ -108,6 +125,8 @@ class TableRenderer {
   renderMFTable(mfHoldings, status) {
     const tbody = document.getElementById('mf_tbody');
     const section = document.getElementById('mf-section');
+    const loadingRow = document.getElementById('mf_table_loading');
+    if (loadingRow) loadingRow.style.display = 'none';
     const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
 
     tbody.innerHTML = '';
@@ -137,10 +156,8 @@ class TableRenderer {
       });
     });
 
-    // Hide section if no visible rows
     section.style.display = visibleCount === 0 ? 'none' : 'block';
 
-    // Return totals for summary manager
     return {
       invested: mfTotalInvested,
       current: mfTotalCurrent,
@@ -152,6 +169,8 @@ class TableRenderer {
   renderSIPsTable(sips, status) {
     const tbody = document.getElementById('sips_tbody');
     const section = document.getElementById('sips-section');
+    const loadingRow = document.getElementById('sips_table_loading');
+    if (loadingRow) loadingRow.style.display = 'none';
     const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
     const dataClass = this._getUpdateClass(isUpdating);
 
@@ -286,6 +305,64 @@ ${this._buildCell(mf.account, classes.accountClass)}
 <td class="${dataClass}">${nextDueText}</td>
 <td class="${dataClass}">${sip.account}</td>
 </tr>`;
+  }
+
+  _updateStocksPagination(currentPage, totalPages, totalItems, startIndex, endIndex) {
+    const infoDiv = document.getElementById('stocks_pagination_info');
+    const buttonsDiv = document.getElementById('stocks_pagination_buttons');
+    
+    if (!infoDiv || !buttonsDiv) return;
+
+    if (totalItems > 0) {
+      infoDiv.textContent = `Showing ${startIndex + 1}-${endIndex} of ${totalItems} stocks`;
+    } else {
+      infoDiv.innerHTML = '<span class="spinner"></span> Loading data...';
+    }
+
+    if (totalPages <= 1) {
+      buttonsDiv.innerHTML = '';
+      return;
+    }
+
+    buttonsDiv.innerHTML = this._buildPaginationButtons(currentPage, totalPages, 'goToStocksPage');
+  }
+
+  _buildPaginationButtons(currentPage, totalPages, clickFunctionName) {
+    let buttonsHTML = '';
+    
+    buttonsHTML += `
+      <button onclick="window.${clickFunctionName}(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
+      <button onclick="window.${clickFunctionName}(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
+    `;
+
+    const maxPageButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+    
+    if (endPage - startPage < maxPageButtons - 1) {
+      startPage = Math.max(1, endPage - maxPageButtons + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      const activeClass = i === currentPage ? 'active' : '';
+      buttonsHTML += `<button class="${activeClass}" onclick="window.${clickFunctionName}(${i})">${i}</button>`;
+    }
+
+    buttonsHTML += `
+      <button onclick="window.${clickFunctionName}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
+      <button onclick="window.${clickFunctionName}(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
+    `;
+
+    return buttonsHTML;
+  }
+
+  changeStocksPageSize(size) {
+    this.stocksPageSize = parseInt(size);
+    this.stocksCurrentPage = 1;
+  }
+
+  goToStocksPage(page) {
+    this.stocksCurrentPage = page;
   }
 
 }

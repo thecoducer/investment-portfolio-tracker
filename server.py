@@ -59,6 +59,21 @@ AUTO_REFRESH_INTERVAL = TIMEOUT_CONFIG.get("auto_refresh_interval_seconds", DEFA
 
 AUTO_REFRESH_OUTSIDE_MARKET_HOURS = FEATURE_CONFIG.get("auto_refresh_outside_market_hours", False)
 
+# Nifty 50 configuration
+NIFTY50_REFRESH_INTERVAL = FEATURE_CONFIG.get("nifty50_refresh_interval_seconds", 120)
+NIFTY50_FALLBACK_SYMBOLS = [
+    "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE",
+    "BAJAJFINSV", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA",
+    "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT", "GRASIM",
+    "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO",
+    "HINDUNILVR", "ICICIBANK", "INDUSINDBK", "INFY", "ITC",
+    "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI",
+    "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE",
+    "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM",
+    "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN",
+    "ULTRACEMCO", "WIPRO", "APOLLOHOSP", "ADANIENT", "LTIM"
+]
+
 SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILENAME)
 
 # Flask apps
@@ -76,8 +91,11 @@ app_ui.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 merged_holdings_global: List[Dict[str, Any]] = []
 merged_mf_holdings_global: List[Dict[str, Any]] = []
 merged_sips_global: List[Dict[str, Any]] = []
+nifty50_data_global: List[Dict[str, Any]] = []
+nifty50_last_updated: float = 0  # Timestamp of last Nifty 50 update
 
 fetch_in_progress = threading.Event()
+nifty50_fetch_in_progress = threading.Event()
 
 
 # --------------------------
@@ -95,8 +113,32 @@ def log_error(context: str, error: Exception, account_name: str = None) -> None:
     print(f"Error {context}{account_info}: {error}")
 
 # SSE (Server-Sent Events) support
-sse_clients: List[Queue] = []
-sse_lock = threading.Lock()
+class SSEClientManager:
+    """Manages SSE client connections and broadcasts."""
+    def __init__(self):
+        self.clients: List[Queue] = []
+        self.lock = threading.Lock()
+    
+    def add_client(self, client_queue: Queue):
+        with self.lock:
+            self.clients.append(client_queue)
+    
+    def remove_client(self, client_queue: Queue):
+        with self.lock:
+            try:
+                self.clients.remove(client_queue)
+            except ValueError:
+                pass
+    
+    def broadcast(self, message: str):
+        with self.lock:
+            for client_queue in self.clients[:]:
+                try:
+                    client_queue.put_nowait(message)
+                except:
+                    self.remove_client(client_queue)
+
+sse_manager = SSEClientManager()
 
 # Manager instances
 session_manager = SessionManager(SESSION_CACHE_FILE)
@@ -111,30 +153,22 @@ sip_service = SIPService()
 # --------------------------
 def broadcast_state_change():
     """Broadcast state change to all connected SSE clients."""
-    with sse_lock:
-        state = state_manager.get_combined_state()
-        ltp_state = state_manager.ltp_fetch_state
-        
-        message = json.dumps({
-            "state": state,
-            "ltp_fetch_state": ltp_state,
-            "last_error": state_manager.last_error,
-            "last_run_at": format_timestamp(state_manager.last_run_ts),
-            "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
-            "session_validity": session_manager.get_validity()
-        })
-        
-        # Send to all connected clients
-        for client_queue in sse_clients[:]:  # Use slice to avoid modification during iteration
-            try:
-                client_queue.put_nowait(message)
-            except:
-                # Remove disconnected clients
-                try:
-                    sse_clients.remove(client_queue)
-                except ValueError:
-                    pass
+    message = json.dumps(_build_status_response())
+    sse_manager.broadcast(message)
 
+
+def _build_status_response() -> Dict[str, Any]:
+    """Build status response dict - used by both /status endpoint and SSE."""
+    return {
+        "state": state_manager.get_combined_state(),
+        "ltp_fetch_state": state_manager.ltp_fetch_state,
+        "last_error": state_manager.last_error,
+        "last_run_at": format_timestamp(state_manager.last_run_ts),
+        "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
+        "session_validity": session_manager.get_validity(),
+        "market_open": is_market_open_ist(),
+        "nifty50_last_updated": nifty50_last_updated
+    }
 
 # Register state change listener
 state_manager.add_change_listener(broadcast_state_change)
@@ -159,19 +193,7 @@ def callback():
 @app_ui.route("/status", methods=["GET"])
 def status():
     """Return current application status and session validity."""
-    state = state_manager.get_combined_state()
-    ltp_state = state_manager.ltp_fetch_state
-    
-    # Return raw internal states for the UI to interpret
-    response = jsonify({
-        "state": state,
-        "ltp_fetch_state": ltp_state,
-        "last_error": state_manager.last_error,
-        "last_run_at": format_timestamp(state_manager.last_run_ts),
-        "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
-        "session_validity": session_manager.get_validity()
-    })
-    # Don't cache status as it changes frequently
+    response = jsonify(_build_status_response())
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
@@ -180,46 +202,24 @@ def status():
 def events():
     """Server-Sent Events endpoint for real-time status updates."""
     def event_stream():
-        # Create a queue for this client
         client_queue = Queue(maxsize=10)
-        
-        with sse_lock:
-            sse_clients.append(client_queue)
+        sse_manager.add_client(client_queue)
         
         try:
-            # Send initial state immediately
-            state = state_manager.get_combined_state()
-            ltp_state = state_manager.ltp_fetch_state
+            # Send initial state
+            yield f"data: {json.dumps(_build_status_response())}\n\n"
             
-            initial_data = json.dumps({
-                "state": state,
-                "ltp_fetch_state": ltp_state,
-                "last_error": state_manager.last_error,
-                "last_run_at": format_timestamp(state_manager.last_run_ts),
-                "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
-                "session_validity": session_manager.get_validity()
-            })
-            yield f"data: {initial_data}\n\n"
-            
-            # Keep connection alive and send updates
+            # Stream updates
             while True:
                 try:
-                    # Wait for state changes with timeout for keepalive
                     message = client_queue.get(timeout=30)
                     yield f"data: {message}\n\n"
                 except Empty:
-                    # Send keepalive comment every 30 seconds
                     yield ": keepalive\n\n"
         except GeneratorExit:
-            # Client disconnected
             pass
         finally:
-            # Clean up
-            with sse_lock:
-                try:
-                    sse_clients.remove(client_queue)
-                except ValueError:
-                    pass
+            sse_manager.remove_client(client_queue)
     
     return Response(event_stream(), mimetype='text/event-stream', headers={
         'Cache-Control': 'no-cache',
@@ -228,32 +228,32 @@ def events():
     })
 
 
+def _json_response_with_cache(data, sort_key=None, max_age=30):
+    """Helper to create JSON response with caching headers."""
+    sorted_data = sorted(data, key=lambda x: x.get(sort_key, "")) if sort_key else data
+    response = jsonify(sorted_data)
+    response.headers['Cache-Control'] = f'private, max-age={max_age}'
+    return response
+
 @app_ui.route("/holdings_data", methods=["GET"])
 def holdings_data():
     """Return stock holdings as JSON."""
-    sorted_holdings = sorted(merged_holdings_global, key=lambda h: h.get("tradingsymbol", ""))
-    response = jsonify(sorted_holdings)
-    # Add cache control for faster reloads
-    response.headers['Cache-Control'] = 'private, max-age=30'
-    return response
-
+    return _json_response_with_cache(merged_holdings_global, sort_key="tradingsymbol")
 
 @app_ui.route("/mf_holdings_data", methods=["GET"])
 def mf_holdings_data():
     """Return MF holdings as JSON."""
-    sorted_mf = sorted(merged_mf_holdings_global, key=lambda h: h.get("tradingsymbol", ""))
-    response = jsonify(sorted_mf)
-    response.headers['Cache-Control'] = 'private, max-age=30'
-    return response
-
+    return _json_response_with_cache(merged_mf_holdings_global, sort_key="tradingsymbol")
 
 @app_ui.route("/sips_data", methods=["GET"])
 def sips_data():
     """Return active SIPs as JSON."""
-    sorted_sips = sorted(merged_sips_global, key=lambda s: s.get("tradingsymbol", ""))
-    response = jsonify(sorted_sips)
-    response.headers['Cache-Control'] = 'private, max-age=30'
-    return response
+    return _json_response_with_cache(merged_sips_global, sort_key="tradingsymbol")
+
+@app_ui.route("/nifty50_data", methods=["GET"])
+def nifty50_data():
+    """Return cached Nifty 50 stocks data."""
+    return _json_response_with_cache(nifty50_data_global)
 
 
 @app_ui.route("/refresh", methods=["POST"])
@@ -265,6 +265,10 @@ def refresh_route():
     # Check if any account session is expired
     needs_login = any(not session_manager.is_valid(acc["name"]) for acc in ACCOUNTS_CONFIG)
     run_background_fetch(force_login=needs_login)
+    
+    # Also trigger Nifty 50 refresh immediately
+    fetch_nifty50_data()
+    
     return make_response(jsonify({"status": "started", "needs_login": needs_login}), HTTP_ACCEPTED)
 
 
@@ -272,6 +276,12 @@ def refresh_route():
 def holdings_page():
     """Serve the main holdings page."""
     return render_template("holdings.html")
+
+
+@app_ui.route("/nifty50", methods=["GET"])
+def nifty50_page():
+    """Serve the Nifty 50 stocks page."""
+    return render_template("nifty50.html")
 
 
 # --------------------------
@@ -333,6 +343,9 @@ def run_background_fetch(force_login: bool = False):
             merged_sips_global = merged_sips
             state_manager.set_holdings_updated()
             state_manager.set_refresh_idle()
+            
+            # Also refresh Nifty 50 data
+            fetch_nifty50_data()
 
         except Exception as e:
             state_manager.last_error = str(e)
@@ -344,45 +357,209 @@ def run_background_fetch(force_login: bool = False):
 
 
 # --------------------------
+# NIFTY 50 DATA FETCHING
+# --------------------------
+def fetch_nifty50_symbols():
+    """Fetch Nifty 50 constituent symbols from NSE API."""
+    import requests
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json',
+            'Accept-Language': 'en-US,en;q=0.9'
+        }
+        
+        # First establish session with NSE
+        session = requests.Session()
+        session.get('https://www.nseindia.com', headers=headers, timeout=10)
+        
+        # Fetch Nifty 50 constituents
+        url = 'https://www.nseindia.com/api/equity-stockIndices?index=NIFTY%2050'
+        response = session.get(url, headers=headers, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            symbols = []
+            
+            for item in data.get('data', []):
+                symbol = item.get('symbol')
+                if symbol and symbol != 'NIFTY 50':  # Exclude index itself
+                    symbols.append(symbol)
+            
+            return symbols
+        else:
+            print(f"Failed to fetch Nifty 50 symbols: {response.status_code}")
+            return []
+            
+    except Exception as e:
+        print(f"Error fetching Nifty 50 symbols: {e}")
+        return []
+
+
+def fetch_nifty50_data():
+    """Fetch Nifty 50 stocks data from NSE API and update global state."""
+    if nifty50_fetch_in_progress.is_set():
+        print("Nifty 50 fetch already in progress, skipping")
+        return
+    
+    def _target():
+        import requests
+        
+        try:
+            nifty50_fetch_in_progress.set()
+            print("Fetching Nifty 50 data...")
+            
+            # Fetch constituent symbols dynamically
+            symbols = fetch_nifty50_symbols()
+            
+            if not symbols:
+                print("No Nifty 50 symbols fetched, using fallback list")
+                symbols = NIFTY50_FALLBACK_SYMBOLS
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json',
+                'Accept-Language': 'en-US,en;q=0.9'
+            }
+            
+            session = requests.Session()
+            session.get('https://www.nseindia.com', headers=headers, timeout=10)
+            
+            nifty50_data = []
+            
+            for symbol in symbols:
+                try:
+                    # URL encode the symbol to handle special characters like & in M&M
+                    from urllib.parse import quote
+                    encoded_symbol = quote(symbol)
+                    url = f"https://www.nseindia.com/api/quote-equity?symbol={encoded_symbol}"
+                    response = session.get(url, headers=headers, timeout=10)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        price_info = data.get('priceInfo', {})
+                        
+                        nifty50_data.append({
+                            'symbol': symbol,
+                            'name': data.get('info', {}).get('companyName', symbol),
+                            'ltp': price_info.get('lastPrice', 0),
+                            'change': price_info.get('change', 0),
+                            'pChange': price_info.get('pChange', 0),
+                            'open': price_info.get('open', 0),
+                            'high': price_info.get('intraDayHighLow', {}).get('max', 0),
+                            'low': price_info.get('intraDayHighLow', {}).get('min', 0),
+                            'close': price_info.get('previousClose', 0)
+                        })
+                    else:
+                        nifty50_data.append({
+                            'symbol': symbol,
+                            'name': symbol,
+                            'ltp': 0,
+                            'change': 0,
+                            'pChange': 0,
+                            'open': 0,
+                            'high': 0,
+                            'low': 0,
+                            'close': 0
+                        })
+                    
+                    time.sleep(0.2)
+                    
+                except Exception as e:
+                    print(f"Error fetching {symbol}: {e}")
+                    nifty50_data.append({
+                        'symbol': symbol,
+                        'name': symbol,
+                        'ltp': 0,
+                        'change': 0,
+                        'pChange': 0,
+                        'open': 0,
+                        'high': 0,
+                        'low': 0,
+                        'close': 0
+                    })
+            
+            global nifty50_data_global, nifty50_last_updated
+            nifty50_data_global = nifty50_data
+            nifty50_last_updated = time.time()
+            print(f"Nifty 50 data updated: {len(nifty50_data)} stocks")
+            
+            broadcast_state_change()
+            
+        except Exception as e:
+            print(f"Error in Nifty 50 fetch: {e}")
+        finally:
+            nifty50_fetch_in_progress.clear()
+    
+    threading.Thread(target=_target, daemon=True).start()
+
+
+# --------------------------
 # AUTOMATIC REFRESH
 # --------------------------
+def _should_auto_refresh(market_open: bool, in_progress: bool) -> tuple[bool, str]:
+    """Check if auto-refresh should run and return reason if not.
+    
+    Returns:
+        (should_run, skip_reason)
+    """
+    if not market_open and not AUTO_REFRESH_OUTSIDE_MARKET_HOURS:
+        return False, "market closed and auto_refresh_outside_market_hours disabled"
+    
+    if in_progress:
+        return False, "manual refresh in progress"
+    
+    return True, None
+
 def run_auto_refresh():
     """
-    Periodically trigger full holdings refresh (same as refresh button).
+    Periodically trigger full holdings refresh.
     
     Auto-refresh behavior:
-    - During market hours (9 AM - 4:30 PM IST, weekdays): Always runs
-    - Outside market hours: Only runs if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True
-    
-    Feature Flag (AUTO_REFRESH_OUTSIDE_MARKET_HOURS):
-    - True: Run auto refresh 24/7 at specified intervals
-    - False: Run auto refresh only during market hours (default)
+    - During market hours: Always runs
+    - Outside market hours: Only if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True
     """
     while True:
-        # Wait for the configured interval
         time.sleep(AUTO_REFRESH_INTERVAL)
         
-        # Check if we should run auto-refresh based on market hours
         market_open = is_market_open_ist()
+        should_run, skip_reason = _should_auto_refresh(market_open, fetch_in_progress.is_set())
         
-        # Skip if outside market hours and flag is disabled
-        if not market_open and not AUTO_REFRESH_OUTSIDE_MARKET_HOURS:
-            print(
-                "Auto-refresh skipped: market closed and "
-                "auto_refresh_outside_market_hours disabled"
-            )
+        if not should_run:
+            print(f"Auto-refresh skipped: {skip_reason}")
             continue
         
-        # Skip if a manual refresh is already in progress
-        if fetch_in_progress.is_set():
-            print("Auto-refresh skipped: manual refresh in progress")
-            continue
-        
-        # Trigger full refresh (same as refresh button)
         market_status = "outside market hours" if not market_open else "during market hours"
         timestamp = datetime.now().strftime('%H:%M:%S')
         print(f"Auto-refresh triggered at {timestamp} ({market_status})")
         run_background_fetch(force_login=False)
+
+
+# --------------------------
+# NIFTY 50 AUTO-REFRESH
+# --------------------------
+def run_nifty50_auto_refresh():
+    """
+    Periodically refresh Nifty 50 data independently from portfolio refresh.
+    Runs more frequently (default: every 2 minutes).
+    """
+    time.sleep(10)  # Wait for initial fetch to complete
+    
+    while True:
+        time.sleep(NIFTY50_REFRESH_INTERVAL)
+        
+        market_open = is_market_open_ist()
+        should_run, skip_reason = _should_auto_refresh(market_open, False)
+        
+        if not should_run:
+            print(f"Nifty 50 auto-refresh skipped: {skip_reason}")
+            continue
+        
+        market_status = "outside market hours" if not market_open else "during market hours"
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        print(f"Nifty 50 auto-refresh triggered at {timestamp} ({market_status})")
+        fetch_nifty50_data()
 
 
 # --------------------------
@@ -428,6 +605,10 @@ def main():
         # Start background auto-refresh service
         print(f"Starting auto-refresh service (interval: {AUTO_REFRESH_INTERVAL}s)")
         threading.Thread(target=run_auto_refresh, daemon=True).start()
+        
+        # Start Nifty 50 auto-refresh service
+        print(f"Starting Nifty 50 auto-refresh service (interval: {NIFTY50_REFRESH_INTERVAL}s)")
+        threading.Thread(target=run_nifty50_auto_refresh, daemon=True).start()
         
         # Keep main thread alive
         while True:
