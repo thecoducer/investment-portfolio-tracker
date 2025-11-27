@@ -61,6 +61,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_state.last_error = None
             mock_state.last_run_ts = None
             mock_state.holdings_last_updated = None
+            mock_state.nifty50_last_updated = None
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             
@@ -187,6 +188,7 @@ class TestSSE(unittest.TestCase):
             mock_state.last_error = None
             mock_state.last_run_ts = None
             mock_state.holdings_last_updated = None
+            mock_state.nifty50_last_updated = None
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             
@@ -201,7 +203,7 @@ class TestSSE(unittest.TestCase):
         with patch('server.state_manager') as mock_state, \
              patch('server.session_manager') as mock_session, \
              patch('server.format_timestamp') as mock_format, \
-             patch('server.sse_clients', []) as mock_clients:
+             patch('server.sse_manager.clients', []) as mock_clients:
             
             # Set up mocks
             mock_state.get_combined_state.return_value = 'updating'
@@ -209,6 +211,7 @@ class TestSSE(unittest.TestCase):
             mock_state.last_error = None
             mock_state.last_run_ts = None
             mock_state.holdings_last_updated = None
+            mock_state.nifty50_last_updated = None
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             
