@@ -13,7 +13,10 @@ class Nifty50App {
   async init() {
     this.setupTheme();
     this.connectEventSource();
-    await this.loadInitialData();
+    // Always fetch data on first load if table is empty
+    if (!this.nifty50Data || this.nifty50Data.length === 0) {
+      await this.updateNifty50();
+    }
   }
 
   setupTheme() {

@@ -217,7 +217,7 @@ class TableRenderer {
     
     return `<tr style="border-top: 2px solid #e9e9e7; font-weight: 600;">
 <td class="${dataClass}">Total Monthly SIP Amount:</td>
-<td class="${dataClass}">${formattedAmount}</td>
+<td class="${dataClass}">₹${formattedAmount}</td>
 <td></td>
 <td></td>
 <td></td>
@@ -298,7 +298,7 @@ ${this._buildCell(mf.account, classes.accountClass)}
     
     return `<tr>
 <td class="${dataClass}">${fundName}</td>
-<td class="${dataClass}">${(sip.instalment_amount || 0).toLocaleString()}</td>
+<td class="${dataClass}">₹${(sip.instalment_amount || 0).toLocaleString()}</td>
 <td class="${dataClass}">${frequency}</td>
 <td class="${dataClass}">${installments}</td>
 <td class="${dataClass}"><span style="color:${statusColor};font-weight:600">${status}</span></td>

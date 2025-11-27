@@ -826,8 +826,8 @@ body.dark-theme .negative {
 
 .spinner {
   display: inline-block;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: 3px solid #e8ddc9;
   border-top: 3px solid #8b7765;
   border-radius: 50%;

@@ -161,14 +161,21 @@ class PortfolioApp {
   handleSearch() {
     const searchQuery = document.getElementById('search').value;
     this.tableRenderer.setSearchQuery(searchQuery);
-    
-    // Re-render with current data
+
+    // Re-render with current data, no fetch
     const holdings = this.dataManager.getHoldings();
     const mfHoldings = this.dataManager.getMFHoldings();
     const sips = this.dataManager.getSIPs();
-    
-    // Need current status - fetch it
-    this.updateData();
+    // Use last status if available, or empty object
+    const status = this.lastStatus || {};
+
+    const sortedHoldings = this.sortManager.sortStocks(holdings, this.sortManager.getStocksSortOrder());
+    const sortedMFHoldings = this.sortManager.sortMF(mfHoldings, this.sortManager.getMFSortOrder());
+
+    const stockTotals = this.tableRenderer.renderStocksTable(sortedHoldings, status);
+    const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
+    this.tableRenderer.renderSIPsTable(sips, status);
+    this.summaryManager.updateAllSummaries(stockTotals, mfTotals, false);
   }
 
   async updateData() {
@@ -220,12 +227,18 @@ class PortfolioApp {
 
   handleStocksSort(sortBy) {
     this.sortManager.setStocksSortOrder(sortBy);
-    this.updateData();
+    const holdings = this.dataManager.getHoldings();
+    const status = this.lastStatus || {};
+    const sortedHoldings = this.sortManager.sortStocks(holdings, this.sortManager.getStocksSortOrder());
+    this.tableRenderer.renderStocksTable(sortedHoldings, status);
   }
 
   handleMFSort(sortBy) {
     this.sortManager.setMFSortOrder(sortBy);
-    this.updateData();
+    const mfHoldings = this.dataManager.getMFHoldings();
+    const status = this.lastStatus || {};
+    const sortedMFHoldings = this.sortManager.sortMF(mfHoldings, this.sortManager.getMFSortOrder());
+    this.tableRenderer.renderMFTable(sortedMFHoldings, status);
   }
 
   async handleRefresh() {

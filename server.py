@@ -60,7 +60,6 @@ AUTO_REFRESH_INTERVAL = TIMEOUT_CONFIG.get("auto_refresh_interval_seconds", DEFA
 AUTO_REFRESH_OUTSIDE_MARKET_HOURS = FEATURE_CONFIG.get("auto_refresh_outside_market_hours", False)
 
 # Nifty 50 configuration
-NIFTY50_REFRESH_INTERVAL = FEATURE_CONFIG.get("nifty50_refresh_interval_seconds", 120)
 NIFTY50_FALLBACK_SYMBOLS = [
     "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE",
     "BAJAJFINSV", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA",
@@ -92,7 +91,6 @@ merged_holdings_global: List[Dict[str, Any]] = []
 merged_mf_holdings_global: List[Dict[str, Any]] = []
 merged_sips_global: List[Dict[str, Any]] = []
 nifty50_data_global: List[Dict[str, Any]] = []
-nifty50_last_updated: float = 0  # Timestamp of last Nifty 50 update
 
 fetch_in_progress = threading.Event()
 nifty50_fetch_in_progress = threading.Event()
@@ -167,7 +165,7 @@ def _build_status_response() -> Dict[str, Any]:
         "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
         "session_validity": session_manager.get_validity(),
         "market_open": is_market_open_ist(),
-        "nifty50_last_updated": nifty50_last_updated
+        "nifty50_last_updated": state_manager.nifty50_last_updated
     }
 
 # Register state change listener
@@ -402,12 +400,14 @@ def fetch_nifty50_data():
     if nifty50_fetch_in_progress.is_set():
         print("Nifty 50 fetch already in progress, skipping")
         return
-    
+
+    print(f"[DEBUG] nifty50_fetch_in_progress.is_set before thread: {nifty50_fetch_in_progress.is_set()}")
     def _target():
         import requests
-        
+
         try:
             nifty50_fetch_in_progress.set()
+            print(f"[DEBUG] nifty50_fetch_in_progress.set() called: {nifty50_fetch_in_progress.is_set()}")
             print("Fetching Nifty 50 data...")
             
             # Fetch constituent symbols dynamically
@@ -480,17 +480,18 @@ def fetch_nifty50_data():
                         'close': 0
                     })
             
-            global nifty50_data_global, nifty50_last_updated
+            global nifty50_data_global
             nifty50_data_global = nifty50_data
-            nifty50_last_updated = time.time()
-            print(f"Nifty 50 data updated: {len(nifty50_data)} stocks")
-            
-            broadcast_state_change()
+            state_manager.set_nifty50_updated()
             
         except Exception as e:
             print(f"Error in Nifty 50 fetch: {e}")
         finally:
             nifty50_fetch_in_progress.clear()
+            print(f"[DEBUG] nifty50_fetch_in_progress.clear() called: {nifty50_fetch_in_progress.is_set()}")
+            
+        print(f"Nifty 50 data updated: {len(nifty50_data)} stocks")
+        broadcast_state_change()
     
     threading.Thread(target=_target, daemon=True).start()
 
@@ -537,32 +538,6 @@ def run_auto_refresh():
 
 
 # --------------------------
-# NIFTY 50 AUTO-REFRESH
-# --------------------------
-def run_nifty50_auto_refresh():
-    """
-    Periodically refresh Nifty 50 data independently from portfolio refresh.
-    Runs more frequently (default: every 2 minutes).
-    """
-    time.sleep(10)  # Wait for initial fetch to complete
-    
-    while True:
-        time.sleep(NIFTY50_REFRESH_INTERVAL)
-        
-        market_open = is_market_open_ist()
-        should_run, skip_reason = _should_auto_refresh(market_open, False)
-        
-        if not should_run:
-            print(f"Nifty 50 auto-refresh skipped: {skip_reason}")
-            continue
-        
-        market_status = "outside market hours" if not market_open else "during market hours"
-        timestamp = datetime.now().strftime('%H:%M:%S')
-        print(f"Nifty 50 auto-refresh triggered at {timestamp} ({market_status})")
-        fetch_nifty50_data()
-
-
-# --------------------------
 # SERVER MANAGEMENT
 # --------------------------
 def start_server(app: Flask, host: str, port: int) -> threading.Thread:
@@ -605,10 +580,6 @@ def main():
         # Start background auto-refresh service
         print(f"Starting auto-refresh service (interval: {AUTO_REFRESH_INTERVAL}s)")
         threading.Thread(target=run_auto_refresh, daemon=True).start()
-        
-        # Start Nifty 50 auto-refresh service
-        print(f"Starting Nifty 50 auto-refresh service (interval: {NIFTY50_REFRESH_INTERVAL}s)")
-        threading.Thread(target=run_nifty50_auto_refresh, daemon=True).start()
         
         # Keep main thread alive
         while True:

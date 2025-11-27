@@ -100,9 +100,10 @@ class SummaryManager {
     const plEl = document.getElementById(plId);
     const plPctEl = document.getElementById(plPctId);
 
-    investedEl.innerText = Formatter.formatNumber(totals.invested);
-    currentEl.innerText = Formatter.formatNumber(totals.current);
-    plEl.innerText = Formatter.formatSign(totals.pl) + Formatter.formatNumber(totals.pl);
+    // Add rupee symbol to invested, current, and P/L
+    investedEl.innerText = '₹' + Formatter.formatNumber(totals.invested);
+    currentEl.innerText = '₹' + Formatter.formatNumber(totals.current);
+    plEl.innerText = Formatter.formatSign(totals.pl) + '₹' + Formatter.formatNumber(totals.pl);
     plEl.style.color = Formatter.colorPL(totals.pl);
     plPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
     plPctEl.style.color = Formatter.colorPL(totals.pl);

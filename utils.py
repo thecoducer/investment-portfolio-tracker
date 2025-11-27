@@ -136,6 +136,7 @@ class StateManager:
         self.last_error: str = None
         self.last_run_ts: float = None
         self.holdings_last_updated: float = None
+        self.nifty50_last_updated: float = None
         self._change_listeners = []
     
     def _set_state(self, state_attr: str, value: str):
@@ -178,6 +179,11 @@ class StateManager:
     def set_holdings_updated(self):
         """Mark holdings as updated with current timestamp."""
         self.holdings_last_updated = time.time()
+        self._notify_change()
+
+    def set_nifty50_updated(self):
+        """Mark Nifty 50 as updated with current timestamp."""
+        self.nifty50_last_updated = time.time()
         self._notify_change()
     
     def is_any_running(self) -> bool:
