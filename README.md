@@ -7,6 +7,7 @@
 
 A modern, modular Flask-based web application for tracking mutual fund and stock holdings from Zerodha brokerage accounts with real-time price updates.
 
+
 ## ✨ Features
 
 - **Multi-account support**: Track holdings across multiple Zerodha accounts
@@ -23,6 +24,7 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 - **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
 - **Responsive design**: Clean, professional interface with smooth animations
 - **Auto-refresh**: Automatic refresh during market hours (9 AM - 4:30 PM IST, weekdays), with optional 24/7 mode
+- **Nifty 50 Stocks Page**: Dedicated page to view live prices and stats for all Nifty 50 stocks, with real-time updates, sorting, and refresh functionality.
 
 ## 📋 Prerequisites
 
@@ -143,9 +145,12 @@ This script will:
 - ✅ Start the server
 - ✅ Open dashboard in browser
 
-**Dashboard URL**: `http://127.0.0.1:8000/holdings`
 
-The dashboard will automatically open in your browser. If not, manually navigate to the URL above.
+**Dashboard URLs:**
+- Portfolio: `http://127.0.0.1:8000/holdings`
+- Nifty 50: `http://127.0.0.1:8000/nifty50`
+
+The portfolio dashboard will automatically open in your browser. If not, manually navigate to the URLs above.
 
 ### Manual Setup
 
@@ -202,13 +207,15 @@ The dashboard will automatically open in your browser. If not, manually navigate
     └── holdings.html     # Main dashboard HTML template
 ```
 
+
 ### Frontend (JavaScript/ES6)
 ```
 ├── static/
 │   ├── css/
 │   │   └── styles.css            # Application styles with dark/light themes
 │   └── js/
-│       ├── app.js                # Main application controller
+│       ├── app.js                # Main application controller (Portfolio page)
+│       ├── nifty50.js            # Nifty 50 page controller and SSE updates
 │       ├── data-manager.js       # API data fetching
 │       ├── table-renderer.js     # Table rendering with animations
 │       ├── summary-manager.js    # Portfolio summary calculations
@@ -231,7 +238,17 @@ The dashboard will automatically open in your browser. If not, manually navigate
 - Auto-refresh every 60 seconds (configurable)
 - Real-time status updates via Server-Sent Events (SSE)
 
+
 ### Features in Action
+
+**Portfolio Page**: Track all your Zerodha holdings and mutual funds with search, filter, privacy mode, and SIP tracking.
+
+**Nifty 50 Page**: View live prices, percent change, and stats for all Nifty 50 stocks. Features include:
+- Real-time updates via SSE
+- Manual refresh button
+- Sorting by price, percent change, etc.
+- Last updated timestamp
+- Consistent UI with theme and privacy mode support
 
 **Search & Filter**: Type in the search box to filter holdings by symbol or account. Empty tables are automatically hidden.
 
