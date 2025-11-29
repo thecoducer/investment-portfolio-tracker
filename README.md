@@ -10,20 +10,19 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 
 ## ✨ Features
 
- **Multi-account support**: Track holdings across multiple Zerodha accounts
- **Session token caching**: Auto-login on restart using cached session tokens with encryption
- **Server-Sent Events (SSE)**: Real-time status updates without polling
- **Smart loading**: Dashboard waits for backend data fetching to complete before rendering
- **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation
- **Interactive dashboard**: Modern UI with dark/light theme toggle
- **Privacy mode**: Hide sensitive data for screen sharing
- **Search & filter**: Quick search across symbols and accounts with smart table visibility
- **Combined analytics**: Aggregated view of stocks and mutual funds
- **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
- **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
- **Responsive design**: Clean, professional interface
- **Auto-refresh**: Automatic refresh during market hours (9 AM - 4:30 PM IST, weekdays), with optional 24/7 mode
- **Nifty 50 Stocks Page**: Dedicated page to view live prices and stats for all Nifty 50 stocks, with real-time updates, sorting, and refresh functionality.
+- **Multi-account support**: Track holdings across multiple Zerodha accounts.
+- **Session token caching**: Auto-login on restart using cached session tokens (encrypted on disk).
+- **Server-Sent Events (SSE)**: Real-time status updates without client polling.
+- **Smart loading**: Dashboard waits for backend data fetching to complete before rendering.
+- **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation.
+- **Interactive dashboard**: Modern UI with dark/light theme toggle and privacy mode for screen sharing.
+- **Search & filter**: Quick search across symbols and accounts; empty tables are automatically hidden.
+- **Combined analytics**: Aggregated view of stocks and mutual funds with summary cards.
+- **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago).
+- **Smart date formatting**: Intuitive date displays for SIP schedules (today, tomorrow, in X days).
+- **Responsive design**: Clean, professional interface across devices.
+- **Auto-refresh**: Automatic refresh during market hours (9:00–16:30 IST), optional 24/7 mode via config.
+- **Nifty 50 page**: Dedicated page to view live prices and stats for Nifty 50, with sorting and manual refresh.
 
 ## 📋 Prerequisites
 
