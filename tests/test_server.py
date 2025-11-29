@@ -11,7 +11,7 @@ from queue import Queue
 from server import (
     app_callback, app_ui,
     broadcast_state_change,
-    fetch_account_holdings,
+    fetch_account_data,
     run_background_fetch,
     start_server
 )
@@ -57,10 +57,9 @@ class TestUIServerRoutes(unittest.TestCase):
              patch('server.format_timestamp') as mock_format:
             
             mock_state.get_combined_state.return_value = 'idle'
-            mock_state.ltp_fetch_state = 'idle'
             mock_state.last_error = None
             mock_state.last_run_ts = None
-            mock_state.holdings_last_updated = None
+            
             mock_state.nifty50_last_updated = None
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
@@ -70,7 +69,6 @@ class TestUIServerRoutes(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = json.loads(response.data)
             self.assertIn('state', data)
-            self.assertIn('ltp_fetch_state', data)
             self.assertIn('session_validity', data)
             self.assertEqual(response.headers.get('Cache-Control'), 'no-cache, no-store, must-revalidate')
     
@@ -184,7 +182,6 @@ class TestSSE(unittest.TestCase):
              patch('server.format_timestamp') as mock_format:
             
             mock_state.get_combined_state.return_value = 'idle'
-            mock_state.ltp_fetch_state = 'idle'
             mock_state.last_error = None
             mock_state.last_run_ts = None
             mock_state.holdings_last_updated = None
@@ -206,8 +203,6 @@ class TestSSE(unittest.TestCase):
              patch('server.sse_manager.clients', []) as mock_clients:
             
             # Set up mocks
-            mock_state.get_combined_state.return_value = 'updating'
-            mock_state.ltp_fetch_state = 'idle'
             mock_state.last_error = None
             mock_state.last_run_ts = None
             mock_state.holdings_last_updated = None
@@ -249,7 +244,7 @@ class TestDataFetching(unittest.TestCase):
             mock_sips.return_value = [{"sip": 1}]
             
             account_config = {"name": "test", "api_key_env": "TEST_KEY"}
-            stocks, mfs, sips = fetch_account_holdings(account_config)
+            stocks, mfs, sips = fetch_account_data(account_config)
             
             mock_auth.assert_called_once_with(account_config, False)
             mock_holdings.assert_called_once_with(mock_kite)
@@ -269,7 +264,7 @@ class TestDataFetching(unittest.TestCase):
             mock_sips.return_value = []
             
             account_config = {"name": "test"}
-            fetch_account_holdings(account_config, force_login=True)
+            fetch_account_data(account_config, force_login=True)
             
             mock_auth.assert_called_once_with(account_config, True)
     

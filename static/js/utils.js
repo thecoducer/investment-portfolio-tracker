@@ -21,7 +21,9 @@ class Formatter {
   }
 
   static formatSign(value) {
-    return value >= 0 ? '+' : '';
+    if (value > 0) return '+';
+    if (value < 0) return '-';
+    return '';
   }
 
   /**

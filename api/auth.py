@@ -7,6 +7,7 @@ import threading
 from typing import Dict, Any, List, Tuple, Optional
 
 from kiteconnect import KiteConnect
+from logging_config import logger
 
 
 class AuthenticationManager:
@@ -54,15 +55,14 @@ class AuthenticationManager:
             kite.profile()
             return True
         except Exception as e:
-            print(f"Token validation failed for {account_name}: {e}")
+            logger.exception("Token validation failed for %s: %s", account_name, e)
             return False
     
     def _try_cached_token(self, kite: KiteConnect, account_name: str) -> bool:
         """Try to use cached token. Returns True if successful."""
         if not self.session_manager.is_valid(account_name):
             return False
-        
-        print(f"Using cached token for {account_name}")
+        logger.info("Using cached token for %s", account_name)
         kite.set_access_token(self.session_manager.get_token(account_name))
         return self._validate_token_with_api_call(kite, account_name)
     
@@ -74,24 +74,24 @@ class AuthenticationManager:
     
     def _try_renew_token(self, kite: KiteConnect, account_name: str, api_secret: str) -> bool:
         """Try to renew expired token. Returns True if successful."""
-        print(f"Attempting to renew session for {account_name}...")
+        logger.info("Attempting to renew session for %s...", account_name)
         try:
             old_token = self.session_manager.get_token(account_name)
             renewed_session = kite.renew_access_token(old_token, api_secret)
             new_access_token = renewed_session.get("access_token")
             
             if new_access_token:
-                print(f"Successfully renewed session for {account_name}")
+                logger.info("Successfully renewed session for %s", account_name)
                 self._store_token(kite, account_name, new_access_token)
                 return True
         except Exception as e:
-            print(f"Session renewal failed for {account_name}: {e}")
+            logger.exception("Session renewal failed for %s: %s", account_name, e)
         
         return False
     
     def _perform_full_login(self, kite: KiteConnect, account_name: str, api_secret: str) -> str:
         """Perform full OAuth login flow. Returns access token."""
-        print(f"Initiating login flow for {account_name}")
+        logger.info("Initiating login flow for %s", account_name)
         webbrowser.open(kite.login_url())
         
         req_token = self._wait_for_request_token(account_name)
@@ -102,7 +102,7 @@ class AuthenticationManager:
             raise RuntimeError("Failed to obtain access_token")
         
         self._store_token(kite, account_name, access_token)
-        print(f"Successfully authenticated {account_name}")
+        logger.info("Successfully authenticated %s", account_name)
         
         return access_token
     

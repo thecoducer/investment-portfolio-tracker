@@ -4,6 +4,7 @@ SIP (Systematic Investment Plan) management service.
 from typing import Dict, Any, List
 from kiteconnect import KiteConnect
 from .base_service import BaseDataService
+from logging_config import logger
 
 
 class SIPService(BaseDataService):
@@ -24,5 +25,5 @@ class SIPService(BaseDataService):
             sips = kite.mf_sips() or []
             return sips
         except Exception as e:
-            print(f"Error fetching SIPs: {e}")
+            logger.exception("Error fetching SIPs: %s", e)
             return []

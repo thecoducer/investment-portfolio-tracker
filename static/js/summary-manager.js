@@ -1,6 +1,6 @@
 /* Portfolio Tracker - Summary Module */
 
-import { Formatter, Calculator } from './utils.js';
+import { Formatter } from './utils.js';
 
 // Element ID constants
 const ELEMENT_IDS = {
@@ -35,7 +35,7 @@ class SummaryManager {
     // Hide loading placeholders
     const combinedLoading = document.getElementById('combined_summary_loading');
     if (combinedLoading) combinedLoading.style.display = 'none';
-    const stocksLoading = document.getElementById('portfolio_summary_loading');
+    const stocksLoading = document.getElementById('stocks_summary_loading');
     if (stocksLoading) stocksLoading.style.display = 'none';
     const mfLoading = document.getElementById('mf_summary_loading');
     if (mfLoading) mfLoading.style.display = 'none';
@@ -60,8 +60,7 @@ class SummaryManager {
       plPct: combinedPLPct
     });
 
-    // Apply animations to all cards
-    this._applyAnimations(isUpdating);
+    // No card animations
   }
 
   _updateStockCard(totals) {
@@ -103,40 +102,25 @@ class SummaryManager {
     // Add rupee symbol to invested, current, and P/L
     investedEl.innerText = '₹' + Formatter.formatNumber(totals.invested);
     currentEl.innerText = '₹' + Formatter.formatNumber(totals.current);
-    plEl.innerText = Formatter.formatSign(totals.pl) + '₹' + Formatter.formatNumber(totals.pl);
+    // Show '-' before rupee symbol for negative P/L
+    if (totals.pl < 0) {
+      plEl.innerText = '-' + '₹' + Formatter.formatNumber(Math.abs(totals.pl));
+    } else {
+      plEl.innerText = '₹' + Formatter.formatNumber(totals.pl);
+    }
     plEl.style.color = Formatter.colorPL(totals.pl);
-    plPctEl.innerText = Formatter.formatSign(totals.pl) + totals.plPct.toFixed(2) + '%';
+    // Show only one sign before percent value, use absolute value
+    if (totals.pl < 0) {
+      plPctEl.innerText = '-' + Math.abs(totals.plPct).toFixed(2) + '%';
+    } else if (totals.pl > 0) {
+      plPctEl.innerText = '+' + Math.abs(totals.plPct).toFixed(2) + '%';
+    } else {
+      plPctEl.innerText = '0.00%';
+    }
     plPctEl.style.color = Formatter.colorPL(totals.pl);
   }
 
-  _applyAnimations(isUpdating) {
-    // Get all elements from all three cards
-    const allElements = [
-      // Combined card
-      document.getElementById(ELEMENT_IDS.COMBINED.INVESTED),
-      document.getElementById(ELEMENT_IDS.COMBINED.CURRENT),
-      document.getElementById(ELEMENT_IDS.COMBINED.PL),
-      document.getElementById(ELEMENT_IDS.COMBINED.PL_PCT),
-      // Stock card
-      document.getElementById(ELEMENT_IDS.STOCK.INVESTED),
-      document.getElementById(ELEMENT_IDS.STOCK.CURRENT),
-      document.getElementById(ELEMENT_IDS.STOCK.PL),
-      document.getElementById(ELEMENT_IDS.STOCK.PL_PCT),
-      // MF card
-      document.getElementById(ELEMENT_IDS.MF.INVESTED),
-      document.getElementById(ELEMENT_IDS.MF.CURRENT),
-      document.getElementById(ELEMENT_IDS.MF.PL),
-      document.getElementById(ELEMENT_IDS.MF.PL_PCT)
-    ];
-    
-    allElements.forEach(el => {
-      if (isUpdating) {
-        el.classList.add('updating-field');
-      } else {
-        el.classList.remove('updating-field');
-      }
-    });
-  }
+  // _applyAnimations removed: no animation logic
 }
 
 export default SummaryManager;

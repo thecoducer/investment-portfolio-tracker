@@ -18,6 +18,7 @@ import json
 import webbrowser
 from datetime import datetime
 from queue import Queue, Empty
+from logging_config import logger, configure
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
 
@@ -34,8 +35,11 @@ from constants import (
     DEFAULT_UI_HOST,
     DEFAULT_UI_PORT,
     DEFAULT_REQUEST_TOKEN_TIMEOUT,
-    DEFAULT_AUTO_REFRESH_INTERVAL
+    DEFAULT_AUTO_REFRESH_INTERVAL,
+    NIFTY50_FALLBACK_SYMBOLS
 )
+
+# Use shared project logger (see `logging_config.py`).
 
 # Load configuration
 CONFIG = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
@@ -58,20 +62,6 @@ REQUEST_TOKEN_TIMEOUT = TIMEOUT_CONFIG.get("request_token_timeout_seconds", DEFA
 AUTO_REFRESH_INTERVAL = TIMEOUT_CONFIG.get("auto_refresh_interval_seconds", DEFAULT_AUTO_REFRESH_INTERVAL)
 
 AUTO_REFRESH_OUTSIDE_MARKET_HOURS = FEATURE_CONFIG.get("auto_refresh_outside_market_hours", False)
-
-# Nifty 50 configuration
-NIFTY50_FALLBACK_SYMBOLS = [
-    "ADANIPORTS", "ASIANPAINT", "AXISBANK", "BAJAJ-AUTO", "BAJFINANCE",
-    "BAJAJFINSV", "BHARTIARTL", "BPCL", "BRITANNIA", "CIPLA",
-    "COALINDIA", "DIVISLAB", "DRREDDY", "EICHERMOT", "GRASIM",
-    "HCLTECH", "HDFCBANK", "HDFCLIFE", "HEROMOTOCO", "HINDALCO",
-    "HINDUNILVR", "ICICIBANK", "INDUSINDBK", "INFY", "ITC",
-    "JSWSTEEL", "KOTAKBANK", "LT", "M&M", "MARUTI",
-    "NESTLEIND", "NTPC", "ONGC", "POWERGRID", "RELIANCE",
-    "SBILIFE", "SBIN", "SHRIRAMFIN", "SUNPHARMA", "TATACONSUM",
-    "TATAMOTORS", "TATASTEEL", "TCS", "TECHM", "TITAN",
-    "ULTRACEMCO", "WIPRO", "APOLLOHOSP", "ADANIENT", "LTIM"
-]
 
 SESSION_CACHE_FILE = os.path.join(os.path.dirname(__file__), SESSION_CACHE_FILENAME)
 
@@ -100,15 +90,8 @@ nifty50_fetch_in_progress = threading.Event()
 # HELPER FUNCTIONS
 # --------------------------
 def log_error(context: str, error: Exception, account_name: str = None) -> None:
-    """Log error with consistent formatting.
-    
-    Args:
-        context: Description of what failed
-        error: The exception that occurred
-        account_name: Optional account name for context
-    """
     account_info = f" for {account_name}" if account_name else ""
-    print(f"Error {context}{account_info}: {error}")
+    logger.error("Error %s%s: %s", context, account_info, error)
 
 # SSE (Server-Sent Events) support
 class SSEClientManager:
@@ -133,7 +116,8 @@ class SSEClientManager:
             for client_queue in self.clients[:]:
                 try:
                     client_queue.put_nowait(message)
-                except:
+                except Exception:
+                    logger.exception("Failed to send SSE message to client, removing client")
                     self.remove_client(client_queue)
 
 sse_manager = SSEClientManager()
@@ -158,14 +142,13 @@ def broadcast_state_change():
 def _build_status_response() -> Dict[str, Any]:
     """Build status response dict - used by both /status endpoint and SSE."""
     return {
-        "state": state_manager.get_combined_state(),
-        "ltp_fetch_state": state_manager.ltp_fetch_state,
         "last_error": state_manager.last_error,
-        "last_run_at": format_timestamp(state_manager.last_run_ts),
-        "holdings_last_updated": format_timestamp(state_manager.holdings_last_updated),
-        "session_validity": session_manager.get_validity(),
+        "portfolio_state": state_manager.portfolio_state,
+        "portfolio_last_updated": format_timestamp(state_manager.portfolio_last_updated),
+        "nifty50_state": state_manager.nifty50_state,
+        "nifty50_last_updated": format_timestamp(state_manager.nifty50_last_updated),
         "market_open": is_market_open_ist(),
-        "nifty50_last_updated": state_manager.nifty50_last_updated
+        "session_validity": session_manager.get_validity()
     }
 
 # Register state change listener
@@ -225,34 +208,32 @@ def events():
         'Connection': 'keep-alive'
     })
 
-
-def _json_response_with_cache(data, sort_key=None, max_age=30):
-    """Helper to create JSON response with caching headers."""
+def _json_response_no_cache(data, sort_key=None):
+    """Helper to create JSON response with no-cache headers."""
     sorted_data = sorted(data, key=lambda x: x.get(sort_key, "")) if sort_key else data
     response = jsonify(sorted_data)
-    response.headers['Cache-Control'] = f'private, max-age={max_age}'
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
 @app_ui.route("/holdings_data", methods=["GET"])
 def holdings_data():
     """Return stock holdings as JSON."""
-    return _json_response_with_cache(merged_holdings_global, sort_key="tradingsymbol")
+    return _json_response_no_cache(merged_holdings_global, sort_key="tradingsymbol")
 
 @app_ui.route("/mf_holdings_data", methods=["GET"])
 def mf_holdings_data():
     """Return MF holdings as JSON."""
-    return _json_response_with_cache(merged_mf_holdings_global, sort_key="tradingsymbol")
+    return _json_response_no_cache(merged_mf_holdings_global, sort_key="fund")
 
 @app_ui.route("/sips_data", methods=["GET"])
 def sips_data():
     """Return active SIPs as JSON."""
-    return _json_response_with_cache(merged_sips_global, sort_key="tradingsymbol")
+    return _json_response_no_cache(merged_sips_global, sort_key="status")
 
 @app_ui.route("/nifty50_data", methods=["GET"])
 def nifty50_data():
-    """Return cached Nifty 50 stocks data."""
-    return _json_response_with_cache(nifty50_data_global)
-
+    """Return Nifty 50 stocks data as JSON."""
+    return _json_response_no_cache(nifty50_data_global, sort_key="symbol")
 
 @app_ui.route("/refresh", methods=["POST"])
 def refresh_route():
@@ -263,9 +244,6 @@ def refresh_route():
     # Check if any account session is expired
     needs_login = any(not session_manager.is_valid(acc["name"]) for acc in ACCOUNTS_CONFIG)
     run_background_fetch(force_login=needs_login)
-    
-    # Also trigger Nifty 50 refresh immediately
-    fetch_nifty50_data()
     
     return make_response(jsonify({"status": "started", "needs_login": needs_login}), HTTP_ACCEPTED)
 
@@ -285,7 +263,7 @@ def nifty50_page():
 # --------------------------
 # DATA FETCHING
 # --------------------------
-def fetch_account_holdings(account_config: Dict[str, Any], force_login: bool = False) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+def fetch_account_data(account_config: Dict[str, Any], force_login: bool = False) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     Authenticate and fetch holdings and SIPs for an account.
     
@@ -302,61 +280,52 @@ def fetch_account_holdings(account_config: Dict[str, Any], force_login: bool = F
     return stock_holdings, mf_holdings, sips
 
 
-def run_background_fetch(force_login: bool = False):
-    """Fetch holdings and SIPs in background thread."""
-    def _target():
-        try:
-            fetch_in_progress.set()
-            state_manager.set_refresh_running()
-            
-            all_stock_holdings = []
-            all_mf_holdings = []
-            all_sips = []
+def fetch_portfolio_data(force_login: bool = False):
+    """Fetch holdings/SIPs for all accounts and update global state."""
+    fetch_in_progress.set()
+    state_manager.set_portfolio_updating()
+    try:
+        all_stock_holdings = [None] * len(ACCOUNTS_CONFIG)
+        all_mf_holdings = [None] * len(ACCOUNTS_CONFIG)
+        all_sips = [None] * len(ACCOUNTS_CONFIG)
+        threads = []
 
-            # Fetch accounts sequentially
-            for account_config in ACCOUNTS_CONFIG:
-                account_name = account_config["name"]
-                try:
-                    stock_holdings, mf_holdings, sips = fetch_account_holdings(
-                        account_config, force_login
-                    )
-                    
-                    holdings_service.add_account_info(stock_holdings, account_name)
-                    holdings_service.add_account_info(mf_holdings, account_name)
-                    sip_service.add_account_info(sips, account_name)
-                    
-                    all_stock_holdings.append(stock_holdings)
-                    all_mf_holdings.append(mf_holdings)
-                    all_sips.append(sips)
-                except Exception as e:
-                    log_error("fetching holdings", e, account_name)
-                    state_manager.last_error = str(e)
+        def fetch_for_account(idx, account_config):
+            account_name = account_config["name"]
+            try:
+                stock_holdings, mf_holdings, sips = fetch_account_data(account_config, force_login)
+                holdings_service.add_account_info(stock_holdings, account_name)
+                holdings_service.add_account_info(mf_holdings, account_name)
+                sip_service.add_account_info(sips, account_name)
+                all_stock_holdings[idx] = stock_holdings
+                all_mf_holdings[idx] = mf_holdings
+                all_sips[idx] = sips
+            except Exception as e:
+                log_error("fetching holdings", e, account_name)
+                state_manager.last_error = str(e)
 
-            merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
-            merged_sips = sip_service.merge_items(all_sips)
-            
-            global merged_holdings_global, merged_mf_holdings_global, merged_sips_global
-            merged_holdings_global = merged_stocks
-            merged_mf_holdings_global = merged_mfs
-            merged_sips_global = merged_sips
-            state_manager.set_holdings_updated()
-            state_manager.set_refresh_idle()
-            
-            # Also refresh Nifty 50 data
-            fetch_nifty50_data()
+        for idx, account_config in enumerate(ACCOUNTS_CONFIG):
+            t = threading.Thread(target=fetch_for_account, args=(idx, account_config), daemon=True)
+            threads.append(t)
+            t.start()
 
-        except Exception as e:
-            state_manager.last_error = str(e)
-            state_manager.set_refresh_idle()
-        finally:
-            fetch_in_progress.clear()
+        for t in threads:
+            t.join()
 
-    threading.Thread(target=_target, daemon=True).start()
+        merged_stocks, merged_mfs = holdings_service.merge_holdings(all_stock_holdings, all_mf_holdings)
+        merged_sips = sip_service.merge_items(all_sips)
 
+        global merged_holdings_global, merged_mf_holdings_global, merged_sips_global
+        merged_holdings_global = merged_stocks
+        merged_mf_holdings_global = merged_mfs
+        merged_sips_global = merged_sips
+    except Exception as e:
+        state_manager.last_error = str(e)
+    finally:
+        state_manager.set_portfolio_updated()
+        fetch_in_progress.clear()
+        
 
-# --------------------------
-# NIFTY 50 DATA FETCHING
-# --------------------------
 def fetch_nifty50_symbols():
     """Fetch Nifty 50 constituent symbols from NSE API."""
     import requests
@@ -387,47 +356,41 @@ def fetch_nifty50_symbols():
             
             return symbols
         else:
-            print(f"Failed to fetch Nifty 50 symbols: {response.status_code}")
+            logger.warning("Failed to fetch Nifty 50 symbols: %s", response.status_code)
             return []
             
     except Exception as e:
-        print(f"Error fetching Nifty 50 symbols: {e}")
+        logger.exception("Error fetching Nifty 50 symbols: %s", e)
         return []
 
 
 def fetch_nifty50_data():
     """Fetch Nifty 50 stocks data from NSE API and update global state."""
+    state_manager.set_nifty50_updating()
+    
     if nifty50_fetch_in_progress.is_set():
-        print("Nifty 50 fetch already in progress, skipping")
+        logger.info("Nifty 50 fetch already in progress, skipping")
         return
 
-    print(f"[DEBUG] nifty50_fetch_in_progress.is_set before thread: {nifty50_fetch_in_progress.is_set()}")
     def _target():
         import requests
 
         try:
             nifty50_fetch_in_progress.set()
-            print(f"[DEBUG] nifty50_fetch_in_progress.set() called: {nifty50_fetch_in_progress.is_set()}")
-            print("Fetching Nifty 50 data...")
-            
+            logger.info("Fetching Nifty 50 data...")
             # Fetch constituent symbols dynamically
             symbols = fetch_nifty50_symbols()
-            
             if not symbols:
-                print("No Nifty 50 symbols fetched, using fallback list")
+                logger.warning("No Nifty 50 symbols fetched, using fallback list")
                 symbols = NIFTY50_FALLBACK_SYMBOLS
-            
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Accept': 'application/json',
                 'Accept-Language': 'en-US,en;q=0.9'
             }
-            
             session = requests.Session()
             session.get('https://www.nseindia.com', headers=headers, timeout=10)
-            
             nifty50_data = []
-            
             for symbol in symbols:
                 try:
                     # URL encode the symbol to handle special characters like & in M&M
@@ -435,11 +398,9 @@ def fetch_nifty50_data():
                     encoded_symbol = quote(symbol)
                     url = f"https://www.nseindia.com/api/quote-equity?symbol={encoded_symbol}"
                     response = session.get(url, headers=headers, timeout=10)
-                    
                     if response.status_code == 200:
                         data = response.json()
                         price_info = data.get('priceInfo', {})
-                        
                         nifty50_data.append({
                             'symbol': symbol,
                             'name': data.get('info', {}).get('companyName', symbol),
@@ -463,11 +424,9 @@ def fetch_nifty50_data():
                             'low': 0,
                             'close': 0
                         })
-                    
                     time.sleep(0.2)
-                    
                 except Exception as e:
-                    print(f"Error fetching {symbol}: {e}")
+                    logger.exception("Error fetching %s: %s", symbol, e)
                     nifty50_data.append({
                         'symbol': symbol,
                         'name': symbol,
@@ -479,21 +438,33 @@ def fetch_nifty50_data():
                         'low': 0,
                         'close': 0
                     })
-            
             global nifty50_data_global
             nifty50_data_global = nifty50_data
-            state_manager.set_nifty50_updated()
-            
         except Exception as e:
-            print(f"Error in Nifty 50 fetch: {e}")
+            logger.exception("Error in Nifty 50 fetch: %s", e)
+            state_manager.last_error = str(e)
         finally:
+            state_manager.set_nifty50_updated()
             nifty50_fetch_in_progress.clear()
-            print(f"[DEBUG] nifty50_fetch_in_progress.clear() called: {nifty50_fetch_in_progress.is_set()}")
-            
-        print(f"Nifty 50 data updated: {len(nifty50_data)} stocks")
-        broadcast_state_change()
+            logger.info("Nifty 50 data updated: %s stocks", len(nifty50_data))
     
     threading.Thread(target=_target, daemon=True).start()
+
+
+def run_background_fetch(force_login: bool = False, on_complete=None):
+    """Fetch holdings/SIPs and Nifty50 data concurrently in background threads."""
+
+    def background_task():
+        t1 = threading.Thread(target=fetch_portfolio_data, args=(force_login,), daemon=True)
+        t2 = threading.Thread(target=fetch_nifty50_data, daemon=True)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+        if on_complete:
+            on_complete()
+
+    threading.Thread(target=background_task, daemon=True).start()
 
 
 # --------------------------
@@ -528,12 +499,12 @@ def run_auto_refresh():
         should_run, skip_reason = _should_auto_refresh(market_open, fetch_in_progress.is_set())
         
         if not should_run:
-            print(f"Auto-refresh skipped: {skip_reason}")
+            logger.info("Auto-refresh skipped: %s", skip_reason)
             continue
-        
+
         market_status = "outside market hours" if not market_open else "during market hours"
         timestamp = datetime.now().strftime('%H:%M:%S')
-        print(f"Auto-refresh triggered at {timestamp} ({market_status})")
+        logger.info("Auto-refresh triggered at %s (%s)", timestamp, market_status)
         run_background_fetch(force_login=False)
 
 
@@ -554,41 +525,46 @@ def start_server(app: Flask, host: str, port: int) -> threading.Thread:
 def main():
     """Start the application."""
     try:
+        # Configure basic logging for the application
+        configure()
+
         # Load cached sessions
         session_manager.load()
         
         # Validate accounts
         validate_accounts(ACCOUNTS_CONFIG)
-        
-        print(f"Starting callback server at {REDIRECT_URL}")
+
+        logger.info("Starting callback server at %s", REDIRECT_URL)
         start_server(app_callback, CALLBACK_HOST, CALLBACK_PORT)
-        
+
         dashboard_url = f"http://{UI_HOST}:{UI_PORT}/holdings"
-        print(f"Starting UI server at {dashboard_url}")
+        logger.info("Starting UI server at %s", dashboard_url)
         start_server(app_ui, UI_HOST, UI_PORT)
-        
-        print("Server is ready. Press CTRL+C to stop.")
-        
+
+        logger.info("Server is ready. Press CTRL+C to stop.")
+
         # Open browser automatically
-        print(f"Opening dashboard in browser: {dashboard_url}")
+        logger.info("Opening dashboard in browser: %s", dashboard_url)
         threading.Timer(1.5, lambda: webbrowser.open(dashboard_url)).start()
-        
+
         # Trigger initial holdings refresh and set status to updating
-        print("Triggering initial holdings refresh...")
-        run_background_fetch(force_login=False)
-        
-        # Start background auto-refresh service
-        print(f"Starting auto-refresh service (interval: {AUTO_REFRESH_INTERVAL}s)")
-        threading.Thread(target=run_auto_refresh, daemon=True).start()
-        
+        # Start auto-refresh service once initial holdings fetch completes
+        logger.info("Triggering initial holdings refresh...")
+
+        def start_auto_refresh():
+            logger.info("Starting auto-refresh service (interval: %s s)", AUTO_REFRESH_INTERVAL)
+            threading.Thread(target=run_auto_refresh, daemon=True).start()
+
+        run_background_fetch(force_login=False, on_complete=start_auto_refresh)
+
         # Keep main thread alive
         while True:
             time.sleep(1)
-    
+
     except KeyboardInterrupt:
-        print("\nShutting down...")
+        logger.info("\nShutting down...")
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.exception("Fatal error: %s", e)
 
 
 if __name__ == "__main__":

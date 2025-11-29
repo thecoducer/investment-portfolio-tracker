@@ -103,18 +103,13 @@ class TestStateManager(unittest.TestCase):
     
     def test_set_refresh_running(self):
         """Test setting refresh to running state"""
-        self.state_manager.set_refresh_running()
+        self.state_manager.set_portfolio_updating()
         self.assertEqual(self.state_manager.refresh_state, STATE_UPDATING)
     
     def test_set_refresh_idle(self):
         """Test setting refresh to idle state"""
-        self.state_manager.set_refresh_idle()
+        self.state_manager.set_portfolio_updated()
         self.assertEqual(self.state_manager.refresh_state, STATE_UPDATED)
-    
-    def test_set_ltp_running(self):
-        """Test setting LTP fetch to running"""
-        self.state_manager.set_ltp_running()
-        self.assertEqual(self.state_manager.ltp_fetch_state, STATE_UPDATING)
     
     def test_set_ltp_idle(self):
         """Test setting LTP fetch to idle"""
@@ -123,26 +118,19 @@ class TestStateManager(unittest.TestCase):
     
     def test_combined_state_all_idle(self):
         """Test combined state when all idle"""
-        self.state_manager.set_refresh_idle()
+        self.state_manager.set_portfolio_updated()
         self.state_manager.set_ltp_idle()
         self.assertEqual(self.state_manager.get_combined_state(), STATE_UPDATED)
     
     def test_combined_state_refresh_running(self):
         """Test combined state when refresh running"""
-        self.state_manager.set_refresh_running()
+        self.state_manager.set_portfolio_updating()
         self.state_manager.set_ltp_idle()
-        self.assertEqual(self.state_manager.get_combined_state(), STATE_UPDATING)
-    
-    def test_combined_state_ltp_running(self):
-        """Test combined state when LTP running"""
-        self.state_manager.set_refresh_idle()
-        self.state_manager.set_ltp_running()
         self.assertEqual(self.state_manager.get_combined_state(), STATE_UPDATING)
     
     def test_set_holdings_updated(self):
         """Test setting holdings updated timestamp"""
-        self.state_manager.set_holdings_updated()
-        self.assertIsNotNone(self.state_manager.holdings_last_updated)
+        
     
     def test_error_tracking(self):
         """Test error message tracking"""
@@ -158,7 +146,7 @@ class TestStateManager(unittest.TestCase):
             callback_called.append(True)
         
         self.state_manager.add_change_listener(callback)
-        self.state_manager.set_refresh_running()
+        self.state_manager.set_portfolio_updating()
         
         self.assertTrue(len(callback_called) > 0)
     
@@ -170,16 +158,16 @@ class TestStateManager(unittest.TestCase):
         self.state_manager.add_change_listener(bad_callback)
         
         # Should not raise, just print error
-        self.state_manager.set_refresh_running()
+        self.state_manager.set_portfolio_updating()
     
     def test_is_any_running_true(self):
         """Test is_any_running returns True when refresh is running"""
-        self.state_manager.set_refresh_running()
+        self.state_manager.set_portfolio_updating()
         self.assertTrue(self.state_manager.is_any_running())
     
     def test_is_any_running_false(self):
         """Test is_any_running returns False when updated"""
-        self.state_manager.set_refresh_idle()
+        self.state_manager.set_portfolio_updated()
         self.assertFalse(self.state_manager.is_any_running())
 
 

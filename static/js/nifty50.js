@@ -70,11 +70,11 @@ class Nifty50App {
     statusTag.classList.toggle('updated', !isUpdating);
     statusTag.classList.toggle('market_closed', status.market_open === false);
     
-    statusText.innerText = isUpdating 
-      ? 'updating' 
-      : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
+    statusText.innerText = isUpdating
+      ? 'updating'
+      : ('updated' + (status.nifty50_last_updated ? ` • ${status.nifty50_last_updated}` : ''));
 
-    this._updateRefreshButton(status.state === 'updating');
+    this._updateRefreshButton(isUpdating);
     
     // Re-render table with current status if we have data
     if (this.nifty50Data && this.nifty50Data.length > 0) {
@@ -104,7 +104,7 @@ class Nifty50App {
   }
 
   _isStatusUpdating(status) {
-    return status.state === 'updating';
+    return status.nifty50_state === 'updating';
   }
 
   _updateRefreshButton(isUpdating) {

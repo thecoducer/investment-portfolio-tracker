@@ -10,21 +10,20 @@ A modern, modular Flask-based web application for tracking mutual fund and stock
 
 ## ✨ Features
 
-- **Multi-account support**: Track holdings across multiple Zerodha accounts
-- **Session token caching**: Auto-login on restart using cached session tokens with encryption
-- **Server-Sent Events (SSE)**: Real-time status updates without polling
-- **Smart loading**: Dashboard waits for backend data fetching to complete before rendering
-- **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation
-- **Interactive dashboard**: Modern UI with dark/light theme toggle
-- **Privacy mode**: Hide sensitive data with blur effect for screen sharing
-- **Search & filter**: Quick search across symbols and accounts with smart table visibility
-- **Live animations**: Blur-fade indicators during data updates (disabled in privacy mode)
-- **Combined analytics**: Aggregated view of stocks and mutual funds
-- **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
-- **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
-- **Responsive design**: Clean, professional interface with smooth animations
-- **Auto-refresh**: Automatic refresh during market hours (9 AM - 4:30 PM IST, weekdays), with optional 24/7 mode
-- **Nifty 50 Stocks Page**: Dedicated page to view live prices and stats for all Nifty 50 stocks, with real-time updates, sorting, and refresh functionality.
+ **Multi-account support**: Track holdings across multiple Zerodha accounts
+ **Session token caching**: Auto-login on restart using cached session tokens with encryption
+ **Server-Sent Events (SSE)**: Real-time status updates without polling
+ **Smart loading**: Dashboard waits for backend data fetching to complete before rendering
+ **Active SIPs tracking**: View all active SIPs (Systematic Investment Plans) with monthly total calculation
+ **Interactive dashboard**: Modern UI with dark/light theme toggle
+ **Privacy mode**: Hide sensitive data for screen sharing
+ **Search & filter**: Quick search across symbols and accounts with smart table visibility
+ **Combined analytics**: Aggregated view of stocks and mutual funds
+ **NAV date tracking**: Shows when mutual fund NAV was last updated with relative dates (today, yesterday, X days ago)
+ **Smart date formatting**: Intuitive date displays for SIP schedules (tomorrow, in X days)
+ **Responsive design**: Clean, professional interface
+ **Auto-refresh**: Automatic refresh during market hours (9 AM - 4:30 PM IST, weekdays), with optional 24/7 mode
+ **Nifty 50 Stocks Page**: Dedicated page to view live prices and stats for all Nifty 50 stocks, with real-time updates, sorting, and refresh functionality.
 
 ## 📋 Prerequisites
 
@@ -217,7 +216,7 @@ The portfolio dashboard will automatically open in your browser. If not, manuall
 │       ├── app.js                # Main application controller (Portfolio page)
 │       ├── nifty50.js            # Nifty 50 page controller and SSE updates
 │       ├── data-manager.js       # API data fetching
-│       ├── table-renderer.js     # Table rendering with animations
+│       ├── table-renderer.js     # Table rendering with rupee and sign formatting
 │       ├── summary-manager.js    # Portfolio summary calculations
 │       ├── theme-manager.js      # Dark/light theme switching
 │       ├── visibility-manager.js # Privacy mode for data hiding
@@ -254,7 +253,7 @@ The portfolio dashboard will automatically open in your browser. If not, manuall
 
 **Theme Toggle**: Click the theme button (🌙/☀️) to switch between dark and light modes
 
-**Privacy Mode**: Click the eye button (👁️) to blur sensitive financial data - perfect for screen sharing or presentations. Colors and animations are disabled in privacy mode.
+**Privacy Mode**: Click the eye button (👁️) to hide sensitive financial data—perfect for screen sharing or presentations.
 
 **Active SIPs**: View all your systematic investment plans with:
 - Fund name (displayed in uppercase)
@@ -264,9 +263,11 @@ The portfolio dashboard will automatically open in your browser. If not, manuall
 - Next due date (shown as "Today", "Tomorrow", "In X days", or specific date)
 - Total Monthly SIP Amount displayed as the last row in the table
 
-**Real-time Updates**: Watch fields fade during refresh operations
-- All numeric fields show blur-fade animation during updates
-- Animation is disabled in privacy mode to maintain data security
+**Real-time Updates**: Data updates are reflected instantly in the dashboard, with clear sign formatting for profit/loss and monetary values.
+**UI Details**:
+- All summary cards and tables use updated labels: "Current" (was "Current Value"), "P/L" (was "P/L Amount")
+- Rupee symbol (₹) shown for all monetary values in MF tables (avg price, nav, invested, current)
+- Profit % in day's change column shows '+' sign for gains
 
 **NAV Dates**: Mutual fund NAV shows relative date (today, yesterday, X days ago)
 

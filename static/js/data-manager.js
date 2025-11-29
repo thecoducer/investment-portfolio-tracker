@@ -96,15 +96,6 @@ class DataManager {
     }
     return await response.json();
   }
-
-  async waitForRefreshComplete() {
-    let status;
-    do {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      status = await this.fetchStatus();
-    } while (status.state === 'updating');
-    return status;
-  }
 }
 
 export default DataManager;

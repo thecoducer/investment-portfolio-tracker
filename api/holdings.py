@@ -6,6 +6,7 @@ from datetime import datetime
 
 from kiteconnect import KiteConnect
 from .base_service import BaseDataService
+from logging_config import logger
 
 
 class HoldingsService(BaseDataService):
@@ -27,9 +28,7 @@ class HoldingsService(BaseDataService):
         """
         stock_holdings = kite.holdings() or []
         mf_holdings = kite.mf_holdings() or []
-        
         self._add_nav_dates(mf_holdings, kite)
-        
         return stock_holdings, mf_holdings
     
     def _add_nav_dates(self, mf_holdings: List[Dict[str, Any]], kite: KiteConnect) -> None:
@@ -64,7 +63,7 @@ class HoldingsService(BaseDataService):
                     holding.setdefault('last_price_date', None)
                         
         except Exception as e:
-            print(f"Error fetching MF instruments for NAV dates: {e}")
+            logger.exception("Error fetching MF instruments for NAV dates: %s", e)
             # Ensure all holdings have last_price_date field
             for holding in mf_holdings:
                 holding.setdefault('last_price_date', None)

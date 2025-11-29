@@ -10,6 +10,7 @@ from typing import Dict, Any, List
 from cryptography.fernet import Fernet
 import platform
 from zoneinfo import ZoneInfo
+from logging_config import logger
 
 from constants import (
     STATE_UPDATING,
@@ -21,6 +22,8 @@ from constants import (
     MARKET_CLOSE_MINUTE,
     WEEKEND_SATURDAY
 )
+
+# Use shared project logger (see `logging_config.py`).
 
 
 class SessionManager:
@@ -77,9 +80,9 @@ class SessionManager:
                     "expiry": expiry
                 }
             
-            print(f"Loaded cached sessions for: {', '.join(self.sessions.keys())}")
+            logger.info("Loaded cached sessions for: %s", ', '.join(self.sessions.keys()))
         except Exception as e:
-            print(f"Error loading session cache: {e}")
+            logger.exception("Error loading session cache: %s", e)
     
     def save(self):
         """Save session tokens to file with encryption."""
@@ -95,10 +98,9 @@ class SessionManager:
             
             with open(self.cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
-            
-            print(f"Saved encrypted session cache for: {', '.join(cache_data.keys())}")
+            logger.info("Saved encrypted session cache for: %s", ', '.join(cache_data.keys()))
         except Exception as e:
-            print(f"Error saving session cache: {e}")
+            logger.exception("Error saving session cache: %s", e)
     
     def _is_token_expired(self, expiry: datetime) -> bool:
         """Check if a token has expired."""
@@ -131,11 +133,10 @@ class StateManager:
     """Manages application state with thread safety."""
     
     def __init__(self):
-        self.refresh_state = STATE_UPDATING  # Start with updating state
-        self.ltp_fetch_state = STATE_UPDATED
+        self.portfolio_state = STATE_UPDATING  # Start with updating state
+        self.nifty50_state = STATE_UPDATING  # Separate state for Nifty50 updates
         self.last_error: str = None
-        self.last_run_ts: float = None
-        self.holdings_last_updated: float = None
+        self.portfolio_last_updated: float = None
         self.nifty50_last_updated: float = None
         self._change_listeners = []
     
@@ -150,49 +151,39 @@ class StateManager:
             try:
                 listener()
             except Exception as e:
-                print(f"Error notifying listener: {e}")
+                logger.exception("Error notifying listener: %s", e)
     
     def add_change_listener(self, callback):
         """Add a callback to be notified on state changes."""
         self._change_listeners.append(callback)
     
-    def set_refresh_running(self, error: str = None):
-        """Set refresh state to updating."""
-        self._set_state('refresh_state', STATE_UPDATING)
+    def set_portfolio_updating(self, error: str = None):
+        """Set portfolio state to updating."""
+        self._set_state('portfolio_state', STATE_UPDATING)
         if error:
             self.last_error = error
     
-    def set_refresh_idle(self):
-        """Mark refresh as complete and update timestamp."""
-        self._set_state('refresh_state', STATE_UPDATED)
-        self.last_run_ts = time.time()
-    
-    def set_ltp_running(self):
-        """Set LTP fetch to updating."""
-        self._set_state('ltp_fetch_state', STATE_UPDATING)
-    
-    def set_ltp_idle(self):
-        """Mark LTP fetch as complete and update the holdings timestamp."""
-        self._set_state('ltp_fetch_state', STATE_UPDATED)
-        self.holdings_last_updated = time.time()
-    
-    def set_holdings_updated(self):
-        """Mark holdings as updated with current timestamp."""
-        self.holdings_last_updated = time.time()
+    def set_portfolio_updated(self):
+        """Mark portfolio refresh as complete and update portfolio_last_updated timestamp."""
+        self._set_state('portfolio_state', STATE_UPDATED)
+        self.portfolio_last_updated = time.time() 
         self._notify_change()
+        
+    def set_nifty50_updating(self, error: str = None):
+        """Set portfolio state to updating."""
+        self._set_state('nifty50_state', STATE_UPDATING)
+        if error:
+            self.last_error = error
 
     def set_nifty50_updated(self):
-        """Mark Nifty 50 as updated with current timestamp."""
+        """Mark Nifty 50 data as updated and update nifty50_last_updated timestamp and state."""
+        self._set_state('nifty50_state', STATE_UPDATED)
         self.nifty50_last_updated = time.time()
         self._notify_change()
     
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""
-        return self.refresh_state == STATE_UPDATING or self.ltp_fetch_state == STATE_UPDATING
-    
-    def get_combined_state(self) -> str:
-        """Get combined state for UI (either 'updating' or 'updated')."""
-        return STATE_UPDATING if self.is_any_running() else STATE_UPDATED
+        return self.portfolio_state == STATE_UPDATING or self.ltp_fetch_state == STATE_UPDATING
 
 
 def format_timestamp(ts: float) -> str:
@@ -237,7 +228,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         with open(config_path, "r") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading config: {e}")
+        logger.exception("Error loading config: %s", e)
         return {}
 
 

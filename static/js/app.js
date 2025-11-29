@@ -25,7 +25,7 @@ class PortfolioApp {
     this._setupEventListeners();
     // Show loading placeholders
     document.getElementById('combined_summary_loading').style.display = '';
-    document.getElementById('portfolio_summary_loading').style.display = '';
+    document.getElementById('stocks_summary_loading').style.display = '';
     document.getElementById('mf_summary_loading').style.display = '';
     document.getElementById('stocks_table_loading').style.display = '';
     document.getElementById('mf_table_loading').style.display = '';
@@ -34,7 +34,7 @@ class PortfolioApp {
   }
 
   _isStatusUpdating(status) {
-    return status.state === 'updating' || status.ltp_fetch_state === 'updating';
+    return status.portfolio_state === 'updating';
   }
 
   _setupEventListeners() {
@@ -105,22 +105,38 @@ class PortfolioApp {
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     const isUpdating = this._isStatusUpdating(status);
-    
+
     // Update status class
     statusTag.classList.toggle('updating', isUpdating);
     statusTag.classList.toggle('updated', !isUpdating);
     statusTag.classList.toggle('market_closed', status.market_open === false);
-    
-    statusText.innerText = isUpdating 
-      ? 'updating' 
-      : ('updated' + (status.holdings_last_updated ? ` • ${status.holdings_last_updated}` : ''));
 
-    this._updateRefreshButton(status.state === 'updating');
-    
-    const hasData = this.dataManager.getHoldings().length > 0 || 
-                    this.dataManager.getMFHoldings().length > 0 || 
+    statusText.innerText = isUpdating
+      ? 'updating'
+      : ('updated' + (status.portfolio_last_updated ? ` • ${status.portfolio_last_updated}` : ''));
+
+    this._updateRefreshButton(status.portfolio_state === 'updating');
+
+    const hasData = this.dataManager.getHoldings().length > 0 ||
+                    this.dataManager.getMFHoldings().length > 0 ||
                     this.dataManager.getSIPs().length > 0;
-    
+
+    this._renderTablesAndSummary(hasData, status, isUpdating);
+
+    // Fetch data when:
+    // 1. State changed from 'updating' to 'updated' (normal refresh complete)
+    // 2. State is 'updated' but we have no data yet (first load after server restart)
+    const shouldFetchData = (!isUpdating && this._wasUpdating) ||
+                           (!isUpdating && !hasData);
+
+    if (shouldFetchData) {
+      this.updateData();
+    }
+
+    this._wasUpdating = isUpdating;
+  }
+
+  _renderTablesAndSummary(hasData, status, isUpdating) {
     if (hasData) {
       // Re-render tables and get totals with current sort order
       const sortedHoldings = this.sortManager.sortStocks(
@@ -131,31 +147,19 @@ class PortfolioApp {
         this.dataManager.getMFHoldings(),
         this.sortManager.getMFSortOrder()
       );
-      
+
       const stockTotals = this.tableRenderer.renderStocksTable(sortedHoldings, status);
       const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
       this.summaryManager.updateAllSummaries(stockTotals, mfTotals, isUpdating);
     } else {
-      // First load - show zeros with animation
+      // First load - show zeros
       this.summaryManager.updateAllSummaries(
         { invested: 0, current: 0, pl: 0, plPct: 0 },
         { invested: 0, current: 0, pl: 0, plPct: 0 },
         isUpdating
       );
     }
-
-    // Fetch data when:
-    // 1. State changed from 'updating' to 'updated' (normal refresh complete)
-    // 2. State is 'updated' but we have no data yet (first load after server restart)
-    const shouldFetchData = (!isUpdating && this._wasUpdating) || 
-                           (!isUpdating && !hasData);
-    
-    if (shouldFetchData) {
-      this.updateData();
-    }
-    
-    this._wasUpdating = isUpdating;
   }
 
   handleSearch() {
@@ -181,13 +185,25 @@ class PortfolioApp {
   async updateData() {
     try {
       const { holdings, mfHoldings, sips, status } = await this.dataManager.fetchAllData();
+
       // Hide loading placeholders
-      document.getElementById('combined_summary_loading').style.display = 'none';
-      document.getElementById('portfolio_summary_loading').style.display = 'none';
-      document.getElementById('mf_summary_loading').style.display = 'none';
-      document.getElementById('stocks_table_loading').style.display = 'none';
-      document.getElementById('mf_table_loading').style.display = 'none';
-      document.getElementById('sips_table_loading').style.display = 'none';
+      const combinedLoading = document.getElementById('combined_summary_loading');
+      if(combinedLoading) combinedLoading.style.display = 'none';
+      
+      const stocksSummaryLoading = document.getElementById('stocks_summary_loading');
+      if(stocksSummaryLoading) stocksSummaryLoading.style.display = 'none';
+      
+      const mfSummaryLoading = document.getElementById('mf_summary_loading');
+      if(mfSummaryLoading) mfSummaryLoading.style.display = 'none';
+      
+      const stocksTableLoading = document.getElementById('stocks_table_loading');
+      if(stocksTableLoading) stocksTableLoading.style.display = 'none';
+      
+      const mfTableLoading = document.getElementById('mf_table_loading');
+      if(mfTableLoading) mfTableLoading.style.display = 'none';
+      
+      const sipsTableLoading = document.getElementById('sips_table_loading');
+      if(sipsTableLoading) sipsTableLoading.style.display = 'none';
 
       // Update data manager state
       const searchQuery = document.getElementById('search').value;

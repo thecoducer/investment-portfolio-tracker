@@ -67,7 +67,7 @@ class TableRenderer {
     const section = document.getElementById('stocks-section');
     const loadingRow = document.getElementById('stocks_table_loading');
     if (loadingRow) loadingRow.style.display = 'none';
-    const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
+    const isUpdating = status.portfolio_state === 'updating';
 
     let totalInvested = 0;
     let totalCurrent = 0;
@@ -127,7 +127,7 @@ class TableRenderer {
     const section = document.getElementById('mf-section');
     const loadingRow = document.getElementById('mf_table_loading');
     if (loadingRow) loadingRow.style.display = 'none';
-    const isUpdating = status.ltp_fetch_state === 'updating' || status.state === 'updating';
+    const isUpdating = status.portfolio_state === 'updating';
 
     tbody.innerHTML = '';
     let mfTotalInvested = 0;
@@ -171,7 +171,7 @@ class TableRenderer {
     const section = document.getElementById('sips-section');
     const loadingRow = document.getElementById('sips_table_loading');
     if (loadingRow) loadingRow.style.display = 'none';
-    const isUpdating = status.state === 'updating' || status.ltp_fetch_state === 'updating';
+    const isUpdating = status.portfolio_state === 'updating';
     const dataClass = this._getUpdateClass(isUpdating);
 
     tbody.innerHTML = '';
@@ -231,17 +231,17 @@ class TableRenderer {
     const color = Formatter.colorPL(dayChange);
     
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
-${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
-${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
-${this._buildCell(avg.toLocaleString(), classes.avgClass)}
-${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
-${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
-${this._buildCell(ltp.toLocaleString(), classes.ltpClass)}
-${this._buildPLCell(pl, classes.plClass)}
-<td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatNumber(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${dayChangePct.toFixed(2)}%</span></td>
-${this._buildCell(holding.exchange, classes.exchangeClass)}
-${this._buildCell(holding.account, classes.accountClass)}
-</tr>`;
+  ${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
+  ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
+  ${this._buildCell(avg.toLocaleString(), classes.avgClass)}
+  ${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
+  ${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
+  ${this._buildCell(ltp.toLocaleString(), classes.ltpClass)}
+  ${this._buildPLCell(pl, classes.plClass)}
+  <td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatNumber(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${Formatter.formatSign(dayChangePct)}${Math.abs(dayChangePct).toFixed(2)}%</span></td>
+  ${this._buildCell(holding.exchange, classes.exchangeClass)}
+  ${this._buildCell(holding.account, classes.accountClass)}
+  </tr>`;
   }
 
   _buildMFRow(fundName, mf, metrics, classes) {
@@ -257,15 +257,15 @@ ${this._buildCell(holding.account, classes.accountClass)}
     }
     
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
-${this._buildCell(fundName, classes.fundClass)}
-${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
-${this._buildCell(avg.toLocaleString(), classes.avgClass)}
-${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
-${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
-${this._buildCell(nav.toLocaleString() + navDateText, classes.navClass)}
-${this._buildPLCell(pl, classes.plClass)}
-${this._buildCell(mf.account, classes.accountClass)}
-</tr>`;
+  ${this._buildCell(fundName, classes.fundClass)}
+  ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
+  ${this._buildCell('₹' + Formatter.formatNumber(avg), classes.avgClass)}
+  ${this._buildCell('₹' + Formatter.formatNumber(invested), classes.investedClass)}
+  ${this._buildValueWithPctCell('₹' + Formatter.formatNumber(current), plPct, classes.currentClass)}
+  ${this._buildCell('₹' + Formatter.formatNumber(nav) + navDateText, classes.navClass)}
+  ${this._buildPLCell(pl, classes.plClass)}
+  ${this._buildCell(mf.account, classes.accountClass)}
+  </tr>`;
   }
 
   _buildSIPRow(fundName, sip, dataClass) {

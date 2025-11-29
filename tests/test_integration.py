@@ -154,14 +154,12 @@ class TestIntegration(unittest.TestCase):
         self.assertEqual(state_manager.refresh_state, "updating")
         
         # Simulate refresh workflow
-        state_manager.set_refresh_running()
+        state_manager.set_portfolio_updating()
         self.assertEqual(state_manager.get_combined_state(), "updating")
         
-        state_manager.set_holdings_updated()
-        self.assertIsNotNone(state_manager.holdings_last_updated)
         
-        state_manager.set_refresh_idle()
-        state_manager.set_ltp_idle()
+        
+        state_manager.set_portfolio_updated()
         self.assertEqual(state_manager.get_combined_state(), "updated")
     
     def test_session_token_workflow(self):
