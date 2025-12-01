@@ -151,16 +151,15 @@ class TestIntegration(unittest.TestCase):
         state_manager = StateManager()
         
         # Initial state
-        self.assertEqual(state_manager.refresh_state, "updating")
+        self.assertEqual(state_manager.portfolio_state, "updating")
         
         # Simulate refresh workflow
         state_manager.set_portfolio_updating()
-        self.assertEqual(state_manager.get_combined_state(), "updating")
-        
-        
+        self.assertTrue(state_manager.is_any_running())
         
         state_manager.set_portfolio_updated()
-        self.assertEqual(state_manager.get_combined_state(), "updated")
+        state_manager.set_nifty50_updated()
+        self.assertFalse(state_manager.is_any_running())
     
     def test_session_token_workflow(self):
         """Test session token caching workflow"""

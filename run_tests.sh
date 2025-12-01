@@ -251,7 +251,7 @@ if [ "$RUN_UNIT" = true ] && [ "$RUN_INTEGRATION" = true ]; then
     TEST_PATTERN="tests/"
 elif [ "$RUN_UNIT" = true ]; then
     print_status "Running unit tests only"
-    TEST_PATTERN="tests/test_utils.py tests/test_api_services.py tests/test_constants.py"
+    TEST_PATTERN="tests/test_utils.py tests/test_api_services.py tests/test_api_clients.py tests/test_constants.py tests/test_server.py"
 elif [ "$RUN_INTEGRATION" = true ]; then
     print_status "Running integration tests only"
     TEST_PATTERN="tests/test_integration.py"

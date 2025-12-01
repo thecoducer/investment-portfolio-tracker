@@ -23,8 +23,6 @@ from constants import (
     WEEKEND_SATURDAY
 )
 
-# Use shared project logger (see `logging_config.py`).
-
 
 class SessionManager:
     """Handles session token caching and validation with encryption."""
@@ -141,7 +139,7 @@ class StateManager:
         self._change_listeners = []
     
     def _set_state(self, state_attr: str, value: str):
-        """Helper to set any state attribute."""
+        """Helper to set any state attribute and notify listeners."""
         setattr(self, state_attr, value)
         self._notify_change()
     
@@ -158,32 +156,53 @@ class StateManager:
         self._change_listeners.append(callback)
     
     def set_portfolio_updating(self, error: str = None):
-        """Set portfolio state to updating."""
+        """Set portfolio state to updating and optionally set error."""
         self._set_state('portfolio_state', STATE_UPDATING)
         if error:
             self.last_error = error
     
-    def set_portfolio_updated(self):
-        """Mark portfolio refresh as complete and update portfolio_last_updated timestamp."""
-        self._set_state('portfolio_state', STATE_UPDATED)
-        self.portfolio_last_updated = time.time() 
-        self._notify_change()
+    def set_portfolio_updated(self, error: str = None):
+        """Mark portfolio refresh as complete and update timestamp.
+        
+        Args:
+            error: Optional error message. If provided, state is set to ERROR.
+        """
+        if error:
+            self.last_error = error
+            self._set_state('portfolio_state', STATE_ERROR)
+        else:
+            self._set_state('portfolio_state', STATE_UPDATED)
+            self.portfolio_last_updated = time.time()
+            self.last_error = None  # Clear error on successful update
         
     def set_nifty50_updating(self, error: str = None):
-        """Set portfolio state to updating."""
+        """Set Nifty50 state to updating and optionally set error."""
         self._set_state('nifty50_state', STATE_UPDATING)
         if error:
             self.last_error = error
 
-    def set_nifty50_updated(self):
-        """Mark Nifty 50 data as updated and update nifty50_last_updated timestamp and state."""
-        self._set_state('nifty50_state', STATE_UPDATED)
-        self.nifty50_last_updated = time.time()
-        self._notify_change()
+    def set_nifty50_updated(self, error: str = None):
+        """Mark Nifty 50 data as updated and update timestamp.
+        
+        Args:
+            error: Optional error message. If provided, state is set to ERROR.
+        """
+        if error:
+            self.last_error = error
+            self._set_state('nifty50_state', STATE_ERROR)
+        else:
+            self._set_state('nifty50_state', STATE_UPDATED)
+            self.nifty50_last_updated = time.time()
+            # Don't clear last_error here as it might be from portfolio fetch
     
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""
-        return self.portfolio_state == STATE_UPDATING or self.ltp_fetch_state == STATE_UPDATING
+        return self.portfolio_state == STATE_UPDATING or self.nifty50_state == STATE_UPDATING
+    
+    def clear_error(self):
+        """Clear the last error message."""
+        self.last_error = None
+        self._notify_change()
 
 
 def format_timestamp(ts: float) -> str:

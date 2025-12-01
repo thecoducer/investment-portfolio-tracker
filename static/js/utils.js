@@ -9,6 +9,20 @@ class Formatter {
   }
 
   /**
+   * Format a number using Indian numbering system with specified fraction digits.
+   * @param {number} n - Number to format
+   * @param {number} digits - Fraction digits (default: 2)
+   * @param {string} locale - Locale to use (default: 'en-IN')
+   * @returns {string} Formatted number
+   */
+  static formatNumberWithLocale(n, digits = 2, locale = 'en-IN') {
+    return Number(n).toLocaleString(locale, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    });
+  }
+
+  /**
    * Format a number as Indian Rupee currency using Intl.NumberFormat.
    * Defaults to 1 fraction digits for clean currency presentation.
    * @param {number} n
@@ -45,6 +59,17 @@ class Formatter {
     if (value > 0) return '+';
     if (value < 0) return '-';
     return '';
+  }
+
+  /**
+   * Format percentage with sign and specified decimal places.
+   * @param {number} percentage - Percentage value
+   * @param {number} decimals - Decimal places (default: 2)
+   * @returns {string} Formatted percentage string
+   */
+  static formatPercentage(percentage, decimals = 2) {
+    const sign = this.formatSign(percentage);
+    return `${sign}${Math.abs(percentage).toFixed(decimals)}%`;
   }
 
   /**

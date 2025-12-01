@@ -6,6 +6,7 @@ import SummaryManager from './summary-manager.js';
 import SortManager from './sort-manager.js';
 import ThemeManager from './theme-manager.js';
 import PrivacyManager from './visibility-manager.js';
+import SSEConnectionManager from './sse-manager.js';
 
 class PortfolioApp {
   constructor() {
@@ -16,7 +17,7 @@ class PortfolioApp {
     this.themeManager = new ThemeManager();
     this.privacyManager = new PrivacyManager();
     this.updateInterval = null;
-    this.eventSource = null;
+    this.sseManager = new SSEConnectionManager();
   }
 
   async init() {
@@ -68,37 +69,9 @@ class PortfolioApp {
   }
 
   connectEventSource() {
-    // Close existing connection if any
-    if (this.eventSource) {
-      this.eventSource.close();
-    }
-
-    // Connect to SSE endpoint
-    this.eventSource = new EventSource('/events');
-
-    this.eventSource.onmessage = (event) => {
-      try {
-        const status = JSON.parse(event.data);
-        this.handleStatusUpdate(status);
-      } catch (error) {
-        console.error('Error parsing SSE message:', error);
-      }
-    };
-
-    this.eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      // Try to reconnect after 5 seconds
-      setTimeout(() => {
-        if (this.eventSource.readyState === EventSource.CLOSED) {
-          console.log('Reconnecting to SSE...');
-          this.connectEventSource();
-        }
-      }, 5000);
-    };
-
-    this.eventSource.onopen = () => {
-      console.log('SSE connection established');
-    };
+    // Set up SSE connection with handlers
+    this.sseManager.onMessage((status) => this.handleStatusUpdate(status));
+    this.sseManager.connect();
   }
 
   handleStatusUpdate(status) {
@@ -281,10 +254,7 @@ class PortfolioApp {
   }
 
   disconnect() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
+    this.sseManager.disconnect();
   }
 }
 

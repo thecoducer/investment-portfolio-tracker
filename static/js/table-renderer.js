@@ -1,12 +1,12 @@
 /* Portfolio Tracker - Table Rendering Module */
 
 import { Formatter, Calculator } from './utils.js';
+import PaginationManager from './pagination.js';
 
 class TableRenderer {
   constructor() {
     this.searchQuery = '';
-    this.stocksPageSize = 25;
-    this.stocksCurrentPage = 1;
+    this.stocksPagination = new PaginationManager(25, 1);
   }
 
   setSearchQuery(query) {
@@ -49,19 +49,31 @@ class TableRenderer {
   }
 
   /**
-   * Build a cell with value and percentage.
-   * @param {number} value - Main value
+   * Build a cell with value and percentage with color coding.
+   * @param {number|string} value - Main value (numeric or formatted string)
    * @param {number} percentage - Percentage to display
    * @param {string} cssClass - Optional CSS class
    * @returns {string} HTML string
    */
   _buildValueWithPctCell(value, percentage, cssClass = '') {
-    // Accept either numeric or pre-formatted string values. If numeric,
-    // format using Formatter; otherwise use the provided string.
     const formatted = (typeof value === 'number') ? Formatter.formatNumber(value) : value;
     const color = Formatter.colorPL(percentage);
-    const pctText = `${Formatter.formatSign(percentage)}${Math.abs(percentage).toFixed(2)}%`;
+    const pctText = Formatter.formatPercentage(percentage);
     return `<td class="${cssClass}">${formatted} <span class="pl_pct_small" style="color:${color}">${pctText}</span></td>`;
+  }
+
+  /**
+   * Build a cell with change value and percentage.
+   * @param {number} changeValue - Change value
+   * @param {number} changePercent - Change percentage
+   * @param {string} cssClass - Optional CSS class
+   * @returns {string} HTML string
+   */
+  _buildChangeCell(changeValue, changePercent, cssClass = '') {
+    const color = Formatter.colorPL(changeValue);
+    const formattedValue = Formatter.formatCurrency(changeValue);
+    const formattedPct = Formatter.formatPercentage(changePercent);
+    return `<td class="${cssClass}"><span style="color:${color};font-weight:600">${formattedValue}</span> <span class="pl_pct_small" style="color:${color}">${formattedPct}</span></td>`;
   }
 
   renderStocksTable(holdings, status) {
@@ -86,15 +98,9 @@ class TableRenderer {
       }
     });
 
-    // Pagination
-    const totalItems = filteredHoldings.length;
-    const pageSize = this.stocksPageSize === 100 ? totalItems : this.stocksPageSize;
-    const totalPages = Math.ceil(totalItems / pageSize) || 1;
-    const currentPage = Math.min(this.stocksCurrentPage, totalPages);
-    
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalItems);
-    const pageData = filteredHoldings.slice(startIndex, endIndex);
+    // Use pagination manager
+    const paginationInfo = this.stocksPagination.paginate(filteredHoldings);
+    const { pageData } = paginationInfo;
 
     tbody.innerHTML = '';
     pageData.forEach(holding => {
@@ -114,7 +120,15 @@ class TableRenderer {
     });
 
     section.style.display = filteredHoldings.length === 0 ? 'none' : 'block';
-    this._updateStocksPagination(currentPage, totalPages, totalItems, startIndex, endIndex);
+    
+    // Update pagination UI
+    PaginationManager.updatePaginationUI(
+      paginationInfo,
+      'stocks_pagination_info',
+      'stocks_pagination_buttons',
+      'goToStocksPage',
+      'stocks'
+    );
 
     return {
       invested: totalInvested,
@@ -227,7 +241,6 @@ class TableRenderer {
 
   _buildStockRow(holding, metrics, classes) {
     const { qty, avg, invested, ltp, dayChange, pl, current, plPct, dayChangePct } = metrics;
-    const color = Formatter.colorPL(dayChange);
     
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
   ${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
@@ -237,7 +250,7 @@ class TableRenderer {
   ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
   ${this._buildCell(Formatter.formatCurrency(ltp), classes.ltpClass)}
   ${this._buildPLCell(pl, classes.plClass)}
-  <td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatCurrency(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${Formatter.formatSign(dayChangePct)}${Math.abs(dayChangePct).toFixed(2)}%</span></td>
+  ${this._buildChangeCell(dayChange, dayChangePct, classes.dayChangeClass)}
   ${this._buildCell(holding.exchange, classes.exchangeClass)}
   ${this._buildCell(holding.account, classes.accountClass)}
   </tr>`;
@@ -307,61 +320,20 @@ class TableRenderer {
   }
 
   _updateStocksPagination(currentPage, totalPages, totalItems, startIndex, endIndex) {
-    const infoDiv = document.getElementById('stocks_pagination_info');
-    const buttonsDiv = document.getElementById('stocks_pagination_buttons');
-    
-    if (!infoDiv || !buttonsDiv) return;
-
-    if (totalItems > 0) {
-      infoDiv.textContent = `Showing ${startIndex + 1}-${endIndex} of ${totalItems} stocks`;
-    } else {
-      infoDiv.innerHTML = '<span class="spinner"></span> Loading data...';
-    }
-
-    if (totalPages <= 1) {
-      buttonsDiv.innerHTML = '';
-      return;
-    }
-
-    buttonsDiv.innerHTML = this._buildPaginationButtons(currentPage, totalPages, 'goToStocksPage');
+    // Deprecated - now handled by PaginationManager.updatePaginationUI in renderStocksTable
   }
 
   _buildPaginationButtons(currentPage, totalPages, clickFunctionName) {
-    let buttonsHTML = '';
-    
-    buttonsHTML += `
-      <button onclick="window.${clickFunctionName}(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
-      <button onclick="window.${clickFunctionName}(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
-    `;
-
-    const maxPageButtons = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
-    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-    
-    if (endPage - startPage < maxPageButtons - 1) {
-      startPage = Math.max(1, endPage - maxPageButtons + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      const activeClass = i === currentPage ? 'active' : '';
-      buttonsHTML += `<button class="${activeClass}" onclick="window.${clickFunctionName}(${i})">${i}</button>`;
-    }
-
-    buttonsHTML += `
-      <button onclick="window.${clickFunctionName}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
-      <button onclick="window.${clickFunctionName}(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
-    `;
-
-    return buttonsHTML;
+    // Deprecated - use PaginationManager.buildPaginationButtons instead
+    return PaginationManager.buildPaginationButtons(currentPage, totalPages, clickFunctionName);
   }
 
   changeStocksPageSize(size) {
-    this.stocksPageSize = parseInt(size);
-    this.stocksCurrentPage = 1;
+    this.stocksPagination.changePageSize(size);
   }
 
   goToStocksPage(page) {
-    this.stocksCurrentPage = page;
+    this.stocksPagination.goToPage(page);
   }
 
 }

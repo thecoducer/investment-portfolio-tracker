@@ -1,11 +1,14 @@
 // Nifty 50 Page Application
+import { Formatter } from './utils.js';
+import PaginationManager from './pagination.js';
+import SSEConnectionManager from './sse-manager.js';
+
 class Nifty50App {
   constructor() {
     this.nifty50Data = [];
     this.nifty50SortOrder = 'default';
-    this.nifty50PageSize = 25;
-    this.nifty50CurrentPage = 1;
-    this.eventSource = null;
+    this.nifty50Pagination = new PaginationManager(25, 1);
+    this.sseManager = new SSEConnectionManager();
     this._wasUpdating = false;
     this._lastNifty50Timestamp = 0;  // Track last Nifty 50 update timestamp
   }
@@ -30,34 +33,9 @@ class Nifty50App {
   }
 
   connectEventSource() {
-    if (this.eventSource) {
-      this.eventSource.close();
-    }
-
-    this.eventSource = new EventSource('/events');
-
-    this.eventSource.onmessage = (event) => {
-      try {
-        const status = JSON.parse(event.data);
-        this.handleStatusUpdate(status);
-      } catch (error) {
-        console.error('Error parsing SSE message:', error);
-      }
-    };
-
-    this.eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      setTimeout(() => {
-        if (this.eventSource.readyState === EventSource.CLOSED) {
-          console.log('Reconnecting to SSE...');
-          this.connectEventSource();
-        }
-      }, 5000);
-    };
-
-    this.eventSource.onopen = () => {
-      console.log('SSE connection established');
-    };
+    // Set up SSE connection with handlers
+    this.sseManager.onMessage((status) => this.handleStatusUpdate(status));
+    this.sseManager.connect();
   }
 
   handleStatusUpdate(status) {
@@ -177,18 +155,14 @@ class Nifty50App {
 
     const sortedData = this.sortNifty50Data(this.nifty50Data, this.nifty50SortOrder);
     
-    const totalItems = sortedData.length;
-    const pageSize = this.nifty50PageSize === 100 ? totalItems : this.nifty50PageSize;
-    const totalPages = Math.ceil(totalItems / pageSize);
-    const currentPage = Math.min(this.nifty50CurrentPage, totalPages);
-    
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, totalItems);
-    const pageData = sortedData.slice(startIndex, endIndex);
+    // Use pagination manager
+    const paginationInfo = this.nifty50Pagination.paginate(sortedData);
+    const { pageData } = paginationInfo;
 
     tbody.innerHTML = pageData.map(stock => {
       const changeClass = stock.change >= 0 ? 'positive' : 'negative';
-      const changeSign = stock.change >= 0 ? '+' : '';
+      const changeSign = Formatter.formatSign(stock.change);
+      const changePctFormatted = Formatter.formatPercentage(stock.pChange);
       
       return `
         <tr>
@@ -196,8 +170,8 @@ class Nifty50App {
           <td class="${updateClass}">${stock.name}</td>
           <td class="${updateClass}">${this._formatNiftyNumber(stock.ltp)}</td>
           <td class="${changeClass} ${updateClass}">
-            ${changeSign}${this._formatNiftyNumber(stock.change)}
-            <span class="pl_pct_small">${changeSign}${stock.pChange.toFixed(2)}%</span>
+            ${changeSign}${this._formatNiftyNumber(Math.abs(stock.change))}
+            <span class="pl_pct_small">${changePctFormatted}</span>
           </td>
           <td class="${updateClass}">${this._formatNiftyNumber(stock.open)}</td>
           <td class="${updateClass}">${this._formatNiftyNumber(stock.high)}</td>
@@ -207,83 +181,43 @@ class Nifty50App {
       `.trim();
     }).join('');
     
-    this.updateNifty50Pagination(currentPage, totalPages, totalItems, startIndex, endIndex);
+    // Update pagination UI
+    PaginationManager.updatePaginationUI(
+      paginationInfo,
+      'nifty50_pagination_info',
+      'nifty50_pagination_buttons',
+      'goToNifty50Page',
+      'stocks'
+    );
   }
 
   _formatNiftyNumber(n) {
-    return Number(n).toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    // Use shared formatting utility with Indian locale
+    return Formatter.formatNumberWithLocale(n, 2);
   }
 
   updateNifty50Pagination(currentPage, totalPages, totalItems, startIndex, endIndex) {
-    const infoDiv = document.getElementById('nifty50_pagination_info');
-    const buttonsDiv = document.getElementById('nifty50_pagination_buttons');
-    
-    if (!infoDiv || !buttonsDiv) return;
-
-    if (totalItems > 0) {
-      infoDiv.textContent = `Showing ${startIndex + 1}-${endIndex} of ${totalItems} stocks`;
-    } else {
-      infoDiv.innerHTML = '<span class="spinner"></span> Loading data...';
-    }
-
-    if (totalPages <= 1) {
-      buttonsDiv.innerHTML = '';
-      return;
-    }
-
-    let buttonsHTML = '';
-    
-    buttonsHTML += `
-      <button onclick="window.goToNifty50Page(1)" ${currentPage === 1 ? 'disabled' : ''}>First</button>
-      <button onclick="window.goToNifty50Page(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>Previous</button>
-    `;
-
-    const maxPageButtons = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
-    let endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
-    
-    if (endPage - startPage < maxPageButtons - 1) {
-      startPage = Math.max(1, endPage - maxPageButtons + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      const activeClass = i === currentPage ? 'active' : '';
-      buttonsHTML += `<button class="${activeClass}" onclick="window.goToNifty50Page(${i})">${i}</button>`;
-    }
-
-    buttonsHTML += `
-      <button onclick="window.goToNifty50Page(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>Next</button>
-      <button onclick="window.goToNifty50Page(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''}>Last</button>
-    `;
-
-    buttonsDiv.innerHTML = buttonsHTML;
+    // Deprecated - now handled by PaginationManager.updatePaginationUI in renderNifty50Table
   }
 
   sortNifty50Table(sortOrder) {
     this.nifty50SortOrder = sortOrder;
-    this.nifty50CurrentPage = 1;
+    this.nifty50Pagination.goToPage(1);  // Reset to first page
     this.renderNifty50Table();
   }
 
   changeNifty50PageSize(size) {
-    this.nifty50PageSize = parseInt(size);
-    this.nifty50CurrentPage = 1;
+    this.nifty50Pagination.changePageSize(size);
     this.renderNifty50Table();
   }
 
   goToNifty50Page(page) {
-    this.nifty50CurrentPage = page;
+    this.nifty50Pagination.goToPage(page);
     this.renderNifty50Table();
   }
 
   cleanup() {
-    if (this.eventSource) {
-      this.eventSource.close();
-      this.eventSource = null;
-    }
+    this.sseManager.disconnect();
   }
 }
 

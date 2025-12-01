@@ -98,35 +98,35 @@ class TestStateManager(unittest.TestCase):
     
     def test_initial_state(self):
         """Test initial state is updating"""
-        self.assertEqual(self.state_manager.refresh_state, STATE_UPDATING)
-        self.assertEqual(self.state_manager.ltp_fetch_state, STATE_UPDATED)
+        self.assertEqual(self.state_manager.portfolio_state, STATE_UPDATING)
+        self.assertEqual(self.state_manager.nifty50_state, STATE_UPDATING)
     
     def test_set_refresh_running(self):
-        """Test setting refresh to running state"""
+        """Test setting portfolio to updating state"""
         self.state_manager.set_portfolio_updating()
-        self.assertEqual(self.state_manager.refresh_state, STATE_UPDATING)
+        self.assertEqual(self.state_manager.portfolio_state, STATE_UPDATING)
     
     def test_set_refresh_idle(self):
-        """Test setting refresh to idle state"""
+        """Test setting portfolio to updated state"""
         self.state_manager.set_portfolio_updated()
-        self.assertEqual(self.state_manager.refresh_state, STATE_UPDATED)
+        self.assertEqual(self.state_manager.portfolio_state, STATE_UPDATED)
     
     def test_set_ltp_idle(self):
-        """Test setting LTP fetch to idle"""
-        self.state_manager.set_ltp_idle()
-        self.assertEqual(self.state_manager.ltp_fetch_state, STATE_UPDATED)
+        """Test setting Nifty50 to updated state"""
+        self.state_manager.set_nifty50_updated()
+        self.assertEqual(self.state_manager.nifty50_state, STATE_UPDATED)
     
     def test_combined_state_all_idle(self):
-        """Test combined state when all idle"""
+        """Test is_any_running when all operations completed"""
         self.state_manager.set_portfolio_updated()
-        self.state_manager.set_ltp_idle()
-        self.assertEqual(self.state_manager.get_combined_state(), STATE_UPDATED)
+        self.state_manager.set_nifty50_updated()
+        self.assertFalse(self.state_manager.is_any_running())
     
     def test_combined_state_refresh_running(self):
-        """Test combined state when refresh running"""
+        """Test is_any_running when portfolio updating"""
         self.state_manager.set_portfolio_updating()
-        self.state_manager.set_ltp_idle()
-        self.assertEqual(self.state_manager.get_combined_state(), STATE_UPDATING)
+        self.state_manager.set_nifty50_updated()
+        self.assertTrue(self.state_manager.is_any_running())
     
     def test_set_holdings_updated(self):
         """Test setting holdings updated timestamp"""
@@ -166,8 +166,9 @@ class TestStateManager(unittest.TestCase):
         self.assertTrue(self.state_manager.is_any_running())
     
     def test_is_any_running_false(self):
-        """Test is_any_running returns False when updated"""
+        """Test is_any_running returns False when all operations completed"""
         self.state_manager.set_portfolio_updated()
+        self.state_manager.set_nifty50_updated()
         self.assertFalse(self.state_manager.is_any_running())
 
 
@@ -327,6 +328,143 @@ class TestMarketHours(unittest.TestCase):
         
         result = is_market_open_ist()
         self.assertFalse(result)
+
+
+class TestStateManagerErrorHandling(unittest.TestCase):
+    """Test StateManager error handling"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        self.state_manager = StateManager()
+    
+    def test_set_portfolio_updating_with_error(self):
+        """Test setting portfolio updating with error"""
+        self.state_manager.set_portfolio_updating(error="Test error")
+        self.assertEqual(self.state_manager.last_error, "Test error")
+        self.assertEqual(self.state_manager.portfolio_state, STATE_UPDATING)
+    
+    def test_set_portfolio_updated_with_error(self):
+        """Test setting portfolio updated with error sets ERROR state"""
+        self.state_manager.set_portfolio_updated(error="API failure")
+        self.assertEqual(self.state_manager.last_error, "API failure")
+        self.assertEqual(self.state_manager.portfolio_state, STATE_ERROR)
+    
+    def test_set_portfolio_updated_clears_error(self):
+        """Test setting portfolio updated without error clears previous error"""
+        self.state_manager.last_error = "Old error"
+        self.state_manager.set_portfolio_updated()
+        self.assertIsNone(self.state_manager.last_error)
+        self.assertEqual(self.state_manager.portfolio_state, STATE_UPDATED)
+    
+    def test_set_nifty50_updating_with_error(self):
+        """Test setting nifty50 updating with error"""
+        self.state_manager.set_nifty50_updating(error="NSE API down")
+        self.assertEqual(self.state_manager.last_error, "NSE API down")
+        self.assertEqual(self.state_manager.nifty50_state, STATE_UPDATING)
+    
+    def test_set_nifty50_updated_with_error(self):
+        """Test setting nifty50 updated with error sets ERROR state"""
+        self.state_manager.set_nifty50_updated(error="Connection timeout")
+        self.assertEqual(self.state_manager.last_error, "Connection timeout")
+        self.assertEqual(self.state_manager.nifty50_state, STATE_ERROR)
+    
+    def test_clear_error(self):
+        """Test clear_error method"""
+        self.state_manager.last_error = "Some error"
+        self.state_manager.clear_error()
+        self.assertIsNone(self.state_manager.last_error)
+    
+    def test_is_any_running_with_portfolio_updating(self):
+        """Test is_any_running returns True when portfolio updating"""
+        self.state_manager.set_portfolio_updating()
+        self.state_manager.set_nifty50_updated()
+        self.assertTrue(self.state_manager.is_any_running())
+    
+    def test_is_any_running_with_nifty50_updating(self):
+        """Test is_any_running returns True when nifty50 updating"""
+        self.state_manager.set_portfolio_updated()
+        self.state_manager.set_nifty50_updating()
+        self.assertTrue(self.state_manager.is_any_running())
+    
+    def test_portfolio_timestamp_updated(self):
+        """Test portfolio timestamp is set on successful update"""
+        self.state_manager.set_portfolio_updated()
+        self.assertIsNotNone(self.state_manager.portfolio_last_updated)
+        self.assertIsInstance(self.state_manager.portfolio_last_updated, float)
+    
+    def test_nifty50_timestamp_updated(self):
+        """Test nifty50 timestamp is set on successful update"""
+        self.state_manager.set_nifty50_updated()
+        self.assertIsNotNone(self.state_manager.nifty50_last_updated)
+        self.assertIsInstance(self.state_manager.nifty50_last_updated, float)
+
+
+class TestSessionManagerEdgeCases(unittest.TestCase):
+    """Test SessionManager edge cases"""
+    
+    def setUp(self):
+        """Set up test fixtures"""
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
+            self.temp_file = f.name
+        self.session_manager = SessionManager(self.temp_file)
+    
+    def tearDown(self):
+        """Clean up test fixtures"""
+        try:
+            os.remove(self.temp_file)
+        except FileNotFoundError:
+            pass
+    
+    def test_is_valid_nonexistent_account(self):
+        """Test is_valid with account that doesn't exist"""
+        result = self.session_manager.is_valid("nonexistent")
+        self.assertFalse(result)
+    
+    def test_get_token_nonexistent_account(self):
+        """Test get_token with account that doesn't exist"""
+        token = self.session_manager.get_token("nonexistent")
+        self.assertIsNone(token)
+    
+    def test_delete_token_nonexistent_account(self):
+        """Test deleting token for account that doesn't exist (should not error)"""
+        # Set and then delete
+        self.session_manager.set_token("test", "token")
+        # Delete by setting to None or empty dict
+        if "test" in self.session_manager.sessions:
+            del self.session_manager.sessions["test"]
+        # Verify it's gone
+        self.assertIsNone(self.session_manager.get_token("test"))
+    
+    def test_set_token_updates_existing(self):
+        """Test setting token for existing account updates it"""
+        self.session_manager.set_token("test", "token1")
+        self.session_manager.set_token("test", "token2")
+        
+        token = self.session_manager.get_token("test")
+        self.assertEqual(token, "token2")
+    
+    def test_get_validity_empty_sessions(self):
+        """Test get_validity with no sessions"""
+        validity = self.session_manager.get_validity()
+        self.assertEqual(validity, {})
+    
+    def test_get_validity_multiple_accounts(self):
+        """Test get_validity with multiple accounts"""
+        from datetime import datetime, timedelta, timezone
+        
+        # Add some accounts
+        self.session_manager.set_token("Account1", "token1")
+        self.session_manager.set_token("Account2", "token2")
+        
+        # Expire one account by setting expiry in the past
+        self.session_manager.sessions["Account1"]["expiry"] = datetime.now(timezone.utc) - timedelta(hours=1)
+        
+        validity = self.session_manager.get_validity()
+        
+        self.assertIn("Account1", validity)
+        self.assertIn("Account2", validity)
+        self.assertFalse(validity["Account1"])
+        self.assertTrue(validity["Account2"])
 
 
 if __name__ == '__main__':
