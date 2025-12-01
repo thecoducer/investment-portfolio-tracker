@@ -8,6 +8,27 @@ class Formatter {
     });
   }
 
+  /**
+   * Format a number as Indian Rupee currency using Intl.NumberFormat.
+   * Defaults to 1 fraction digits for clean currency presentation.
+   * @param {number} n
+   * @param {number} digits
+   */
+  static formatCurrency(n, digits = 1) {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      }).format(n);
+    } catch (e) {
+      // Fallback: simple rupee prefix with thousands separator
+      const fixed = Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+      return `₹${fixed}`;
+    }
+  }
+
   static colorPL(pl) {
     if (pl > 0) return '#10b981';
     if (pl < 0) return '#ef4444';

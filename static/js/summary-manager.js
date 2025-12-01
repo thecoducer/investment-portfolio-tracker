@@ -99,14 +99,14 @@ class SummaryManager {
     const plEl = document.getElementById(plId);
     const plPctEl = document.getElementById(plPctId);
 
-    // Add rupee symbol to invested, current, and P/L
-    investedEl.innerText = '₹' + Formatter.formatNumber(totals.invested);
-    currentEl.innerText = '₹' + Formatter.formatNumber(totals.current);
-    // Show '-' before rupee symbol for negative P/L
+    // Format invested, current, and P/L using centralized currency formatter
+    investedEl.innerText = Formatter.formatCurrency(totals.invested);
+    currentEl.innerText = Formatter.formatCurrency(totals.current);
+    // Show '-' before currency for negative P/L
     if (totals.pl < 0) {
-      plEl.innerText = '-' + '₹' + Formatter.formatNumber(Math.abs(totals.pl));
+      plEl.innerText = '-' + Formatter.formatCurrency(Math.abs(totals.pl));
     } else {
-      plEl.innerText = '₹' + Formatter.formatNumber(totals.pl);
+      plEl.innerText = Formatter.formatCurrency(totals.pl);
     }
     plEl.style.color = Formatter.colorPL(totals.pl);
     // Show only one sign before percent value, use absolute value

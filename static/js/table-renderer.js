@@ -43,7 +43,7 @@ class TableRenderer {
    * @returns {string} HTML string for P/L cell
    */
   _buildPLCell(value, cssClass = '') {
-    const formatted = Formatter.formatNumber(value);
+    const formatted = Formatter.formatCurrency(value);
     const color = Formatter.colorPL(value);
     return `<td><span class="${cssClass}" style="color:${color};font-weight:600">${formatted}</span></td>`;
   }
@@ -56,7 +56,9 @@ class TableRenderer {
    * @returns {string} HTML string
    */
   _buildValueWithPctCell(value, percentage, cssClass = '') {
-    const formatted = Formatter.formatNumber(value);
+    // Accept either numeric or pre-formatted string values. If numeric,
+    // format using Formatter; otherwise use the provided string.
+    const formatted = (typeof value === 'number') ? Formatter.formatNumber(value) : value;
     const color = Formatter.colorPL(percentage);
     const pctText = `${Formatter.formatSign(percentage)}${Math.abs(percentage).toFixed(2)}%`;
     return `<td class="${cssClass}">${formatted} <span class="pl_pct_small" style="color:${color}">${pctText}</span></td>`;
@@ -210,14 +212,11 @@ class TableRenderer {
   }
 
   _buildSIPTotalRow(totalAmount, dataClass) {
-    const formattedAmount = totalAmount.toLocaleString(undefined, { 
-      minimumFractionDigits: 0, 
-      maximumFractionDigits: 0 
-    });
-    
+    const formattedAmount = Formatter.formatCurrency(totalAmount);
+
     return `<tr style="border-top: 2px solid #e9e9e7; font-weight: 600;">
 <td class="${dataClass}">Total Monthly SIP Amount:</td>
-<td class="${dataClass}">₹${formattedAmount}</td>
+<td class="${dataClass}">${formattedAmount}</td>
 <td></td>
 <td></td>
 <td></td>
@@ -233,12 +232,12 @@ class TableRenderer {
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
   ${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
   ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
-  ${this._buildCell(avg.toLocaleString(), classes.avgClass)}
-  ${this._buildCell(Formatter.formatNumber(invested), classes.investedClass)}
-  ${this._buildValueWithPctCell(current, plPct, classes.currentClass)}
-  ${this._buildCell(ltp.toLocaleString(), classes.ltpClass)}
+  ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
+  ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
+  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
+  ${this._buildCell(Formatter.formatCurrency(ltp), classes.ltpClass)}
   ${this._buildPLCell(pl, classes.plClass)}
-  <td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatNumber(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${Formatter.formatSign(dayChangePct)}${Math.abs(dayChangePct).toFixed(2)}%</span></td>
+  <td class="${classes.dayChangeClass}"><span style="color:${color};font-weight:600">${Formatter.formatCurrency(dayChange)}</span> <span class="pl_pct_small" style="color:${color}">${Formatter.formatSign(dayChangePct)}${Math.abs(dayChangePct).toFixed(2)}%</span></td>
   ${this._buildCell(holding.exchange, classes.exchangeClass)}
   ${this._buildCell(holding.account, classes.accountClass)}
   </tr>`;
@@ -259,10 +258,10 @@ class TableRenderer {
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
   ${this._buildCell(fundName, classes.fundClass)}
   ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
-  ${this._buildCell('₹' + Formatter.formatNumber(avg), classes.avgClass)}
-  ${this._buildCell('₹' + Formatter.formatNumber(invested), classes.investedClass)}
-  ${this._buildValueWithPctCell('₹' + Formatter.formatNumber(current), plPct, classes.currentClass)}
-  ${this._buildCell('₹' + Formatter.formatNumber(nav) + navDateText, classes.navClass)}
+  ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
+  ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
+  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
+  ${this._buildCell(Formatter.formatCurrency(nav) + navDateText, classes.navClass)}
   ${this._buildPLCell(pl, classes.plClass)}
   ${this._buildCell(mf.account, classes.accountClass)}
   </tr>`;
@@ -298,7 +297,7 @@ class TableRenderer {
     
     return `<tr>
 <td class="${dataClass}">${fundName}</td>
-<td class="${dataClass}">₹${(sip.instalment_amount || 0).toLocaleString()}</td>
+<td class="${dataClass}">${Formatter.formatCurrency(sip.instalment_amount || 0)}</td>
 <td class="${dataClass}">${frequency}</td>
 <td class="${dataClass}">${installments}</td>
 <td class="${dataClass}"><span style="color:${statusColor};font-weight:600">${status}</span></td>
