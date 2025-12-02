@@ -188,6 +188,9 @@ def _build_status_response() -> Dict[str, Any]:
     Returns:
         Dict containing application state, timestamps, and session info
     """
+    # Get all account names from config
+    all_account_names = [acc["name"] for acc in ACCOUNTS_CONFIG]
+    
     return {
         "last_error": state_manager.last_error,
         "portfolio_state": state_manager.portfolio_state,
@@ -195,7 +198,8 @@ def _build_status_response() -> Dict[str, Any]:
         "nifty50_state": state_manager.nifty50_state,
         "nifty50_last_updated": format_timestamp(state_manager.nifty50_last_updated),
         "market_open": is_market_open_ist(),
-        "session_validity": session_manager.get_validity()
+        "session_validity": session_manager.get_validity(all_account_names),
+        "waiting_for_login": state_manager.waiting_for_login
     }
 
 
@@ -562,9 +566,18 @@ def main():
         logger.info("Opening dashboard in browser...")
         threading.Timer(1.5, lambda: webbrowser.open(dashboard_url)).start()
         
-        # Trigger initial data fetch, then start auto-refresh
-        logger.info("Triggering initial data refresh...")
-        run_background_fetch(force_login=False, on_complete=_start_auto_refresh_service)
+        # Check if all accounts have valid sessions
+        all_accounts_valid = all(session_manager.is_valid(acc["name"]) for acc in ACCOUNTS_CONFIG)
+        
+        if all_accounts_valid:
+            # All accounts authenticated - fetch both portfolio and Nifty50 data
+            logger.info("All accounts authenticated. Triggering initial data fetch...")
+            run_background_fetch(force_login=False, on_complete=_start_auto_refresh_service)
+        else:
+            # Some accounts need login - only fetch Nifty50 data (doesn't require auth)
+            logger.info("Login required for one or more accounts. Fetching Nifty50 data...")
+            fetch_nifty50_data()
+            _start_auto_refresh_service()
         
         # Keep main thread alive
         while True:

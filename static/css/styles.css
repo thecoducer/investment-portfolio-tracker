@@ -101,6 +101,10 @@ h1 {
   transition: all 0.3s ease;
 }
 
+#status_tag.needs-login {
+  display: none;
+}
+
 #status_tag .status-dot {
   width: 8px;
   height: 8px;
@@ -131,7 +135,7 @@ h1 {
 .controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 #search {
@@ -359,12 +363,14 @@ body.dark-theme .nav-menu-item.active {
 .theme-toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 50px;
+  justify-content: center;
+  min-width: 38px;
+  height: 38px;
+  padding: 8px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.9);
   color: #7d6e63;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -372,6 +378,13 @@ body.dark-theme .nav-menu-item.active {
   font-family: 'Raleway', sans-serif;
   cursor: pointer;
   transition: all 0.3s ease;
+}
+
+/* Group toggle buttons together */
+.toggle-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .theme-toggle:hover {

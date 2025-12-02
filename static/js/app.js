@@ -7,6 +7,7 @@ import SortManager from './sort-manager.js';
 import ThemeManager from './theme-manager.js';
 import PrivacyManager from './visibility-manager.js';
 import SSEConnectionManager from './sse-manager.js';
+import { Formatter, Calculator } from './utils.js';
 
 class PortfolioApp {
   constructor() {
@@ -18,9 +19,15 @@ class PortfolioApp {
     this.privacyManager = new PrivacyManager();
     this.updateInterval = null;
     this.sseManager = new SSEConnectionManager();
+    this.needsLogin = false;
+    this._wasUpdating = false;
+    this._wasWaitingForLogin = false;
+    this.searchTimeout = null;
   }
 
   async init() {
+    Formatter.initCompactFormat();
+    this._updateCompactFormatIcon();
     this.themeManager.init();
     this.privacyManager.init();
     this._setupEventListeners();
@@ -38,10 +45,24 @@ class PortfolioApp {
     return status.portfolio_state === 'updating';
   }
 
+  _updateCompactFormatIcon() {
+    const icon = document.getElementById('compact_toggle_icon');
+    if (icon) {
+      icon.textContent = Formatter.isCompactFormat ? '🔤' : '🔢';
+    }
+  }
+
   _setupEventListeners() {
-    // Search functionality
+    // Search functionality with debouncing
     document.getElementById('search').addEventListener('input', () => {
-      this.handleSearch();
+      // Clear previous timeout
+      if (this.searchTimeout) {
+        clearTimeout(this.searchTimeout);
+      }
+      // Set new timeout - execute search after 150ms of no typing
+      this.searchTimeout = setTimeout(() => {
+        this.handleSearch();
+      }, 150);
     });
 
     // Theme toggle
@@ -49,6 +70,14 @@ class PortfolioApp {
 
     // Privacy toggle
     window.togglePrivacy = () => this.privacyManager.toggle();
+
+    // Compact format toggle
+    window.toggleCompactFormat = () => {
+      Formatter.toggleCompactFormat();
+      this._updateCompactFormatIcon();
+      // Re-render with current search filter to respect filtered data
+      this.handleSearch();
+    };
 
     // Refresh button
     window.triggerRefresh = () => this.handleRefresh();
@@ -78,35 +107,55 @@ class PortfolioApp {
     const statusTag = document.getElementById('status_tag');
     const statusText = document.getElementById('status_text');
     const isUpdating = this._isStatusUpdating(status);
+    const waitingForLogin = status.waiting_for_login === true;
+
+    // Store status for later use
+    this.lastStatus = status;
+
+    // Check if any account needs login (at least one invalid session)
+    const sessionValidity = status.session_validity || {};
+    const anyAccountInvalid = Object.keys(sessionValidity).length > 0 && 
+                              Object.values(sessionValidity).some(valid => !valid);
+    this.needsLogin = anyAccountInvalid && !isUpdating && !waitingForLogin;
 
     // Update status class
-    statusTag.classList.toggle('updating', isUpdating);
-    statusTag.classList.toggle('updated', !isUpdating);
+    statusTag.classList.toggle('updating', isUpdating || waitingForLogin);
+    statusTag.classList.toggle('updated', !isUpdating && !waitingForLogin);
     statusTag.classList.toggle('market_closed', status.market_open === false);
+    statusTag.classList.toggle('needs-login', this.needsLogin);
 
-    statusText.innerText = isUpdating
-      ? 'updating'
-      : ('updated' + (status.portfolio_last_updated ? ` • ${status.portfolio_last_updated}` : ''));
+    // Update status text based on state
+    if (waitingForLogin) {
+      statusText.innerText = 'waiting for login';
+    } else if (isUpdating) {
+      statusText.innerText = 'updating';
+    } else {
+      statusText.innerText = 'updated' + (status.portfolio_last_updated ? ` • ${status.portfolio_last_updated}` : '');
+    }
 
-    this._updateRefreshButton(status.portfolio_state === 'updating');
+    this._updateRefreshButton(isUpdating || waitingForLogin, this.needsLogin);
 
     const hasData = this.dataManager.getHoldings().length > 0 ||
                     this.dataManager.getMFHoldings().length > 0 ||
                     this.dataManager.getSIPs().length > 0;
 
-    this._renderTablesAndSummary(hasData, status, isUpdating);
+    this._renderTablesAndSummary(hasData, status, isUpdating || waitingForLogin);
 
     // Fetch data when:
     // 1. State changed from 'updating' to 'updated' (normal refresh complete)
     // 2. State is 'updated' but we have no data yet (first load after server restart)
+    // 3. Login just completed (was waiting, now not waiting)
+    const justCompletedLogin = this._wasWaitingForLogin && !waitingForLogin && !isUpdating;
     const shouldFetchData = (!isUpdating && this._wasUpdating) ||
-                           (!isUpdating && !hasData);
+                           (!isUpdating && !hasData) ||
+                           justCompletedLogin;
 
     if (shouldFetchData) {
       this.updateData();
     }
 
     this._wasUpdating = isUpdating;
+    this._wasWaitingForLogin = waitingForLogin;
   }
 
   _renderTablesAndSummary(hasData, status, isUpdating) {
@@ -248,9 +297,13 @@ class PortfolioApp {
     }
   }
 
-  _updateRefreshButton(isUpdating) {
+  _updateRefreshButton(isUpdating, needsLogin = false) {
     const btnText = document.getElementById('refresh_btn_text');
-    btnText.innerHTML = isUpdating ? '<span class="spinner"></span>' : 'Refresh';
+    if (isUpdating) {
+      btnText.innerHTML = '<span class="spinner"></span>';
+    } else {
+      btnText.textContent = needsLogin ? 'Login' : 'Refresh';
+    }
   }
 
   disconnect() {

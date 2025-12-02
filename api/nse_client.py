@@ -5,6 +5,7 @@ import time
 import requests
 from typing import List, Dict, Any
 from urllib.parse import quote
+from requests.exceptions import RequestException, Timeout, ConnectionError
 from logging_config import logger
 
 
@@ -93,9 +94,19 @@ class NSEAPIClient:
                     'close': price_info.get('previousClose', 0)
                 }
             else:
+                logger.warning("NSE API returned status %d for %s", response.status_code, symbol)
                 return self._empty_stock_data(symbol)
+        except Timeout:
+            logger.warning("Request timeout for %s (NSE server slow to respond)", symbol)
+            return self._empty_stock_data(symbol)
+        except ConnectionError:
+            logger.warning("Connection error for %s (NSE server unreachable)", symbol)
+            return self._empty_stock_data(symbol)
+        except RequestException as e:
+            logger.warning("Request failed for %s: %s", symbol, str(e))
+            return self._empty_stock_data(symbol)
         except Exception as e:
-            logger.exception("Error fetching %s: %s", symbol, e)
+            logger.error("Unexpected error fetching %s: %s", symbol, str(e))
             return self._empty_stock_data(symbol)
         finally:
             time.sleep(self.request_delay)

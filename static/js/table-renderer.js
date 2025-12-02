@@ -56,7 +56,7 @@ class TableRenderer {
    * @returns {string} HTML string
    */
   _buildValueWithPctCell(value, percentage, cssClass = '') {
-    const formatted = (typeof value === 'number') ? Formatter.formatNumber(value) : value;
+    const formatted = (typeof value === 'number') ? Formatter.formatNumberWithLocale(value, 1) : value;
     const color = Formatter.colorPL(percentage);
     const pctText = Formatter.formatPercentage(percentage);
     return `<td class="${cssClass}">${formatted} <span class="pl_pct_small" style="color:${color}">${pctText}</span></td>`;
@@ -317,15 +317,6 @@ class TableRenderer {
 <td class="${dataClass}">${nextDueText}</td>
 <td class="${dataClass}">${sip.account}</td>
 </tr>`;
-  }
-
-  _updateStocksPagination(currentPage, totalPages, totalItems, startIndex, endIndex) {
-    // Deprecated - now handled by PaginationManager.updatePaginationUI in renderStocksTable
-  }
-
-  _buildPaginationButtons(currentPage, totalPages, clickFunctionName) {
-    // Deprecated - use PaginationManager.buildPaginationButtons instead
-    return PaginationManager.buildPaginationButtons(currentPage, totalPages, clickFunctionName);
   }
 
   changeStocksPageSize(size) {

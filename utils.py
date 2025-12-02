@@ -23,6 +23,8 @@ from constants import (
     WEEKEND_SATURDAY
 )
 
+# Use shared project logger (see `logging_config.py`).
+
 
 class SessionManager:
     """Handles session token caching and validation with encryption."""
@@ -122,20 +124,34 @@ class SessionManager:
         """Get access token for account."""
         return self.sessions.get(account_name, {}).get("access_token")
     
-    def get_validity(self) -> Dict[str, bool]:
-        """Get validity status for all accounts."""
-        return {name: self.is_valid(name) for name in self.sessions.keys()}
+    def get_validity(self, all_accounts: List[str] = None) -> Dict[str, bool]:
+        """Get validity status for all accounts.
+        
+        Args:
+            all_accounts: Optional list of all account names from config.
+                         If provided, ensures all accounts are included in result.
+        
+        Returns:
+            Dict mapping account name to validity status (True if valid, False otherwise)
+        """
+        if all_accounts:
+            # Include all configured accounts, not just those with cached sessions
+            return {name: self.is_valid(name) for name in all_accounts}
+        else:
+            # Backward compatibility: only return accounts with cached sessions
+            return {name: self.is_valid(name) for name in self.sessions.keys()}
 
 
 class StateManager:
     """Manages application state with thread safety."""
     
     def __init__(self):
-        self.portfolio_state = STATE_UPDATING  # Start with updating state
-        self.nifty50_state = STATE_UPDATING  # Separate state for Nifty50 updates
+        self.portfolio_state = STATE_UPDATED  # Start with updated state (no data yet)
+        self.nifty50_state = STATE_UPDATED  # Start with updated state (no data yet)
         self.last_error: str = None
         self.portfolio_last_updated: float = None
         self.nifty50_last_updated: float = None
+        self.waiting_for_login = False
         self._change_listeners = []
     
     def _set_state(self, state_attr: str, value: str):
@@ -167,13 +183,17 @@ class StateManager:
         Args:
             error: Optional error message. If provided, state is set to ERROR.
         """
+        # Clear waiting_for_login flag when fetch completes
+        self.waiting_for_login = False
+        
         if error:
             self.last_error = error
             self._set_state('portfolio_state', STATE_ERROR)
         else:
-            self._set_state('portfolio_state', STATE_UPDATED)
+            # Update timestamp BEFORE setting state so it's included in the notification
             self.portfolio_last_updated = time.time()
             self.last_error = None  # Clear error on successful update
+            self._set_state('portfolio_state', STATE_UPDATED)
         
     def set_nifty50_updating(self, error: str = None):
         """Set Nifty50 state to updating and optionally set error."""
@@ -191,9 +211,10 @@ class StateManager:
             self.last_error = error
             self._set_state('nifty50_state', STATE_ERROR)
         else:
-            self._set_state('nifty50_state', STATE_UPDATED)
+            # Update timestamp BEFORE setting state so it's included in the notification
             self.nifty50_last_updated = time.time()
             # Don't clear last_error here as it might be from portfolio fetch
+            self._set_state('nifty50_state', STATE_UPDATED)
     
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""

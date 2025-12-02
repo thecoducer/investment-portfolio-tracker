@@ -19,9 +19,10 @@ class AuthenticationManager:
     3. Full OAuth login (if above fail)
     """
     
-    def __init__(self, session_manager, request_token_timeout: int = 180):
+    def __init__(self, session_manager, request_token_timeout: int = 180, state_manager=None):
         self.session_manager = session_manager
         self.request_token_timeout = request_token_timeout
+        self.state_manager = state_manager
         self.request_token_holder = {"token": None}
         self.request_token_event = threading.Event()
         self.request_token_lock = threading.Lock()
@@ -33,12 +34,29 @@ class AuthenticationManager:
             self.request_token_event.set()
     
     def _wait_for_request_token(self, account_name: str) -> str:
-        """Wait for request token from OAuth callback."""
+        """Wait for request token from OAuth callback.
+        
+        During the wait, periodically trigger state updates to keep frontend alive.
+        """
         with self.request_token_lock:
             self.request_token_holder["token"] = None
             self.request_token_event.clear()
         
-        if not self.request_token_event.wait(timeout=self.request_token_timeout):
+        # Wait with periodic heartbeats to keep UI alive
+        wait_interval = 5  # Check every 5 seconds
+        total_waited = 0
+        
+        while total_waited < self.request_token_timeout:
+            if self.request_token_event.wait(timeout=wait_interval):
+                # Token received
+                break
+            total_waited += wait_interval
+            
+            # Trigger state update to keep SSE connection alive
+            if self.state_manager:
+                self.state_manager._notify_change()
+        else:
+            # Timeout occurred
             raise TimeoutError(f"Timed out waiting for request_token for {account_name}")
         
         with self.request_token_lock:
@@ -77,6 +95,12 @@ class AuthenticationManager:
         logger.info("Attempting to renew session for %s...", account_name)
         try:
             old_token = self.session_manager.get_token(account_name)
+            
+            # Skip renewal if no token exists
+            if not old_token:
+                logger.info("No token found for %s, skipping renewal", account_name)
+                return False
+            
             renewed_session = kite.renew_access_token(old_token, api_secret)
             new_access_token = renewed_session.get("access_token")
             
@@ -92,6 +116,12 @@ class AuthenticationManager:
     def _perform_full_login(self, kite: KiteConnect, account_name: str, api_secret: str) -> str:
         """Perform full OAuth login flow. Returns access token."""
         logger.info("Initiating login flow for %s", account_name)
+        
+        # Mark that we're waiting for login
+        if self.state_manager:
+            self.state_manager.waiting_for_login = True
+            self.state_manager._notify_change()
+        
         webbrowser.open(kite.login_url())
         
         req_token = self._wait_for_request_token(account_name)

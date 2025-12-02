@@ -150,8 +150,8 @@ class TestIntegration(unittest.TestCase):
         """Test state manager transitions during workflow"""
         state_manager = StateManager()
         
-        # Initial state
-        self.assertEqual(state_manager.portfolio_state, "updating")
+        # Initial state is updated (no data yet)
+        self.assertEqual(state_manager.portfolio_state, "updated")
         
         # Simulate refresh workflow
         state_manager.set_portfolio_updating()

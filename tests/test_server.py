@@ -54,7 +54,8 @@ class TestUIServerRoutes(unittest.TestCase):
         """Test /status endpoint returns correct structure"""
         with patch('server.state_manager') as mock_state, \
              patch('server.session_manager') as mock_session, \
-             patch('server.format_timestamp') as mock_format:
+             patch('server.format_timestamp') as mock_format, \
+             patch('server.is_market_open_ist') as mock_market:
             
             mock_state.get_combined_state.return_value = 'idle'
             mock_state.last_error = None
@@ -62,8 +63,10 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_state.nifty50_state = 'updated'
             mock_state.portfolio_last_updated = None
             mock_state.nifty50_last_updated = None
+            mock_state.waiting_for_login = False
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
+            mock_market.return_value = False
             
             response = self.client.get('/status')
             
@@ -188,6 +191,7 @@ class TestSSE(unittest.TestCase):
             mock_state.last_error = None
             mock_state.portfolio_last_updated = None
             mock_state.nifty50_last_updated = None
+            mock_state.waiting_for_login = False
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             mock_market.return_value = True
@@ -212,6 +216,7 @@ class TestSSE(unittest.TestCase):
             mock_state.last_error = None
             mock_state.portfolio_last_updated = None
             mock_state.nifty50_last_updated = None
+            mock_state.waiting_for_login = False
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             mock_market.return_value = True

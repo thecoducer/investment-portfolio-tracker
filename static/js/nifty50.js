@@ -16,6 +16,8 @@ class Nifty50App {
   async init() {
     this.setupTheme();
     this.connectEventSource();
+    // Show loading row initially
+    this.renderNifty50Table();
     // Always fetch data on first load if table is empty
     if (!this.nifty50Data || this.nifty50Data.length === 0) {
       await this.updateNifty50();
@@ -43,11 +45,15 @@ class Nifty50App {
     const statusText = document.getElementById('status_text');
     const isUpdating = this._isStatusUpdating(status);
     
-    // Update status classes
+    // Nifty50 doesn't need login - it uses public NSE API
+    // So we ignore waitingForLogin and needsLogin states
+    
+    // Update status classes based only on Nifty50 state
     statusTag.classList.toggle('updating', isUpdating);
     statusTag.classList.toggle('updated', !isUpdating);
     statusTag.classList.toggle('market_closed', status.market_open === false);
     
+    // Update status text based on Nifty50 state only
     statusText.innerText = isUpdating
       ? 'updating'
       : ('updated' + (status.nifty50_last_updated ? ` • ${status.nifty50_last_updated}` : ''));
@@ -102,18 +108,14 @@ class Nifty50App {
     }
   }
 
-  async loadInitialData() {
-    await this.updateNifty50();
-  }
-
-  async updateNifty50(status = null) {
+  async updateNifty50() {
     try {
       const response = await fetch('/nifty50_data');
       if (!response.ok) throw new Error('Failed to fetch Nifty 50 data');
       
       const nifty50Data = await response.json();
       this.nifty50Data = nifty50Data;
-      this.renderNifty50Table(status);
+      this.renderNifty50Table();
     } catch (error) {
       console.error('Error fetching Nifty 50 data:', error);
     }
@@ -147,12 +149,21 @@ class Nifty50App {
   renderNifty50Table(status = null) {
     const tbody = document.getElementById('nifty50_tbody');
     if (!tbody) return;
+    
     const loadingRow = document.getElementById('nifty50_table_loading');
-    if (loadingRow) loadingRow.style.display = 'none';
-
     const isUpdating = status ? this._isStatusUpdating(status) : false;
-    const updateClass = isUpdating ? 'updating-field' : '';
+    const hasData = this.nifty50Data && this.nifty50Data.length > 0;
+    
+    // Show loading row if: (updating AND no data) OR (no data at all)
+    if (loadingRow) {
+      const shouldShowLoading = !hasData || (isUpdating && !hasData);
+      loadingRow.style.display = shouldShowLoading ? 'table-row' : 'none';
+    }
+    
+    // If no data, don't try to render table rows
+    if (!hasData) return;
 
+    const updateClass = isUpdating ? 'updating-field' : '';
     const sortedData = this.sortNifty50Data(this.nifty50Data, this.nifty50SortOrder);
     
     // Use pagination manager
@@ -194,10 +205,6 @@ class Nifty50App {
   _formatNiftyNumber(n) {
     // Use shared formatting utility with Indian locale
     return Formatter.formatNumberWithLocale(n, 2);
-  }
-
-  updateNifty50Pagination(currentPage, totalPages, totalItems, startIndex, endIndex) {
-    // Deprecated - now handled by PaginationManager.updatePaginationUI in renderNifty50Table
   }
 
   sortNifty50Table(sortOrder) {

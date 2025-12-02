@@ -50,7 +50,10 @@ class ZerodhaAPIClient:
         accounts_config: List[Dict[str, Any]], 
         force_login: bool = False
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-        """Fetch holdings and SIPs for all accounts in parallel.
+        """Fetch holdings and SIPs for all accounts.
+        
+        When any account needs login, fetches sequentially to avoid OAuth token conflicts.
+        When all accounts have valid tokens, fetches in parallel for speed.
         
         Args:
             accounts_config: List of account configuration dicts
@@ -60,48 +63,94 @@ class ZerodhaAPIClient:
             Tuple of (merged_stock_holdings, merged_mf_holdings, merged_sips, error_message)
             error_message is None if no errors occurred
         """
-        all_stock_holdings = [None] * len(accounts_config)
-        all_mf_holdings = [None] * len(accounts_config)
-        all_sips = [None] * len(accounts_config)
+        all_stock_holdings = []
+        all_mf_holdings = []
+        all_sips = []
         error_occurred = None
-        threads = []
-
-        def _fetch_for_account(idx: int, account_config: Dict[str, Any]):
-            """Fetch data for a single account (thread target)."""
-            nonlocal error_occurred
-            account_name = account_config["name"]
+        
+        # Check if any account needs login
+        needs_login = force_login or any(
+            not self.auth_manager.session_manager.is_valid(acc["name"]) 
+            for acc in accounts_config
+        )
+        
+        if needs_login:
+            # Sequential execution when login is required
+            # This prevents OAuth token conflicts when multiple accounts need authentication
+            logger.info("Sequential fetch required (login needed for one or more accounts)")
             
-            try:
-                stock_holdings, mf_holdings, sips = self.fetch_account_data(
-                    account_config, force_login
+            for account_config in accounts_config:
+                account_name = account_config["name"]
+                try:
+                    stock_holdings, mf_holdings, sips = self.fetch_account_data(
+                        account_config, force_login
+                    )
+                    
+                    # Add account information to each holding/SIP
+                    self.holdings_service.add_account_info(stock_holdings, account_name)
+                    self.holdings_service.add_account_info(mf_holdings, account_name)
+                    self.sip_service.add_account_info(sips, account_name)
+                    
+                    # Append results
+                    all_stock_holdings.append(stock_holdings)
+                    all_mf_holdings.append(mf_holdings)
+                    all_sips.append(sips)
+                except Exception as e:
+                    logger.error("Error fetching holdings for %s: %s", account_name, e)
+                    error_occurred = str(e)
+                    # Append empty lists on error
+                    all_stock_holdings.append([])
+                    all_mf_holdings.append([])
+                    all_sips.append([])
+        else:
+            # Parallel execution when all tokens are valid
+            logger.info("Parallel fetch (all accounts have valid tokens)")
+            
+            all_stock_holdings = [None] * len(accounts_config)
+            all_mf_holdings = [None] * len(accounts_config)
+            all_sips = [None] * len(accounts_config)
+            threads = []
+
+            def _fetch_for_account(idx: int, account_config: Dict[str, Any]):
+                """Fetch data for a single account (thread target)."""
+                nonlocal error_occurred
+                account_name = account_config["name"]
+                
+                try:
+                    stock_holdings, mf_holdings, sips = self.fetch_account_data(
+                        account_config, force_login
+                    )
+                    
+                    # Add account information to each holding/SIP
+                    self.holdings_service.add_account_info(stock_holdings, account_name)
+                    self.holdings_service.add_account_info(mf_holdings, account_name)
+                    self.sip_service.add_account_info(sips, account_name)
+                    
+                    # Store results
+                    all_stock_holdings[idx] = stock_holdings
+                    all_mf_holdings[idx] = mf_holdings
+                    all_sips[idx] = sips
+                except Exception as e:
+                    logger.error("Error fetching holdings for %s: %s", account_name, e)
+                    error_occurred = str(e)
+                    # Store empty lists on error to prevent None issues
+                    all_stock_holdings[idx] = []
+                    all_mf_holdings[idx] = []
+                    all_sips[idx] = []
+
+            # Launch threads for parallel fetching
+            for idx, account_config in enumerate(accounts_config):
+                t = threading.Thread(
+                    target=_fetch_for_account, 
+                    args=(idx, account_config), 
+                    daemon=True
                 )
-                
-                # Add account information to each holding/SIP
-                self.holdings_service.add_account_info(stock_holdings, account_name)
-                self.holdings_service.add_account_info(mf_holdings, account_name)
-                self.sip_service.add_account_info(sips, account_name)
-                
-                # Store results
-                all_stock_holdings[idx] = stock_holdings
-                all_mf_holdings[idx] = mf_holdings
-                all_sips[idx] = sips
-            except Exception as e:
-                logger.error("Error fetching holdings for %s: %s", account_name, e)
-                error_occurred = str(e)
+                threads.append(t)
+                t.start()
 
-        # Launch threads for parallel fetching
-        for idx, account_config in enumerate(accounts_config):
-            t = threading.Thread(
-                target=_fetch_for_account, 
-                args=(idx, account_config), 
-                daemon=True
-            )
-            threads.append(t)
-            t.start()
-
-        # Wait for all threads to complete
-        for t in threads:
-            t.join()
+            # Wait for all threads to complete
+            for t in threads:
+                t.join()
 
         # Merge results from all accounts
         merged_stocks, merged_mfs = self.holdings_service.merge_holdings(

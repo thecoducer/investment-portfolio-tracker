@@ -59,8 +59,6 @@ class SummaryManager {
       pl: combinedPL,
       plPct: combinedPLPct
     });
-
-    // No card animations
   }
 
   _updateStockCard(totals) {
@@ -99,14 +97,14 @@ class SummaryManager {
     const plEl = document.getElementById(plId);
     const plPctEl = document.getElementById(plPctId);
 
-    // Format invested, current, and P/L using centralized currency formatter
-    investedEl.innerText = Formatter.formatCurrency(totals.invested);
-    currentEl.innerText = Formatter.formatCurrency(totals.current);
+    // Format invested, current, and P/L using summary currency formatter (respects compact toggle)
+    investedEl.innerText = Formatter.formatCurrencyForSummary(totals.invested);
+    currentEl.innerText = Formatter.formatCurrencyForSummary(totals.current);
     // Show '-' before currency for negative P/L
     if (totals.pl < 0) {
-      plEl.innerText = '-' + Formatter.formatCurrency(Math.abs(totals.pl));
+      plEl.innerText = '-' + Formatter.formatCurrencyForSummary(Math.abs(totals.pl));
     } else {
-      plEl.innerText = Formatter.formatCurrency(totals.pl);
+      plEl.innerText = Formatter.formatCurrencyForSummary(totals.pl);
     }
     plEl.style.color = Formatter.colorPL(totals.pl);
     // Show only one sign before percent value, use absolute value
@@ -119,8 +117,6 @@ class SummaryManager {
     }
     plPctEl.style.color = Formatter.colorPL(totals.pl);
   }
-
-  // _applyAnimations removed: no animation logic
 }
 
 export default SummaryManager;

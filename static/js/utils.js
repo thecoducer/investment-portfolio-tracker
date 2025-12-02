@@ -1,11 +1,54 @@
 /* Portfolio Tracker - Formatting and Calculation Utilities */
 
 class Formatter {
-  static formatNumber(n) {
-    return n.toLocaleString(undefined, { 
-      minimumFractionDigits: 1, 
-      maximumFractionDigits: 1 
-    });
+  // Global state for compact format preference
+  static isCompactFormat = true; // Default to compact view
+
+  /**
+   * Initialize compact format preference from localStorage
+   */
+  static initCompactFormat() {
+    const saved = localStorage.getItem('compactFormat');
+    // If nothing saved, default to true (compact), otherwise use saved value
+    this.isCompactFormat = saved === null ? true : saved === 'true';
+  }
+
+  /**
+   * Toggle compact format and save preference
+   */
+  static toggleCompactFormat() {
+    this.isCompactFormat = !this.isCompactFormat;
+    localStorage.setItem('compactFormat', this.isCompactFormat.toString());
+    return this.isCompactFormat;
+  }
+
+  /**
+   * Format number in compact Indian notation (Lakhs and Crores)
+   * Examples: 623100 -> 6.2L, 12345678 -> 1.2Cr
+   * Truncates instead of rounding for accuracy
+   */
+  static formatCompactIndian(n, decimals = 2) {
+    const absN = Math.abs(n);
+    const sign = n < 0 ? '-' : '';
+    const multiplier = Math.pow(10, decimals);
+    
+    // Determine divisor and suffix based on magnitude
+    const scales = [
+      { threshold: 10000000, divisor: 10000000, suffix: 'Cr' },
+      { threshold: 100000, divisor: 100000, suffix: 'L' },
+      { threshold: 1000, divisor: 1000, suffix: 'K' }
+    ];
+    
+    for (const { threshold, divisor, suffix } of scales) {
+      if (absN >= threshold) {
+        const value = Math.floor((absN / divisor) * multiplier) / multiplier;
+        const formatted = this.formatNumberWithLocale(value, decimals, 'en-IN').replace(/\.?0+$/, '');
+        return sign + formatted + suffix;
+      }
+    }
+    
+    // For values less than 1000, return as-is
+    return sign + this.formatNumberWithLocale(absN, 0, 'en-IN');
   }
 
   /**
@@ -25,6 +68,7 @@ class Formatter {
   /**
    * Format a number as Indian Rupee currency using Intl.NumberFormat.
    * Defaults to 1 fraction digits for clean currency presentation.
+   * Always shows full format (for tables).
    * @param {number} n
    * @param {number} digits
    */
@@ -41,6 +85,18 @@ class Formatter {
       const fixed = Number(n).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
       return `₹${fixed}`;
     }
+  }
+
+  /**
+   * Format currency for summary cards - respects compact format toggle.
+   * @param {number} n
+   * @param {number} digits
+   */
+  static formatCurrencyForSummary(n, digits = 1) {
+    if (this.isCompactFormat) {
+      return '₹' + this.formatCompactIndian(n, 2);
+    }
+    return this.formatCurrency(n, digits);
   }
 
   static colorPL(pl) {
