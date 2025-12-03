@@ -33,8 +33,14 @@ class NSEAPIClient:
             session = requests.Session()
             session.get(self.base_url, headers=self.headers, timeout=self.timeout)
             return session
+        except Timeout:
+            logger.warning("NSE website is slow to respond (timeout after %ds)", self.timeout)
+            raise
+        except ConnectionError:
+            logger.warning("Cannot connect to NSE website (network issue)")
+            raise
         except Exception as e:
-            logger.exception("Error creating NSE session: %s", e)
+            logger.error("Error creating NSE session: %s", str(e))
             raise
     
     def fetch_nifty50_symbols(self) -> List[str]:
@@ -57,11 +63,17 @@ class NSEAPIClient:
                 ]
                 return symbols
             else:
-                logger.warning("Failed to fetch Nifty 50 symbols: %s", response.status_code)
+                logger.warning("Failed to fetch Nifty 50 symbols: HTTP %s", response.status_code)
                 return []
                 
+        except Timeout:
+            logger.warning("NSE website timeout while fetching Nifty 50 symbols (server slow)")
+            return []
+        except ConnectionError:
+            logger.warning("Cannot connect to NSE website to fetch Nifty 50 symbols")
+            return []
         except Exception as e:
-            logger.exception("Error fetching Nifty 50 symbols: %s", e)
+            logger.error("Error fetching Nifty 50 symbols: %s", str(e))
             return []
     
     def fetch_stock_quote(self, session: requests.Session, symbol: str) -> Dict[str, Any]:

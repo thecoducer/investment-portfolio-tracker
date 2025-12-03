@@ -1,12 +1,14 @@
 /* Portfolio Tracker - Table Rendering Module */
 
-import { Formatter, Calculator } from './utils.js';
+import { Formatter, Calculator, isGoldInstrument, isSilverInstrument } from './utils.js';
 import PaginationManager from './pagination.js';
 
 class TableRenderer {
   constructor() {
     this.searchQuery = '';
     this.stocksPagination = new PaginationManager(25, 1);
+    this.mfPagination = new PaginationManager(25, 1);
+    this.physicalGoldPagination = new PaginationManager(10, 1);
   }
 
   setSearchQuery(query) {
@@ -79,28 +81,46 @@ class TableRenderer {
   renderStocksTable(holdings, status) {
     const tbody = document.getElementById('tbody');
     const section = document.getElementById('stocks-section');
-    const loadingRow = document.getElementById('stocks_table_loading');
-    if (loadingRow) loadingRow.style.display = 'none';
     const isUpdating = status.portfolio_state === 'updating';
 
     let totalInvested = 0;
     let totalCurrent = 0;
+    let goldInvested = 0;
+    let goldCurrent = 0;
+    let silverInvested = 0;
+    let silverCurrent = 0;
     let filteredHoldings = [];
 
-    // Filter and calculate totals
+    // Filter and calculate totals (Gold and Silver shown in table but not in Stocks summary)
     holdings.forEach(holding => {
-      const text = (holding.tradingsymbol + holding.account).toLowerCase();
+      const symbol = holding.tradingsymbol || '';
+      const text = (symbol + holding.account).toLowerCase();
+      const isGold = isGoldInstrument(symbol);
+      const isSilver = isSilverInstrument(symbol);
+      
       if (text.includes(this.searchQuery)) {
-        filteredHoldings.push(holding);
+        filteredHoldings.push(holding);  // Add all holdings to display
         const metrics = Calculator.calculateStockMetrics(holding);
-        totalInvested += metrics.invested;
-        totalCurrent += metrics.current;
+        
+        if (isGold) {
+          // Accumulate Gold totals separately (not in Stocks summary)
+          goldInvested += metrics.invested;
+          goldCurrent += metrics.current;
+        } else if (isSilver) {
+          // Accumulate Silver totals separately (not in Stocks summary)
+          silverInvested += metrics.invested;
+          silverCurrent += metrics.current;
+        } else {
+          // Only non-Gold/Silver holdings count toward Stocks summary
+          totalInvested += metrics.invested;
+          totalCurrent += metrics.current;
+        }
       }
     });
 
     // Use pagination manager
-    const paginationInfo = this.stocksPagination.paginate(filteredHoldings);
-    const { pageData } = paginationInfo;
+    const paginationData = this.stocksPagination.paginate(filteredHoldings);
+    const { pageData } = paginationData;
 
     tbody.innerHTML = '';
     pageData.forEach(holding => {
@@ -119,47 +139,89 @@ class TableRenderer {
       });
     });
 
-    section.style.display = filteredHoldings.length === 0 ? 'none' : 'block';
+    // Show/hide table and empty state
+    const table = section.querySelector('table');
+    const emptyState = document.getElementById('stocks_empty_state');
+    const paginationInfoEl = document.getElementById('stocks_pagination_info');
+    const paginationButtonsEl = document.getElementById('stocks_pagination_buttons');
+    const controlsContainer = section.querySelector('.controls-container');
+    
+    if (filteredHoldings.length === 0) {
+      table.style.display = 'none';
+      emptyState.style.display = 'block';
+      if (paginationInfoEl) paginationInfoEl.style.display = 'none';
+      if (paginationButtonsEl) paginationButtonsEl.style.display = 'none';
+      if (controlsContainer) controlsContainer.style.display = 'none';
+    } else {
+      table.style.display = 'table';
+      emptyState.style.display = 'none';
+      if (paginationInfoEl) paginationInfoEl.style.display = 'block';
+      if (paginationButtonsEl) paginationButtonsEl.style.display = 'flex';
+      if (controlsContainer) controlsContainer.style.display = 'flex';
+    }
     
     // Update pagination UI
     PaginationManager.updatePaginationUI(
-      paginationInfo,
+      paginationData,
       'stocks_pagination_info',
       'stocks_pagination_buttons',
       'goToStocksPage',
       'stocks'
     );
 
-    return {
+    // Return separate totals for stocks, gold, and silver
+    const stockTotals = {
       invested: totalInvested,
       current: totalCurrent,
       pl: totalCurrent - totalInvested,
       plPct: totalInvested ? ((totalCurrent - totalInvested) / totalInvested * 100) : 0
     };
+    
+    const goldTotals = {
+      invested: goldInvested,
+      current: goldCurrent,
+      pl: goldCurrent - goldInvested,
+      plPct: goldInvested ? ((goldCurrent - goldInvested) / goldInvested * 100) : 0
+    };
+    
+    const silverTotals = {
+      invested: silverInvested,
+      current: silverCurrent,
+      pl: silverCurrent - silverInvested,
+      plPct: silverInvested ? ((silverCurrent - silverInvested) / silverInvested * 100) : 0
+    };
+
+    return { stockTotals, goldTotals, silverTotals };
   }
 
   renderMFTable(mfHoldings, status) {
     const tbody = document.getElementById('mf_tbody');
     const section = document.getElementById('mf-section');
-    const loadingRow = document.getElementById('mf_table_loading');
-    if (loadingRow) loadingRow.style.display = 'none';
     const isUpdating = status.portfolio_state === 'updating';
 
     tbody.innerHTML = '';
     let mfTotalInvested = 0;
     let mfTotalCurrent = 0;
-    let visibleCount = 0;
+    let filteredHoldings = [];
 
     mfHoldings.forEach(mf => {
       const fundName = mf.fund || mf.tradingsymbol;
       const text = (fundName + mf.account).toLowerCase();
       if (!text.includes(this.searchQuery)) return;
 
-      visibleCount++;
+      filteredHoldings.push(mf);
       const metrics = Calculator.calculateMFMetrics(mf);
       mfTotalInvested += metrics.invested;
       mfTotalCurrent += metrics.current;
+    });
 
+    // Use pagination manager
+    const paginationData = this.mfPagination.paginate(filteredHoldings);
+    const { pageData } = paginationData;
+
+    pageData.forEach(mf => {
+      const fundName = mf.fund || mf.tradingsymbol;
+      const metrics = Calculator.calculateMFMetrics(mf);
       tbody.innerHTML += this._buildMFRow(fundName, mf, metrics, {
         fundClass: this._getUpdateClass(isUpdating),
         qtyClass: this._getUpdateClass(isUpdating),
@@ -172,7 +234,35 @@ class TableRenderer {
       });
     });
 
-    section.style.display = visibleCount === 0 ? 'none' : 'block';
+    // Show/hide table and empty state
+    const table = section.querySelector('table');
+    const emptyState = document.getElementById('mf_empty_state');
+    const controlsContainer = section.querySelector('.controls-container');
+    const paginationInfoEl = document.getElementById('mf_pagination_info');
+    const paginationButtonsEl = document.getElementById('mf_pagination_buttons');
+    
+    if (filteredHoldings.length === 0) {
+      table.style.display = 'none';
+      emptyState.style.display = 'block';
+      if (controlsContainer) controlsContainer.style.display = 'none';
+      if (paginationInfoEl) paginationInfoEl.style.display = 'none';
+      if (paginationButtonsEl) paginationButtonsEl.style.display = 'none';
+    } else {
+      table.style.display = 'table';
+      emptyState.style.display = 'none';
+      if (controlsContainer) controlsContainer.style.display = 'flex';
+      if (paginationInfoEl) paginationInfoEl.style.display = 'block';
+      if (paginationButtonsEl) paginationButtonsEl.style.display = 'flex';
+    }
+
+    // Update pagination UI
+    PaginationManager.updatePaginationUI(
+      paginationData,
+      'mf_pagination_info',
+      'mf_pagination_buttons',
+      'goToMFPage',
+      'funds'
+    );
 
     return {
       invested: mfTotalInvested,
@@ -185,8 +275,6 @@ class TableRenderer {
   renderSIPsTable(sips, status) {
     const tbody = document.getElementById('sips_tbody');
     const section = document.getElementById('sips-section');
-    const loadingRow = document.getElementById('sips_table_loading');
-    if (loadingRow) loadingRow.style.display = 'none';
     const isUpdating = status.portfolio_state === 'updating';
     const dataClass = this._getUpdateClass(isUpdating);
 
@@ -218,8 +306,17 @@ class TableRenderer {
       }
     });
     
-    // Hide section if no visible rows
-    section.style.display = visibleCount === 0 ? 'none' : 'block';
+    // Show/hide table and empty state
+    const table = section.querySelector('table');
+    const emptyState = document.getElementById('sips_empty_state');
+    
+    if (visibleCount === 0) {
+      table.style.display = 'none';
+      emptyState.style.display = 'block';
+    } else {
+      table.style.display = 'table';
+      emptyState.style.display = 'none';
+    }
     
     // Add total row at the end of the table
     tbody.innerHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);
@@ -259,7 +356,6 @@ class TableRenderer {
   _buildMFRow(fundName, mf, metrics, classes) {
     const { qty, avg, invested, nav, current, pl, plPct } = metrics;
     
-    // Format NAV date in relative format
     let navDateText = '';
     if (mf.last_price_date) {
       const formattedDate = Formatter.formatRelativeDate(mf.last_price_date, true);
@@ -281,10 +377,8 @@ class TableRenderer {
   }
 
   _buildSIPRow(fundName, sip, dataClass) {
-    // Format frequency
     const frequency = sip.frequency || '-';
     
-    // Format installments - handle -1 as perpetual/unlimited
     let installments = '-';
     if (sip.instalments && sip.instalments !== -1) {
       const completed = sip.completed_instalments || 0;
@@ -325,6 +419,145 @@ class TableRenderer {
 
   goToStocksPage(page) {
     this.stocksPagination.goToPage(page);
+  }
+
+  changeMFPageSize(size) {
+    this.mfPagination.changePageSize(size);
+  }
+
+  goToMFPage(page) {
+    this.mfPagination.goToPage(page);
+  }
+
+  /**
+   * Render physical gold holdings table with pagination
+   */
+  renderPhysicalGoldTable(holdings) {
+    const tbody = document.getElementById('physical_gold_table_body');
+    const section = document.getElementById('physical-gold-section');
+    
+    if (!tbody) return { invested: 0 };
+
+    tbody.innerHTML = '';
+
+    const table = section ? section.querySelector('table') : null;
+    const emptyState = document.getElementById('physical_gold_empty_state');
+    const controlsContainer = section ? section.querySelector('.controls-container') : null;
+    const paginationInfo = document.getElementById('physical_gold_pagination_info');
+    const paginationButtons = document.getElementById('physical_gold_pagination_buttons');
+
+    if (!holdings || holdings.length === 0) {
+      if (table) table.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'block';
+      if (controlsContainer) controlsContainer.style.display = 'none';
+      if (paginationInfo) paginationInfo.style.display = 'none';
+      if (paginationButtons) paginationButtons.style.display = 'none';
+      return { invested: 0 };
+    }
+
+    if (table) table.style.display = 'table';
+    if (emptyState) emptyState.style.display = 'none';
+    if (controlsContainer) controlsContainer.style.display = 'flex';
+    if (paginationInfo) paginationInfo.style.display = 'block';
+    if (paginationButtons) paginationButtons.style.display = 'flex';
+
+    let totalPhysicalGoldInvested = 0;
+    let totalPhysicalGoldCurrent = 0;
+    let totalPhysicalGoldPL = 0;
+    
+    holdings.forEach((holding) => {
+      const weight = holding.weight_gms || 0;
+      const ibjaRate = holding.bought_ibja_rate_per_gm || 0;
+      const latestPrice = holding.latest_ibja_price_per_gm || ibjaRate;
+      totalPhysicalGoldInvested += weight * ibjaRate;
+      totalPhysicalGoldCurrent += weight * latestPrice;
+      totalPhysicalGoldPL += holding.pl || 0;
+    });
+
+    const paginationData = this.physicalGoldPagination.paginate(holdings);
+    const { pageData } = paginationData;
+
+    pageData.forEach((holding) => {
+      tbody.innerHTML += this._buildPhysicalGoldRow(holding);
+    });
+
+    this._renderPhysicalGoldPagination(paginationData);
+    
+    const plPct = totalPhysicalGoldInvested ? (totalPhysicalGoldPL / totalPhysicalGoldInvested * 100) : 0;
+    
+    return { 
+      invested: totalPhysicalGoldInvested,
+      current: totalPhysicalGoldCurrent,
+      pl: totalPhysicalGoldPL,
+      plPct: plPct
+    };
+  }
+
+  _buildPhysicalGoldRow(holding) {
+    const weight = holding.weight_gms ? holding.weight_gms.toFixed(3) : '0.000';
+    const ibjaRate = Formatter.formatCurrency(holding.bought_ibja_rate_per_gm || 0);
+    
+    let latestPrice = '-';
+    if (holding.latest_ibja_price_per_gm) {
+      latestPrice = Formatter.formatCurrency(holding.latest_ibja_price_per_gm);
+      
+      if (holding.gold_price_date) {
+        const formattedDate = Formatter.formatRelativeDate(holding.gold_price_date, true);
+        if (formattedDate) {
+          latestPrice += ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
+        }
+      }
+    }
+    
+    const pl = holding.pl || 0;
+    const plPct = holding.pl_pct || 0;
+    
+    let plDisplay = '-';
+    let plColor = '#999';
+    
+    if (holding.pl !== undefined) {
+      plDisplay = Formatter.formatCurrency(Math.abs(pl));
+      if (pl < 0) {
+        plDisplay = '-' + plDisplay;
+      }
+      plColor = Formatter.colorPL(pl);
+      const pctText = Formatter.formatPercentage(plPct);
+      plDisplay = `${plDisplay} <span class="pl_pct_small" style="color:${plColor}">${pctText}</span>`;
+    }
+
+    return `<tr style="background-color:${Formatter.rowColor(pl)}">
+      <td>${holding.date || '-'}</td>
+      <td style="">${holding.type || '-'}</td>
+      <td>${holding.retail_outlet || '-'}</td>
+      <td style="font-weight:600;color:#d4af37">${holding.purity || '-'}</td>
+      <td>${weight}</td>
+      <td>${ibjaRate}</td>
+      <td>${latestPrice}</td>
+      <td style="color:${plColor};font-weight:600">${plDisplay}</td>
+    </tr>`;
+  }
+
+  _renderPhysicalGoldPagination(paginationData) {
+    const paginationInfo = document.getElementById('physical_gold_pagination_info');
+    const paginationButtons = document.getElementById('physical_gold_pagination_buttons');
+
+    if (!paginationInfo || !paginationButtons) return;
+
+    PaginationManager.updatePaginationUI(
+      paginationData,
+      'physical_gold_pagination_info',
+      'physical_gold_pagination_buttons',
+      'goToPhysicalGoldPage',
+      'holdings'
+    );
+  }
+
+  changePhysicalGoldPageSize(size) {
+    this.physicalGoldPagination.changePageSize(size);
+  }
+
+  goToPhysicalGoldPage(page) {
+    this.physicalGoldPagination.goToPage(page);
   }
 
 }

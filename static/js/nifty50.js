@@ -16,9 +16,7 @@ class Nifty50App {
   async init() {
     this.setupTheme();
     this.connectEventSource();
-    // Show loading row initially
     this.renderNifty50Table();
-    // Always fetch data on first load if table is empty
     if (!this.nifty50Data || this.nifty50Data.length === 0) {
       await this.updateNifty50();
     }
@@ -35,7 +33,6 @@ class Nifty50App {
   }
 
   connectEventSource() {
-    // Set up SSE connection with handlers
     this.sseManager.onMessage((status) => this.handleStatusUpdate(status));
     this.sseManager.connect();
   }
@@ -48,19 +45,16 @@ class Nifty50App {
     // Nifty50 doesn't need login - it uses public NSE API
     // So we ignore waitingForLogin and needsLogin states
     
-    // Update status classes based only on Nifty50 state
     statusTag.classList.toggle('updating', isUpdating);
     statusTag.classList.toggle('updated', !isUpdating);
     statusTag.classList.toggle('market_closed', status.market_open === false);
     
-    // Update status text based on Nifty50 state only
     statusText.innerText = isUpdating
       ? 'updating'
       : ('updated' + (status.nifty50_last_updated ? ` • ${status.nifty50_last_updated}` : ''));
 
     this._updateRefreshButton(isUpdating);
     
-    // Re-render table with current status if we have data
     if (this.nifty50Data && this.nifty50Data.length > 0) {
       this.renderNifty50Table(status);
     }

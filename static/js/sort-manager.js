@@ -6,6 +6,35 @@ class SortManager {
   constructor() {
     this.stocksSortOrder = 'default';
     this.mfSortOrder = 'default';
+    this.physicalGoldSortOrder = 'default';
+  }
+
+  /**
+   * Generic comparator for numeric sorting
+   * @param {function} getValue - Function to extract value from item
+   * @param {boolean} descending - Sort direction
+   * @returns {function} Comparator function
+   */
+  _numericComparator(getValue, descending = true) {
+    return (a, b) => {
+      const aVal = getValue(a);
+      const bVal = getValue(b);
+      return descending ? bVal - aVal : aVal - bVal;
+    };
+  }
+
+  /**
+   * Generic comparator for string sorting
+   * @param {function} getValue - Function to extract value from item
+   * @param {boolean} descending - Sort direction
+   * @returns {function} Comparator function
+   */
+  _stringComparator(getValue, descending = false) {
+    return (a, b) => {
+      const aVal = getValue(a) || '';
+      const bVal = getValue(b) || '';
+      return descending ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+    };
   }
 
   /**
@@ -20,105 +49,25 @@ class SortManager {
     }
 
     const sorted = [...holdings];
+    
+    // Map sort criteria to comparator functions
+    const comparators = {
+      'pl_pct_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).plPct, true),
+      'pl_pct_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).plPct, false),
+      'pl_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).pl, true),
+      'pl_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).pl, false),
+      'invested_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).invested, true),
+      'invested_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).invested, false),
+      'current_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).current, true),
+      'current_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).current, false),
+      'day_change_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).dayChange, true),
+      'day_change_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).dayChange, false),
+      'symbol_asc': this._stringComparator(h => h.tradingsymbol, false),
+      'symbol_desc': this._stringComparator(h => h.tradingsymbol, true)
+    };
 
-    switch (sortBy) {
-      case 'pl_pct_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return bMetrics.plPct - aMetrics.plPct;
-        });
-        break;
-      
-      case 'pl_pct_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return aMetrics.plPct - bMetrics.plPct;
-        });
-        break;
-      
-      case 'pl_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return bMetrics.pl - aMetrics.pl;
-        });
-        break;
-      
-      case 'pl_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return aMetrics.pl - bMetrics.pl;
-        });
-        break;
-      
-      case 'invested_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return bMetrics.invested - aMetrics.invested;
-        });
-        break;
-      
-      case 'invested_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return aMetrics.invested - bMetrics.invested;
-        });
-        break;
-      
-      case 'current_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return bMetrics.current - aMetrics.current;
-        });
-        break;
-      
-      case 'current_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return aMetrics.current - bMetrics.current;
-        });
-        break;
-      
-      case 'day_change_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return bMetrics.dayChange - aMetrics.dayChange;
-        });
-        break;
-      
-      case 'day_change_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateStockMetrics(a);
-          const bMetrics = Calculator.calculateStockMetrics(b);
-          return aMetrics.dayChange - bMetrics.dayChange;
-        });
-        break;
-      
-      case 'symbol_asc':
-        sorted.sort((a, b) => {
-          return (a.tradingsymbol || '').localeCompare(b.tradingsymbol || '');
-        });
-        break;
-      
-      case 'symbol_desc':
-        sorted.sort((a, b) => {
-          return (b.tradingsymbol || '').localeCompare(a.tradingsymbol || '');
-        });
-        break;
-      
-      default:
-        return holdings;
-    }
-
-    return sorted;
+    const comparator = comparators[sortBy];
+    return comparator ? sorted.sort(comparator) : holdings;
   }
 
   /**
@@ -134,92 +83,22 @@ class SortManager {
 
     const sorted = [...mfHoldings];
 
-    switch (sortBy) {
-      case 'pl_pct_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return bMetrics.plPct - aMetrics.plPct;
-        });
-        break;
-      
-      case 'pl_pct_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return aMetrics.plPct - bMetrics.plPct;
-        });
-        break;
-      
-      case 'pl_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return bMetrics.pl - aMetrics.pl;
-        });
-        break;
-      
-      case 'pl_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return aMetrics.pl - bMetrics.pl;
-        });
-        break;
-      
-      case 'invested_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return bMetrics.invested - aMetrics.invested;
-        });
-        break;
-      
-      case 'invested_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return aMetrics.invested - bMetrics.invested;
-        });
-        break;
-      
-      case 'current_desc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return bMetrics.current - aMetrics.current;
-        });
-        break;
-      
-      case 'current_asc':
-        sorted.sort((a, b) => {
-          const aMetrics = Calculator.calculateMFMetrics(a);
-          const bMetrics = Calculator.calculateMFMetrics(b);
-          return aMetrics.current - bMetrics.current;
-        });
-        break;
-      
-      case 'name_asc':
-        sorted.sort((a, b) => {
-          const aName = a.fund || a.tradingsymbol || '';
-          const bName = b.fund || b.tradingsymbol || '';
-          return aName.localeCompare(bName);
-        });
-        break;
-      
-      case 'name_desc':
-        sorted.sort((a, b) => {
-          const aName = a.fund || a.tradingsymbol || '';
-          const bName = b.fund || b.tradingsymbol || '';
-          return bName.localeCompare(aName);
-        });
-        break;
-      
-      default:
-        return mfHoldings;
-    }
+    // Map sort criteria to comparator functions
+    const comparators = {
+      'pl_pct_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).plPct, true),
+      'pl_pct_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).plPct, false),
+      'pl_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).pl, true),
+      'pl_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).pl, false),
+      'invested_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).invested, true),
+      'invested_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).invested, false),
+      'current_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).current, true),
+      'current_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).current, false),
+      'name_asc': this._stringComparator(h => h.fund || h.tradingsymbol, false),
+      'name_desc': this._stringComparator(h => h.fund || h.tradingsymbol, true)
+    };
 
-    return sorted;
+    const comparator = comparators[sortBy];
+    return comparator ? sorted.sort(comparator) : mfHoldings;
   }
 
   setStocksSortOrder(sortBy) {
@@ -236,6 +115,47 @@ class SortManager {
 
   getMFSortOrder() {
     return this.mfSortOrder;
+  }
+
+  /**
+   * Sort physical gold array based on selected criteria
+   * @param {Array} holdings - Physical gold holdings array
+   * @param {string} sortBy - Sort criteria
+   * @returns {Array} Sorted array
+   */
+  sortPhysicalGold(holdings, sortBy = 'default') {
+    if (sortBy === 'default' || !holdings || holdings.length === 0) {
+      return holdings;
+    }
+
+    const sorted = [...holdings];
+
+    // Map sort criteria to comparator functions
+    const comparators = {
+      'date_desc': this._numericComparator(h => new Date(h.date || 0).getTime(), true),
+      'date_asc': this._numericComparator(h => new Date(h.date || 0).getTime(), false),
+      'weight_desc': this._numericComparator(h => h.weight_gms || 0, true),
+      'weight_asc': this._numericComparator(h => h.weight_gms || 0, false),
+      'spend_desc': this._numericComparator(h => h.total_spend || 0, true),
+      'spend_asc': this._numericComparator(h => h.total_spend || 0, false),
+      'value_desc': this._numericComparator(h => h.total_retail_value || 0, true),
+      'value_asc': this._numericComparator(h => h.total_retail_value || 0, false),
+      'wastage_pct_desc': this._numericComparator(h => h.wastage_pct || 0, true),
+      'wastage_pct_asc': this._numericComparator(h => h.wastage_pct || 0, false),
+      'type_asc': this._stringComparator(h => h.type, false),
+      'type_desc': this._stringComparator(h => h.type, true)
+    };
+
+    const comparator = comparators[sortBy];
+    return comparator ? sorted.sort(comparator) : holdings;
+  }
+
+  setPhysicalGoldSortOrder(sortBy) {
+    this.physicalGoldSortOrder = sortBy;
+  }
+
+  getPhysicalGoldSortOrder() {
+    return this.physicalGoldSortOrder;
   }
 }
 

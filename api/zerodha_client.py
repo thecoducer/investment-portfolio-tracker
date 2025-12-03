@@ -3,9 +3,8 @@ Zerodha API client for fetching portfolio data.
 """
 import threading
 from typing import List, Dict, Any, Tuple, Optional
+from requests.exceptions import ReadTimeout, ConnectionError
 from logging_config import logger
-
-
 class ZerodhaAPIClient:
     """Client for Zerodha KiteConnect API operations."""
     
@@ -40,6 +39,10 @@ class ZerodhaAPIClient:
             stock_holdings, mf_holdings = self.holdings_service.fetch_holdings(kite)
             sips = self.sip_service.fetch_sips(kite)
             return stock_holdings, mf_holdings, sips
+        except (ReadTimeout, ConnectionError) as e:
+            logger.warning("Kite API timeout for account %s: %s", 
+                          account_config.get('name'), str(e))
+            raise
         except Exception as e:
             logger.exception("Error fetching data for account %s: %s", 
                            account_config.get('name'), e)

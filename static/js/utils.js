@@ -237,6 +237,12 @@ class Calculator {
     };
   }
 
+  /**
+   * Calculate aggregated totals from holdings array.
+   * @param {Array} holdings - Array of holdings
+   * @param {function} calculator - Calculator function for the holding type
+   * @returns {object} Aggregated totals with invested, current, pl, plPct
+   */
   static calculateTotalMetrics(holdings, calculator) {
     let totalInvested = 0;
     let totalCurrent = 0;
@@ -259,4 +265,28 @@ class Calculator {
   }
 }
 
-export { Formatter, Calculator };
+// Constants
+const GOLD_SYMBOLS = ['GOLDBEES'];
+const GOLD_PREFIX = 'SGB';
+const SILVER_SYMBOLS = ['SILVERBEES'];
+const SILVER_PREFIX = 'SILVR';
+
+/**
+ * Check if a symbol represents a gold instrument
+ * @param {string} symbol - Trading symbol to check
+ * @returns {boolean} - True if symbol is a gold instrument
+ */
+function isGoldInstrument(symbol) {
+  return GOLD_SYMBOLS.includes(symbol) || symbol.startsWith(GOLD_PREFIX);
+}
+
+/**
+ * Check if a symbol represents a silver instrument
+ * @param {string} symbol - Trading symbol to check
+ * @returns {boolean} - True if symbol is a silver instrument
+ */
+function isSilverInstrument(symbol) {
+  return SILVER_SYMBOLS.includes(symbol) || symbol.startsWith(SILVER_PREFIX);
+}
+
+export { Formatter, Calculator, isGoldInstrument, isSilverInstrument };

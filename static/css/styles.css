@@ -109,6 +109,8 @@ h1 {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background: #999;
+  color: #999;
   box-shadow: 0 0 8px currentColor;
   transition: all 0.3s ease;
 }
@@ -409,99 +411,172 @@ body.dark-theme .theme-toggle:hover {
 /* ============ SUMMARY CARDS ============ */
 
 .summary-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 48px;
 }
 
 .card {
   background: #fff;
-  padding: 24px;
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border: 1px solid rgba(139, 119, 101, 0.1);
-  transition: all 0.3s ease;
+  align-items: center;
+  gap: 20px;
+  border: 1px solid rgba(139, 119, 101, 0.08);
+  transition: all 0.2s ease;
+  min-height: 60px;
 }
 
 .card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateX(2px);
+  border-color: rgba(139, 119, 101, 0.15);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .card {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
 }
 
 .card-title {
-  margin: 0 0 8px 0;
-  font-size: 14px;
+  margin: 0;
+  font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   color: #3e3835;
   font-family: 'Raleway', sans-serif;
-  border-bottom: 2px solid rgba(139, 119, 101, 0.2);
-  padding-bottom: 8px;
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.allocation-pct {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  margin-right: 8px;
+  border-radius: 4px;
+  background: rgba(139, 119, 101, 0.15);
+  color: #6d5e52;
+  font-family: 'Karla', sans-serif;
+  flex-shrink: 0;
 }
 
 .summary-item {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .summary-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 11px;
+  font-weight: 500;
   color: #8b7765;
   font-family: 'Raleway', sans-serif;
+  text-align: right;
 }
 
 .summary-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: #6d5e52;
+  font-size: 15px;
+  font-weight: 600;
+  color: #3e3835;
   font-family: 'Karla', sans-serif;
+  text-align: right;
 }
 
-/* Card gradients */
+/* Metrics container */
+.card-metrics {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.card-metrics .summary-item {
+  position: relative;
+  flex: 1;
+  min-width: 140px;
+  padding-right: 20px;
+}
+
+.card-metrics .summary-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 8px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(139, 119, 101, 0.15);
+}
+
+@media (max-width: 768px) {
+  .card-title {
+    min-width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  .card-metrics {
+    gap: 12px;
+  }
+}
+
+/* Card backgrounds - subtle left border accent */
 
 #combined_summary {
-  background: linear-gradient(135deg, #e8ddc9 0%, #d9cfb8 100%);
-}
-
-#combined_summary .summary-label {
-  color: #6d5e52;
-}
-
-#combined_summary .summary-value {
-  color: #3e3835;
-}
-
-#mf_summary {
-  background: linear-gradient(135deg, #e5d4c1 0%, #d9c4ad 100%);
-}
-
-#mf_summary .summary-label {
-  color: #6d5e52;
-}
-
-#mf_summary .summary-value {
-  color: #3e3835;
+  background: linear-gradient(135deg, #fefdfb 0%, #fdfcfa 100%);
+  border-left: 4px solid #d4a574;
 }
 
 #portfolio_summary {
-  background: linear-gradient(135deg, #d9e5d9 0%, #c9dcc9 100%);
+  background: #faf9ff;
+  border-left: 4px solid #9575cd;
+}
+
+#mf_summary {
+  background: #f7fcff;
+  border-left: 4px solid #64b5f6;
+}
+
+#mf_summary .summary-label {
+  color: #5a6d7f;
+}
+
+#mf_summary .summary-value {
+  color: #2c3e50;
+}
+
+#portfolio_summary {
+  background: linear-gradient(135deg, #faf9ff 0%, #f8f6fc 100%);
 }
 
 #portfolio_summary .summary-label {
-  color: #6d5e52;
+  color: #6a4c7f;
 }
 
 #portfolio_summary .summary-value {
-  color: #3e3835;
+  color: #4a2e5f;
+}
+
+#gold_summary {
+  background: #fffef8;
+  border-left: 4px solid #ffc107;
+}
+
+#silver_summary {
+  background: #fafafa;
+  border-left: 4px solid #9e9e9e;
 }
 
 /* ============ SECTIONS ============ */
@@ -511,6 +586,10 @@ body.dark-theme .theme-toggle:hover {
 }
 
 #sips-section {
+  margin-top: 32px;
+}
+
+#physical-gold-section {
   margin-top: 32px;
 }
 
@@ -534,7 +613,13 @@ body.dark-theme .theme-toggle:hover {
 }
 
 .section-header h2 {
-  margin-bottom: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #3e3835;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-family: 'Raleway', sans-serif;
 }
 
 .sort-controls {
@@ -950,62 +1035,77 @@ body.dark-theme .theme-toggle:hover {
 }
 
 body.dark-theme .card {
-  background: #1a1613;
-  border-color: rgba(212, 204, 192, 0.1);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  background: #1e1a17;
+  border-color: rgba(212, 204, 192, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 body.dark-theme .card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  background: #242019;
+  border-color: rgba(212, 204, 192, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 body.dark-theme .card-title {
   color: #e8ddd0;
-  border-bottom-color: rgba(212, 204, 192, 0.2);
+}
+
+body.dark-theme .allocation-pct {
+  background: rgba(212, 165, 116, 0.2);
+  color: #d4a574;
 }
 
 body.dark-theme .summary-label {
-  color: #9d8f7f;
+  color: #c4b5a5;
 }
 
 body.dark-theme .summary-value {
-  color: #e8ddd0;
+  color: #f5f0e8;
+}
+
+body.dark-theme .card-metrics .summary-item:not(:last-child)::after {
+  background: rgba(212, 165, 116, 0.15);
 }
 
 body.dark-theme #combined_summary {
-  background: linear-gradient(135deg, #2a2319 0%, #1f1813 100%);
-}
-
-body.dark-theme #combined_summary .summary-label {
-  color: #a89a8c;
-}
-
-body.dark-theme #combined_summary .summary-value {
-  color: #e8ddd0;
-}
-
-body.dark-theme #mf_summary {
-  background: linear-gradient(135deg, #291f18 0%, #1d1511 100%);
-}
-
-body.dark-theme #mf_summary .summary-label {
-  color: #a89a8c;
-}
-
-body.dark-theme #mf_summary .summary-value {
-  color: #e8ddd0;
+  background: linear-gradient(135deg, #1a1713 0%, #171410 100%) !important;
+  border-left-color: #b8964d;
 }
 
 body.dark-theme #portfolio_summary {
-  background: linear-gradient(135deg, #1f2a1f 0%, #141d14 100%);
+  background: linear-gradient(135deg, #1e1a20 0%, #1c181e 100%);
+  border-left-color: #ab47bc;
 }
 
 body.dark-theme #portfolio_summary .summary-label {
-  color: #a89a8c;
+  color: #c4b5a5;
 }
 
 body.dark-theme #portfolio_summary .summary-value {
-  color: #e8ddd0;
+  color: #f5f0e8;
+}
+
+body.dark-theme #mf_summary {
+  background: linear-gradient(135deg, #181c20 0%, #161a1e 100%);
+  border-left-color: #42a5f5;
+}
+
+body.dark-theme #mf_summary .summary-label {
+  color: #c4b5a5;
+}
+
+body.dark-theme #mf_summary .summary-value {
+  color: #f5f0e8;
+}
+
+body.dark-theme #gold_summary {
+  background: linear-gradient(135deg, #201e18 0%, #1e1c16 100%);
+  border-left-color: #ffb300;
+}
+
+body.dark-theme #silver_summary {
+  background: linear-gradient(135deg, #1c1c1c 0%, #1a1a1a 100%);
+  border-left-color: #757575;
 }
 
 body.dark-theme table {
@@ -1159,6 +1259,12 @@ body.privacy-mode .sip-total-value {
   transition: filter 0.2s ease;
 }
 
+/* Don't blur Latest IBJA Price/gm column (7th) in physical gold table */
+body.privacy-mode #physical-gold-section tbody tr td:nth-child(7) {
+  filter: none !important;
+  user-select: auto;
+}
+
 /* Remove P/L colors in privacy mode */
 body.privacy-mode tbody tr {
   background-color: transparent !important;
@@ -1168,14 +1274,48 @@ body.privacy-mode tbody tr td span {
   color: inherit !important;
 }
 
+/* Hide colors specifically for physical gold table rows */
+body.privacy-mode #physical-gold-section tbody tr {
+  background-color: transparent !important;
+}
+
+body.privacy-mode #physical-gold-section tbody tr td {
+  color: inherit !important;
+}
+
+body.privacy-mode #physical-gold-section tbody tr td span {
+  color: inherit !important;
+}
+
 /* Remove P/L colors from summary cards */
 body.privacy-mode #combined_total_pl,
 body.privacy-mode #combined_total_pl_pct,
 body.privacy-mode #mf_total_pl,
 body.privacy-mode #mf_total_pl_pct,
 body.privacy-mode #total_pl,
-body.privacy-mode #total_pl_pct {
+body.privacy-mode #total_pl_pct,
+body.privacy-mode #gold_total_pl,
+body.privacy-mode #gold_total_pl_pct,
+body.privacy-mode #silver_total_pl,
+body.privacy-mode #silver_total_pl_pct {
   color: inherit !important;
+}
+
+/* Empty state message */
+.empty-state-message {
+  text-align: center;
+  color: #a89968;
+  font-size: 14px;
+  font-style: italic;
+  padding: 24px 16px;
+  background: rgba(139, 119, 101, 0.03);
+  border-radius: 8px;
+  margin-top: 12px;
+}
+
+body.dark-theme .empty-state-message {
+  color: #8b7d6f;
+  background: rgba(212, 204, 192, 0.03);
 }
 
 /* Loading placeholders styles */
@@ -1185,4 +1325,89 @@ body.privacy-mode #total_pl_pct {
   font-size: 13px;
   padding: 16px 0;
   position: relative;
+}
+
+/* ============ PHYSICAL GOLD SECTION ============ */
+
+#physicalGoldTable th {
+  white-space: nowrap;
+}
+
+#physicalGoldTable td {
+  padding: 12px 10px;
+}
+
+/* Specific column alignments for physical gold table */
+#physicalGoldTable td:nth-child(5),  /* Weight */
+#physicalGoldTable td:nth-child(6),  /* IBJA Rate */
+#physicalGoldTable td:nth-child(7),  /* Latest IBJA Price */
+#physicalGoldTable td:nth-child(8)  /* P/L */ {
+  text-align: left;
+}
+
+#physicalGoldTable th:nth-child(5),
+#physicalGoldTable th:nth-child(6),
+#physicalGoldTable th:nth-child(7),
+#physicalGoldTable th:nth-child(8) {
+  text-align: left;
+}
+
+/* Type column styling */
+#physicalGoldTable td:nth-child(2) {
+  font-weight: 600;
+}
+
+/* Purity column styling */
+#physicalGoldTable td:nth-child(4) {
+  font-weight: 600;
+  color: #d4af37; /* Gold color */
+}
+
+body.dark-theme #physicalGoldTable td:nth-child(4) {
+  color: #ffd700;
+}
+
+/* Dark theme adjustments */
+body.dark-theme #physicalGoldTable td:nth-child(4) {
+  color: #f4d03f; /* Brighter gold for dark theme */
+}
+
+/* Privacy mode for physical gold */
+body.privacy-mode #physicalGoldTable tbody tr td:nth-child(5),  /* Weight */
+body.privacy-mode #physicalGoldTable tbody tr td:nth-child(6),  /* IBJA Rate */
+body.privacy-mode #physicalGoldTable tbody tr td:nth-child(7)  /* Latest IBJA Price */ {
+  filter: blur(8px);
+  user-select: none;
+}
+
+/* Responsive adjustments for physical gold table */
+@media (max-width: 1400px) {
+  #physicalGoldTable {
+    font-size: 12px;
+  }
+  
+  #physicalGoldTable th {
+    padding: 10px 8px;
+  }
+  
+  #physicalGoldTable td {
+    padding: 10px 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Make physical gold table scrollable on mobile */
+  #physicalGoldTable {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  #physicalGoldTable thead,
+  #physicalGoldTable tbody,
+  #physicalGoldTable tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
 }

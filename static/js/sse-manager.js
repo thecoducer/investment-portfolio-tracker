@@ -50,6 +50,7 @@ class SSEConnectionManager {
     this.eventSource.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('[SSEManager] Received SSE message:', data);
         this.messageHandlers.forEach(handler => {
           try {
             handler(data);

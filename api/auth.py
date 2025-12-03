@@ -7,6 +7,7 @@ import threading
 from typing import Dict, Any, List, Tuple, Optional
 
 from kiteconnect import KiteConnect
+from requests.exceptions import ReadTimeout, ConnectionError
 from logging_config import logger
 
 
@@ -72,8 +73,14 @@ class AuthenticationManager:
         try:
             kite.profile()
             return True
+        except (ReadTimeout, ConnectionError) as e:
+            logger.warning("Token validation timed out for %s: %s", account_name, str(e))
+            # Don't invalidate on timeout - just raise to skip this account
+            raise
         except Exception as e:
-            logger.exception("Token validation failed for %s: %s", account_name, e)
+            logger.warning("Token validation failed for %s: %s", account_name, str(e))
+            # Invalidate only on actual validation failures (not timeouts)
+            self.session_manager.invalidate(account_name)
             return False
     
     def _try_cached_token(self, kite: KiteConnect, account_name: str) -> bool:
@@ -108,8 +115,12 @@ class AuthenticationManager:
                 logger.info("Successfully renewed session for %s", account_name)
                 self._store_token(kite, account_name, new_access_token)
                 return True
+        except (ReadTimeout, ConnectionError) as e:
+            logger.warning("Token renewal timed out for %s: %s", account_name, str(e))
+            # Don't invalidate on timeout - just raise to skip this account
+            raise
         except Exception as e:
-            logger.exception("Session renewal failed for %s: %s", account_name, e)
+            logger.warning("Session renewal failed for %s: %s", account_name, str(e))
         
         return False
     

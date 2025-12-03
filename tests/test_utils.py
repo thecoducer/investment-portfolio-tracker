@@ -97,9 +97,9 @@ class TestStateManager(unittest.TestCase):
         self.state_manager = StateManager()
     
     def test_initial_state(self):
-        """Test initial state is updated (no data yet)"""
-        self.assertEqual(self.state_manager.portfolio_state, STATE_UPDATED)
-        self.assertEqual(self.state_manager.nifty50_state, STATE_UPDATED)
+        """Test initial state is None (no data fetched yet)"""
+        self.assertIsNone(self.state_manager.portfolio_state)
+        self.assertIsNone(self.state_manager.nifty50_state)
     
     def test_set_refresh_running(self):
         """Test setting portfolio to updating state"""

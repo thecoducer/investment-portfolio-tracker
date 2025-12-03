@@ -4,6 +4,12 @@ requests==2.31.0
 python-dotenv==1.0.0
 cryptography==46.0.0
 
+# Google Sheets API for Physical Gold tracking
+google-auth==2.23.4
+google-auth-oauthlib==1.1.0
+google-auth-httplib2==0.1.1
+google-api-python-client==2.108.0
+
 # Testing dependencies
 pytest==7.4.3
 pytest-cov==4.1.0

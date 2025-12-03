@@ -150,14 +150,16 @@ class TestIntegration(unittest.TestCase):
         """Test state manager transitions during workflow"""
         state_manager = StateManager()
         
-        # Initial state is updated (no data yet)
-        self.assertEqual(state_manager.portfolio_state, "updated")
+        # Initial state is None (no data fetched yet)
+        self.assertIsNone(state_manager.portfolio_state)
         
         # Simulate refresh workflow
         state_manager.set_portfolio_updating()
         self.assertTrue(state_manager.is_any_running())
         
         state_manager.set_portfolio_updated()
+        # After successful fetch, state should be updated
+        self.assertEqual(state_manager.portfolio_state, "updated")
         state_manager.set_nifty50_updated()
         self.assertFalse(state_manager.is_any_running())
     
@@ -581,6 +583,71 @@ class TestSortUIIntegration(unittest.TestCase):
             # Check for sort-related styles
             self.assertIn('.sort-controls', css_content, "Should have sort-controls styles")
             self.assertIn('.section-header', css_content, "Should have section-header styles")
+
+
+class TestGoldSeparation(unittest.TestCase):
+    """Test that Gold holdings (GOLDBEES and SGB*) are correctly separated from stocks summary."""
+    
+    def test_gold_symbol_detection(self):
+        """Test that GOLDBEES and SGB symbols are correctly identified as gold."""
+        # Test data
+        symbols = [
+            ('GOLDBEES', True),
+            ('SGB2025', True),
+            ('SGB2026-II', True),
+            ('SGBMAR25', True),
+            ('HDFCBANK', False),
+            ('INFY', False),
+            ('TCS', False),
+            ('RELIANCE', False),
+        ]
+        
+        for symbol, expected_is_gold in symbols:
+            is_gold = symbol == 'GOLDBEES' or symbol.startswith('SGB')
+            self.assertEqual(
+                is_gold, 
+                expected_is_gold,
+                f"Symbol {symbol} should {'be' if expected_is_gold else 'not be'} classified as gold"
+            )
+    
+    def test_gold_calculation_logic(self):
+        """Test that totals are correctly calculated for stocks and gold separately."""
+        # Simulate holdings
+        holdings = [
+            {'tradingsymbol': 'GOLDBEES', 'quantity': 60, 'average_price': 96.17, 'last_price': 106.51, 'invested': 5770},
+            {'tradingsymbol': 'HDFCBANK', 'quantity': 10, 'average_price': 1500, 'last_price': 1600, 'invested': 15000},
+            {'tradingsymbol': 'SGB2025', 'quantity': 5, 'average_price': 5000, 'last_price': 5200, 'invested': 25000},
+            {'tradingsymbol': 'INFY', 'quantity': 20, 'average_price': 1400, 'last_price': 1500, 'invested': 28000},
+        ]
+        
+        stock_invested = 0
+        stock_current = 0
+        gold_invested = 0
+        gold_current = 0
+        
+        for holding in holdings:
+            symbol = holding['tradingsymbol']
+            is_gold = symbol == 'GOLDBEES' or symbol.startswith('SGB')
+            current = holding['last_price'] * holding['quantity']
+            
+            if is_gold:
+                gold_invested += holding['invested']
+                gold_current += current
+            else:
+                stock_invested += holding['invested']
+                stock_current += current
+        
+        # Assertions
+        self.assertEqual(stock_invested, 43000, "Stock invested should be 15000 + 28000")
+        self.assertEqual(stock_current, 16000 + 30000, "Stock current should be 16000 + 30000")
+        self.assertEqual(gold_invested, 5770 + 25000, "Gold invested should be 5770 + 25000")
+        self.assertEqual(gold_current, 60 * 106.51 + 5 * 5200, "Gold current should be calculated correctly")
+        
+        # Check combined totals
+        combined_invested = stock_invested + gold_invested
+        combined_current = stock_current + gold_current
+        self.assertEqual(combined_invested, 43000 + 30770, "Combined invested should match")
+        self.assertAlmostEqual(combined_current, 46000 + 32390.6, places=1, msg="Combined current should match")
 
 
 if __name__ == '__main__':

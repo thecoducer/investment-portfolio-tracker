@@ -5,9 +5,11 @@ class DataManager {
     this.latestHoldings = [];
     this.latestMFHoldings = [];
     this.latestSIPs = [];
+    this.latestPhysicalGold = [];
     this.lastRenderedJSON = "";
     this.lastRenderedMFJSON = "";
     this.lastRenderedSIPsJSON = "";
+    this.lastRenderedPhysicalGoldJSON = "";
   }
 
   async _fetchEndpoint(endpoint) {
@@ -27,18 +29,23 @@ class DataManager {
     return this._fetchEndpoint('/sips_data');
   }
 
+  async fetchPhysicalGold() {
+    return this._fetchEndpoint('/physical_gold_data');
+  }
+
   async fetchStatus() {
     return this._fetchEndpoint('/status');
   }
 
   async fetchAllData() {
-    const [holdings, mfHoldings, sips, status] = await Promise.all([
+    const [holdings, mfHoldings, sips, physicalGold, status] = await Promise.all([
       this.fetchHoldings(),
       this.fetchMFHoldings(),
       this.fetchSIPs(),
+      this.fetchPhysicalGold(),
       this.fetchStatus()
     ]);
-    return { holdings, mfHoldings, sips, status };
+    return { holdings, mfHoldings, sips, physicalGold, status };
   }
 
   _updateData(data, currentData, lastJSON, forceUpdate) {
@@ -86,6 +93,19 @@ class DataManager {
 
   getSIPs() {
     return this.latestSIPs;
+  }
+
+  updatePhysicalGold(physicalGold, forceUpdate = false) {
+    const result = this._updateData(physicalGold, this.latestPhysicalGold, this.lastRenderedPhysicalGoldJSON, forceUpdate);
+    if (result.updated) {
+      this.latestPhysicalGold = result.newData;
+      this.lastRenderedPhysicalGoldJSON = result.newJSON;
+    }
+    return result.updated;
+  }
+
+  getPhysicalGold() {
+    return this.latestPhysicalGold;
   }
 
   async triggerRefresh() {

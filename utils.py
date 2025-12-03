@@ -23,8 +23,6 @@ from constants import (
     WEEKEND_SATURDAY
 )
 
-# Use shared project logger (see `logging_config.py`).
-
 
 class SessionManager:
     """Handles session token caching and validation with encryption."""
@@ -124,6 +122,13 @@ class SessionManager:
         """Get access token for account."""
         return self.sessions.get(account_name, {}).get("access_token")
     
+    def invalidate(self, account_name: str):
+        """Invalidate (remove) the session for an account."""
+        if account_name in self.sessions:
+            del self.sessions[account_name]
+            logger.info("Invalidated session for account: %s", account_name)
+            self.save()
+    
     def get_validity(self, all_accounts: List[str] = None) -> Dict[str, bool]:
         """Get validity status for all accounts.
         
@@ -146,11 +151,13 @@ class StateManager:
     """Manages application state with thread safety."""
     
     def __init__(self):
-        self.portfolio_state = STATE_UPDATED  # Start with updated state (no data yet)
-        self.nifty50_state = STATE_UPDATED  # Start with updated state (no data yet)
+        self.portfolio_state = None  # None indicates no data fetched yet
+        self.nifty50_state = None  # None indicates no data fetched yet
+        self.physical_gold_state = None  # None indicates no data fetched yet
         self.last_error: str = None
         self.portfolio_last_updated: float = None
         self.nifty50_last_updated: float = None
+        self.physical_gold_last_updated: float = None
         self.waiting_for_login = False
         self._change_listeners = []
     
@@ -216,9 +223,30 @@ class StateManager:
             # Don't clear last_error here as it might be from portfolio fetch
             self._set_state('nifty50_state', STATE_UPDATED)
     
+    def set_physical_gold_updating(self, error: str = None):
+        """Set physical gold state to updating and optionally set error."""
+        self._set_state('physical_gold_state', STATE_UPDATING)
+        if error:
+            self.last_error = error
+
+    def set_physical_gold_updated(self, error: str = None):
+        """Mark physical gold data as updated and update timestamp.
+        
+        Args:
+            error: Optional error message. If provided, state is set to ERROR.
+        """
+        if error:
+            self.last_error = error
+            self._set_state('physical_gold_state', STATE_ERROR)
+        else:
+            # Update timestamp BEFORE setting state so it's included in the notification
+            self.physical_gold_last_updated = time.time()
+            # Don't clear last_error here as it might be from other fetches
+            self._set_state('physical_gold_state', STATE_UPDATED)
+    
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""
-        return self.portfolio_state == STATE_UPDATING or self.nifty50_state == STATE_UPDATING
+        return self.portfolio_state == STATE_UPDATING or self.nifty50_state == STATE_UPDATING or self.physical_gold_state == STATE_UPDATING
     
     def clear_error(self):
         """Clear the last error message."""

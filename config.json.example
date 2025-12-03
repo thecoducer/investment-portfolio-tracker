@@ -23,6 +23,12 @@
     "auto_refresh_interval_seconds": 60
   },
   "features": {
-    "auto_refresh_outside_market_hours": false
+    "auto_refresh_outside_market_hours": false,
+    "fetch_physical_gold_from_google_sheets": {
+      "enabled": false,
+      "credentials_file": "path/to/service-account-credentials.json",
+      "spreadsheet_id": "your_google_sheets_spreadsheet_id",
+      "range_name": "Sheet1!A:K"
+    }
   }
 }

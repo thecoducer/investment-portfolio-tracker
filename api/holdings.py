@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Tuple
 from datetime import datetime
 
 from kiteconnect import KiteConnect
+from requests.exceptions import ReadTimeout, ConnectionError
 from .base_service import BaseDataService
 from logging_config import logger
 
@@ -25,11 +26,22 @@ class HoldingsService(BaseDataService):
         
         Returns:
             Tuple of (stock_holdings, mf_holdings)
+        
+        Raises:
+            ReadTimeout, ConnectionError: On network issues
+            Exception: On other API errors
         """
-        stock_holdings = kite.holdings() or []
-        mf_holdings = kite.mf_holdings() or []
-        self._add_nav_dates(mf_holdings, kite)
-        return stock_holdings, mf_holdings
+        try:
+            stock_holdings = kite.holdings() or []
+            mf_holdings = kite.mf_holdings() or []
+            self._add_nav_dates(mf_holdings, kite)
+            return stock_holdings, mf_holdings
+        except (ReadTimeout, ConnectionError) as e:
+            logger.warning("Kite API timeout while fetching holdings: %s", str(e))
+            raise
+        except Exception as e:
+            logger.exception("Unexpected error fetching holdings: %s", e)
+            raise
     
     def _add_nav_dates(self, mf_holdings: List[Dict[str, Any]], kite: KiteConnect) -> None:
         """

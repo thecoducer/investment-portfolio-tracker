@@ -18,12 +18,17 @@ import json
 import webbrowser
 from datetime import datetime
 from queue import Queue, Empty
+from requests.exceptions import Timeout, ConnectionError
 from logging_config import logger, configure
 
 from flask import Flask, request, jsonify, Response, render_template, make_response
 
 from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
 from api import AuthenticationManager, HoldingsService, SIPService, NSEAPIClient, ZerodhaAPIClient
+from api.google_sheets_client import GoogleSheetsClient, PhysicalGoldService, GOOGLE_SHEETS_AVAILABLE
+from api.ibja_gold_price import get_gold_price_service
+from api.physical_gold import enrich_holdings_with_prices
+from error_handler import ErrorAggregator, ErrorHandler
 from constants import (
     HTTP_ACCEPTED,
     HTTP_CONFLICT,
@@ -122,6 +127,8 @@ merged_holdings_global: List[Dict[str, Any]] = []
 merged_mf_holdings_global: List[Dict[str, Any]] = []
 merged_sips_global: List[Dict[str, Any]] = []
 nifty50_data_global: List[Dict[str, Any]] = []
+physical_gold_holdings_global: List[Dict[str, Any]] = []
+gold_prices_cache: Dict[str, Dict[str, float]] = {}  # Cache for IBJA gold prices
 
 # Thread synchronization
 fetch_in_progress = threading.Event()
@@ -177,10 +184,48 @@ holdings_service = HoldingsService()
 sip_service = SIPService()
 zerodha_client = ZerodhaAPIClient(auth_manager, holdings_service, sip_service)
 
+# Physical Gold services (optional - requires Google Sheets API setup)
+google_sheets_client = None
+physical_gold_service = None
+
+def _initialize_physical_gold_service():
+    """Initialize Google Sheets client for physical gold tracking."""
+    global google_sheets_client, physical_gold_service
+    
+    if not GOOGLE_SHEETS_AVAILABLE:
+        logger.info("Physical Gold tracking unavailable: Google Sheets libraries not installed")
+        return
+    
+    config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
+    google_sheets_config = config.get("features", {}).get("fetch_physical_gold_from_google_sheets", {})
+    
+    if not google_sheets_config.get("enabled", False):
+        logger.info("Physical Gold tracking disabled in configuration")
+        return
+    
+    credentials_file = google_sheets_config.get("credentials_file")
+    if credentials_file and os.path.exists(credentials_file):
+        google_sheets_client = GoogleSheetsClient(credentials_file)
+        physical_gold_service = PhysicalGoldService(google_sheets_client)
+        logger.info("Physical Gold tracking initialized")
+    else:
+        logger.warning("Physical Gold tracking unavailable: credentials file not found")
+
+_initialize_physical_gold_service()
+
 
 # --------------------------
 # STATUS AND BROADCASTING
 # --------------------------
+
+def _all_sessions_valid() -> bool:
+    """Check if all account sessions are valid.
+    
+    Returns:
+        True if all sessions are valid, False otherwise
+    """
+    return all(session_manager.is_valid(acc["name"]) for acc in ACCOUNTS_CONFIG)
+
 
 def _build_status_response() -> Dict[str, Any]:
     """Build comprehensive status response for API and SSE.
@@ -197,6 +242,8 @@ def _build_status_response() -> Dict[str, Any]:
         "portfolio_last_updated": format_timestamp(state_manager.portfolio_last_updated),
         "nifty50_state": state_manager.nifty50_state,
         "nifty50_last_updated": format_timestamp(state_manager.nifty50_last_updated),
+        "physical_gold_state": state_manager.physical_gold_state,
+        "physical_gold_last_updated": format_timestamp(state_manager.physical_gold_last_updated),
         "market_open": is_market_open_ist(),
         "session_validity": session_manager.get_validity(all_account_names),
         "waiting_for_login": state_manager.waiting_for_login
@@ -305,6 +352,15 @@ def nifty50_data():
     """Return Nifty 50 stocks data as JSON."""
     return _create_json_response_no_cache(nifty50_data_global, sort_key="symbol")
 
+
+@app_ui.route("/physical_gold_data", methods=["GET"])
+def physical_gold_data():
+    """Return physical gold holdings as JSON with latest IBJA prices."""
+    # Use cached gold prices (updated during refresh)
+    enriched_holdings = enrich_holdings_with_prices(physical_gold_holdings_global, gold_prices_cache)
+    return _create_json_response_no_cache(enriched_holdings, sort_key="date")
+
+
 @app_ui.route("/refresh", methods=["POST"])
 def refresh_route():
     """Trigger a refresh of holdings data."""
@@ -312,7 +368,7 @@ def refresh_route():
         return make_response(jsonify({"error": "Fetch already in progress"}), HTTP_CONFLICT)
 
     # Check if any account session is expired
-    needs_login = any(not session_manager.is_valid(acc["name"]) for acc in ACCOUNTS_CONFIG)
+    needs_login = not _all_sessions_valid()
     run_background_fetch(force_login=needs_login)
     
     return make_response(jsonify({"status": "started", "needs_login": needs_login}), HTTP_ACCEPTED)
@@ -321,7 +377,9 @@ def refresh_route():
 @app_ui.route("/holdings", methods=["GET"])
 def holdings_page():
     """Serve the main holdings page."""
-    return render_template("holdings.html")
+    config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
+    physical_gold_enabled = config.get("features", {}).get("fetch_physical_gold_from_google_sheets", {}).get("enabled", False)
+    return render_template("holdings.html", physical_gold_enabled=physical_gold_enabled)
 
 
 @app_ui.route("/nifty50", methods=["GET"])
@@ -368,6 +426,67 @@ def fetch_portfolio_data(force_login: bool = False) -> None:
     finally:
         state_manager.set_portfolio_updated(error=error_occurred)
         fetch_in_progress.clear()
+
+
+def fetch_physical_gold_data() -> None:
+    """Fetch physical gold holdings from Google Sheets.
+    
+    This function:
+    - Fetches physical gold data from configured Google Sheets
+    - Updates the global physical gold holdings cache
+    - Fetches and caches latest IBJA gold prices
+    - Runs silently if Google Sheets is not configured
+    """
+    global physical_gold_holdings_global, gold_prices_cache
+    
+    if not physical_gold_service:
+        # Service not initialized - skip silently
+        return
+    
+    state_manager.set_physical_gold_updating()
+    error_occurred = False
+    
+    try:
+        config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
+        google_sheets_config = config.get("features", {}).get("fetch_physical_gold_from_google_sheets", {})
+        
+        spreadsheet_id = google_sheets_config.get("spreadsheet_id")
+        range_name = google_sheets_config.get("range_name", "Sheet1!A:K")
+        
+        if not spreadsheet_id:
+            state_manager.set_physical_gold_updated()
+            return
+        
+        logger.info("Fetching Physical Gold data from Google Sheets...")
+        holdings = physical_gold_service.fetch_holdings(spreadsheet_id, range_name)
+        
+        physical_gold_holdings_global = holdings
+        logger.info("Physical Gold data updated: %d holdings", len(holdings))
+        
+        # Fetch and cache latest IBJA gold prices
+        try:
+            gold_service = get_gold_price_service()
+            gold_prices = gold_service.fetch_gold_prices()
+            if gold_prices:
+                global gold_prices_cache
+                gold_prices_cache = gold_prices
+                logger.info("Gold prices updated: %s", list(gold_prices.keys()))
+            else:
+                logger.warning("Failed to fetch gold prices - keeping cached prices if available")
+        except Exception as gold_error:
+            logger.error("Error fetching gold prices: %s - keeping cached prices", gold_error)
+            # Don't fail physical gold fetch if gold prices fail - use cached prices
+        
+    except Exception as e:
+        logger.exception("Error fetching Physical Gold data: %s", e)
+        error_occurred = True
+        # Don't fail the entire fetch if physical gold fails - preserve existing data
+        if not physical_gold_holdings_global:
+            physical_gold_holdings_global = []
+        logger.info("Preserved %d existing physical gold holdings after fetch failure", 
+                   len(physical_gold_holdings_global))
+    finally:
+        state_manager.set_physical_gold_updated(error="Failed to fetch physical gold data" if error_occurred else None)
         
 
 def fetch_nifty50_data() -> None:
@@ -402,7 +521,12 @@ def fetch_nifty50_data() -> None:
                 symbols = NIFTY50_FALLBACK_SYMBOLS
             
             # Fetch quotes for all symbols
-            session = nse_client._create_session()
+            try:
+                session = nse_client._create_session()
+            except (Timeout, ConnectionError) as e:
+                logger.error("Failed to create NSE session: %s", e)
+                raise  # Re-raise to be caught by outer exception handler
+            
             nifty50_data = [
                 nse_client.fetch_stock_quote(session, symbol)
                 for symbol in symbols
@@ -413,8 +537,14 @@ def fetch_nifty50_data() -> None:
             nifty50_data_global = nifty50_data
             
             logger.info("Nifty 50 data updated: %d stocks", len(nifty50_data_global))
+        except Timeout:
+            logger.warning("NSE website timeout - Nifty 50 data not updated (server slow)")
+            error_occurred = "NSE website timeout"
+        except ConnectionError:
+            logger.warning("Cannot connect to NSE website - Nifty 50 data not updated")
+            error_occurred = "Connection error"
         except Exception as e:
-            logger.exception("Error fetching Nifty 50 data: %s", e)
+            logger.error("Error fetching Nifty 50 data: %s", str(e))
             error_occurred = str(e)
         finally:
             state_manager.set_nifty50_updated(error=error_occurred)
@@ -426,13 +556,14 @@ def fetch_nifty50_data() -> None:
 def run_background_fetch(force_login: bool = False, on_complete=None) -> None:
     """Orchestrate concurrent fetching of portfolio and market data.
     
-    Launches two parallel background tasks:
+    Launches parallel background tasks:
     1. Portfolio data (holdings and SIPs) from Zerodha
     2. Nifty 50 market data from NSE
+    3. Physical Gold data from Google Sheets (if configured)
     
     Args:
         force_login: If True, force re-authentication for portfolio data
-        on_complete: Optional callback to execute after both tasks complete
+        on_complete: Optional callback to execute after all tasks complete
     """
     def _orchestrate_fetch():
         """Coordinate parallel fetch operations."""
@@ -445,14 +576,20 @@ def run_background_fetch(force_login: bool = False, on_complete=None) -> None:
             target=fetch_nifty50_data,
             daemon=True
         )
+        physical_gold_thread = threading.Thread(
+            target=fetch_physical_gold_data,
+            daemon=True
+        )
         
-        # Start both threads
+        # Start all threads
         portfolio_thread.start()
         nifty50_thread.start()
+        physical_gold_thread.start()
         
         # Wait for completion
         portfolio_thread.join()
         nifty50_thread.join()
+        physical_gold_thread.join()
         
         # Execute callback if provided
         if on_complete:
@@ -464,17 +601,23 @@ def run_background_fetch(force_login: bool = False, on_complete=None) -> None:
 # --------------------------
 # AUTOMATIC REFRESH
 # --------------------------
-def _should_auto_refresh(market_open: bool, in_progress: bool) -> tuple[bool, str]:
+def _should_auto_refresh() -> tuple[bool, str]:
     """Check if auto-refresh should run and return reason if not.
     
     Returns:
         (should_run, skip_reason)
     """
+    market_open = is_market_open_ist()
+    
     if not market_open and not AUTO_REFRESH_OUTSIDE_MARKET_HOURS:
         return False, "market closed and auto_refresh_outside_market_hours disabled"
     
-    if in_progress:
+    if fetch_in_progress.is_set():
         return False, "manual refresh in progress"
+    
+    # Check if all sessions are valid
+    if not _all_sessions_valid():
+        return False, "one or more sessions invalid - manual login required"
     
     return True, None
 
@@ -483,19 +626,20 @@ def run_auto_refresh():
     Periodically trigger full holdings refresh.
     
     Auto-refresh behavior:
-    - During market hours: Always runs
-    - Outside market hours: Only if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True
+    - During market hours: Runs only if all sessions are valid
+    - Outside market hours: Only if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True and sessions are valid
+    - Skips if any session is invalid (requires manual login via button)
     """
     while True:
         time.sleep(AUTO_REFRESH_INTERVAL)
         
-        market_open = is_market_open_ist()
-        should_run, skip_reason = _should_auto_refresh(market_open, fetch_in_progress.is_set())
+        should_run, skip_reason = _should_auto_refresh()
         
         if not should_run:
             logger.info("Auto-refresh skipped: %s", skip_reason)
             continue
 
+        market_open = is_market_open_ist()
         market_status = "outside market hours" if not market_open else "during market hours"
         timestamp = datetime.now().strftime('%H:%M:%S')
         logger.info("Auto-refresh triggered at %s (%s)", timestamp, market_status)
@@ -566,18 +710,12 @@ def main():
         logger.info("Opening dashboard in browser...")
         threading.Timer(1.5, lambda: webbrowser.open(dashboard_url)).start()
         
-        # Check if all accounts have valid sessions
-        all_accounts_valid = all(session_manager.is_valid(acc["name"]) for acc in ACCOUNTS_CONFIG)
+        # Always fetch only Nifty50 data on startup (portfolio requires user action)
+        logger.info("Fetching initial Nifty50 data...")
+        fetch_nifty50_data()
         
-        if all_accounts_valid:
-            # All accounts authenticated - fetch both portfolio and Nifty50 data
-            logger.info("All accounts authenticated. Triggering initial data fetch...")
-            run_background_fetch(force_login=False, on_complete=_start_auto_refresh_service)
-        else:
-            # Some accounts need login - only fetch Nifty50 data (doesn't require auth)
-            logger.info("Login required for one or more accounts. Fetching Nifty50 data...")
-            fetch_nifty50_data()
-            _start_auto_refresh_service()
+        # Start auto-refresh service (will check session validity before each refresh)
+        _start_auto_refresh_service()
         
         # Keep main thread alive
         while True:

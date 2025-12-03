@@ -389,10 +389,12 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertFalse(should_run)
         self.assertIn("manual refresh", reason)
     
-    def test_should_auto_refresh_allowed(self):
+    @patch('server._all_sessions_valid')
+    def test_should_auto_refresh_allowed(self, mock_sessions_valid):
         """Test _should_auto_refresh when refresh allowed"""
         from server import _should_auto_refresh
         
+        mock_sessions_valid.return_value = True
         should_run, reason = _should_auto_refresh(market_open=True, in_progress=False)
         
         self.assertTrue(should_run)

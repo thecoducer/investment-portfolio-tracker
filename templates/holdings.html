@@ -35,7 +35,7 @@
 </div>
 <div id="status_tag" class="">
 <span class="status-dot"></span>
-<span id="status_text">loading...</span>
+<span id="status_text">not loaded</span>
 </div>
 <div class="controls">
 <input id="search" placeholder="Search symbol or account..." />
@@ -59,29 +59,57 @@
 <div class="summary-cards">
 <div class="card" id="combined_summary">
     <h3 class="card-title">Overall</h3>
-    <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="combined_total_invested">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="combined_current_value">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="combined_total_pl">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="combined_total_pl_pct">0.00%</span></div>
-    <div class="loading-placeholder" id="combined_summary_loading" style="display:none;text-align:center;padding:8px 0;color:#8b7765;font-size:13px;">Loading data...</div>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="combined_total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="combined_current_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="combined_total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="combined_total_pl_pct">0.00%</span></div>
+    </div>
+    <div class="loading-placeholder" id="combined_summary_loading" style="display:none;">Loading...</div>
 </div>
 
 <div class="card" id="portfolio_summary">
-    <h3 class="card-title">Stocks</h3>
-    <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="total_invested">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="current_value">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="total_pl">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="total_pl_pct">0.00%</span></div>
-    <div class="loading-placeholder" id="stocks_summary_loading" style="display:none;text-align:center;padding:8px 0;color:#8b7765;font-size:13px;">Loading data...</div>
+    <h3 class="card-title"><span class="allocation-pct" id="stocks_allocation_pct"></span>Stocks</h3>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="current_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="total_pl_pct">0.00%</span></div>
+    </div>
+    <div class="loading-placeholder" id="stocks_summary_loading" style="display:none;">Loading...</div>
 </div>
 
 <div class="card" id="mf_summary">
-    <h3 class="card-title">Mutual Funds</h3>
-    <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="mf_total_invested">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="mf_current_value">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="mf_total_pl">0.00</span></div>
-    <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="mf_total_pl_pct">0.00%</span></div>
-    <div class="loading-placeholder" id="mf_summary_loading" style="display:none;text-align:center;padding:8px 0;color:#8b7765;font-size:13px;">Loading data...</div>
+    <h3 class="card-title"><span class="allocation-pct" id="mf_allocation_pct"></span>Mutual Funds</h3>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="mf_total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="mf_current_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="mf_total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="mf_total_pl_pct">0.00%</span></div>
+    </div>
+    <div class="loading-placeholder" id="mf_summary_loading" style="display:none;">Loading...</div>
+</div>
+
+<div class="card" id="gold_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="gold_allocation_pct"></span>Gold</h3>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="gold_total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="gold_current_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="gold_total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="gold_total_pl_pct">0.00%</span></div>
+    </div>
+    <div class="loading-placeholder" id="gold_summary_loading" style="display:none;">Loading...</div>
+</div>
+
+<div class="card" id="silver_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="silver_allocation_pct"></span>Silver</h3>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="silver_total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="silver_current_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="silver_total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="silver_total_pl_pct">0.00%</span></div>
+    </div>
+    <div class="loading-placeholder" id="silver_summary_loading" style="display:none;">Loading...</div>
 </div>
 </div>
 
@@ -125,9 +153,9 @@
 </tr>
 </thead>
 <tbody id="tbody">
-<tr class="loading-placeholder" id="stocks_table_loading"><td colspan="10"><span class="spinner"></span> Loading data...</td></tr>
 </tbody>
 </table>
+<div class="empty-state-message" id="stocks_empty_state" style="display:none;">No stocks data available</div>
 <div class="pagination-info" id="stocks_pagination_info"></div>
 <div class="pagination-buttons" id="stocks_pagination_buttons"></div>
 </div>
@@ -152,6 +180,15 @@
 <option value="name_desc">🔠 Fund Name (Z-A)</option>
 </select>
 </div>
+<div class="pagination-controls">
+<label for="mf_page_size">Show:</label>
+<select id="mf_page_size" onchange="window.changeMFPageSize(this.value)">
+<option value="10">10</option>
+<option value="25" selected>25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
 </div>
 </div>
 <table aria-label="MF Holdings table">
@@ -161,10 +198,69 @@
 </tr>
 </thead>
 <tbody id="mf_tbody">
-<tr class="loading-placeholder" id="mf_table_loading"><td colspan="8"><span class="spinner"></span> Loading data...</td></tr>
 </tbody>
 </table>
+<div class="empty-state-message" id="mf_empty_state" style="display:none;">No mutual funds data available</div>
+<div class="pagination-info" id="mf_pagination_info"></div>
+<div class="pagination-buttons" id="mf_pagination_buttons"></div>
 </div>
+
+<!-- Physical Gold Section -->
+{% if physical_gold_enabled %}
+<div class="section-wrapper" id="physical-gold-section">
+<div class="section-header">
+<h2>Physical Gold</h2>
+<div class="controls-container">
+<div class="sort-controls">
+<span class="sort-icon">⇅</span>
+<select id="physical_gold_sort" onchange="window.sortPhysicalGoldTable(this.value)">
+<option value="default">Default Order</option>
+<option value="date_desc">📅 Date (Newest First)</option>
+<option value="date_asc">📅 Date (Oldest First)</option>
+<option value="weight_desc">⚖️ Weight (High to Low)</option>
+<option value="weight_asc">⚖️ Weight (Low to High)</option>
+<option value="spend_desc">💰 Total Spend (High to Low)</option>
+<option value="spend_asc">💸 Total Spend (Low to High)</option>
+<option value="value_desc">💵 Retail Value (High to Low)</option>
+<option value="value_asc">💴 Retail Value (Low to High)</option>
+<option value="wastage_pct_desc">📊 Wastage % (High to Low)</option>
+<option value="wastage_pct_asc">📊 Wastage % (Low to High)</option>
+<option value="type_asc">🔤 Type (A-Z)</option>
+<option value="type_desc">🔠 Type (Z-A)</option>
+</select>
+</div>
+<div class="pagination-controls">
+<label for="physical_gold_page_size">Show:</label>
+<select id="physical_gold_page_size" onchange="window.changePhysicalGoldPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="physicalGoldTable" aria-label="Physical Gold table">
+<thead>
+<tr>
+<th>Date</th>
+<th>Type</th>
+<th>Retail Outlet</th>
+<th>Purity</th>
+<th>Weight (gms)</th>
+<th>Bought IBJA Rate/gm</th>
+<th>Latest IBJA Price/gm</th>
+<th>P/L</th>
+</tr>
+</thead>
+<tbody id="physical_gold_table_body">
+</tbody>
+</table>
+<div class="empty-state-message" id="physical_gold_empty_state" style="display:none;">No physical gold holdings available</div>
+<div class="pagination-info" id="physical_gold_pagination_info"></div>
+<div class="pagination-buttons" id="physical_gold_pagination_buttons"></div>
+</div>
+{% endif %}
 
 <div class="section-wrapper" id="sips-section">
 <div class="section-header">
@@ -177,9 +273,9 @@
 </tr>
 </thead>
 <tbody id="sips_tbody">
-<tr class="loading-placeholder" id="sips_table_loading"><td colspan="7"><span class="spinner"></span> Loading data...</td></tr>
 </tbody>
 </table>
+<div class="empty-state-message" id="sips_empty_state" style="display:none;">No active SIPs available</div>
 </div>
 
 <div class="footer-note">
