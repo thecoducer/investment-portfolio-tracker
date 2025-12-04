@@ -428,6 +428,26 @@ body.dark-theme .theme-toggle:hover {
   border: 1px solid rgba(139, 119, 101, 0.08);
   transition: all 0.2s ease;
   min-height: 60px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--allocation-width, 0%);
+  background: var(--allocation-color, transparent);
+  opacity: 0.15;
+  transition: width 0.6s ease;
+  z-index: 0;
+}
+
+.card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .card:hover {
@@ -859,12 +879,11 @@ td {
 
 tbody tr {
   transition: all 0.2s ease;
-  cursor: pointer;
 }
 
 tbody tr:hover {
-  background: rgba(139, 119, 101, 0.08);
-  box-shadow: inset 0 0 10px rgba(139, 119, 101, 0.1);
+  background: rgba(139, 119, 101, 0.08) !important;
+  box-shadow: inset 0 0 10px rgba(139, 119, 101, 0.1) !important;
 }
 
 tbody tr:last-child td {
@@ -1040,6 +1059,10 @@ body.dark-theme .card {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+body.dark-theme .card::before {
+  opacity: 0.22;
+}
+
 body.dark-theme .card:hover {
   background: #242019;
   border-color: rgba(212, 204, 192, 0.25);
@@ -1128,8 +1151,8 @@ body.dark-theme td {
 }
 
 body.dark-theme tbody tr:hover {
-  background: rgba(212, 204, 192, 0.05);
-  box-shadow: inset 0 0 10px rgba(212, 204, 192, 0.08);
+  background: rgba(212, 204, 192, 0.05) !important;
+  box-shadow: inset 0 0 10px rgba(212, 204, 192, 0.08) !important;
 }
 
 body.dark-theme .sip-total-badge {
@@ -1245,6 +1268,19 @@ body.dark-theme .footer-note {
 
 /* ============ PRIVACY MODE ============ */
 
+.summary-value,
+tbody tr td:nth-child(2),
+tbody tr td:nth-child(3),
+tbody tr td:nth-child(4),
+tbody tr td:nth-child(5),
+tbody tr td:nth-child(7),
+tbody tr td:nth-child(8),
+#sips-section tbody tr td:nth-child(6),
+.sip-total-value {
+  filter: none;
+  transition: filter 0.2s ease;
+}
+
 body.privacy-mode .summary-value,
 body.privacy-mode tbody tr td:nth-child(2),
 body.privacy-mode tbody tr td:nth-child(3),
@@ -1254,9 +1290,10 @@ body.privacy-mode tbody tr td:nth-child(7),
 body.privacy-mode tbody tr td:nth-child(8),
 body.privacy-mode #sips-section tbody tr td:nth-child(6),
 body.privacy-mode .sip-total-value {
-  filter: blur(8px);
+  filter: blur(6px);
   user-select: none;
-  transition: filter 0.2s ease;
+  transform: translateZ(0);
+  will-change: filter;
 }
 
 /* Don't blur Latest IBJA Price/gm column (7th) in physical gold table */

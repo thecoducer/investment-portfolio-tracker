@@ -12,12 +12,11 @@ def enrich_holdings_with_prices(holdings: List[Dict[str, Any]], gold_prices_data
         gold_prices_data: Dict containing 'prices' and 'date' from IBJA
     
     Returns:
-        Enriched holdings with latest_ibja_price_per_gm, gold_price_date, pl, and pl_pct fields (excluding Jewellery type)
+        Enriched holdings with latest_ibja_price_per_gm, pl, and pl_pct fields (excluding Jewellery type)
     """
     enriched_holdings = []
     
     gold_prices = gold_prices_data.get('prices', {}) if gold_prices_data else {}
-    gold_price_date = gold_prices_data.get('date') if gold_prices_data else None
     
     for holding in holdings:
         # Exclude "Jewellery" type
@@ -35,7 +34,6 @@ def enrich_holdings_with_prices(holdings: List[Dict[str, Any]], gold_prices_data
                 latest_price_per_gm = gold_prices.get('916', {}).get('pm')
         
         holding_copy['latest_ibja_price_per_gm'] = latest_price_per_gm
-        holding_copy['gold_price_date'] = gold_price_date
         
         # Calculate P/L based on IBJA rates
         pl = 0

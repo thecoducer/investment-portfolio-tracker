@@ -99,6 +99,25 @@ class SummaryManager {
     const el = document.getElementById(elementId);
     if (el) {
       el.innerText = percentage.toFixed(1) + '% ';
+      
+      // Set progress bar on parent card
+      const card = el.closest('.card');
+      if (card) {
+        card.style.setProperty('--allocation-width', `${percentage}%`);
+        
+        // Set color based on card type
+        let color = '#8b7765'; // default brown
+        if (elementId === 'stocks_allocation_pct') {
+          color = '#7c5cdb'; // purple
+        } else if (elementId === 'mf_allocation_pct') {
+          color = '#5ca0db'; // blue
+        } else if (elementId === 'gold_allocation_pct') {
+          color = '#d4af37'; // gold
+        } else if (elementId === 'silver_allocation_pct') {
+          color = '#c0c0c0'; // silver
+        }
+        card.style.setProperty('--allocation-color', color);
+      }
     }
   }
 

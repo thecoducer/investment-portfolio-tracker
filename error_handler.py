@@ -143,7 +143,7 @@ def retry_on_transient_error(
     max_retries: int = 2,
     delay: float = 1.0,
     backoff: float = 2.0,
-    exceptions: Tuple[Type[Exception], ...] = (NetworkError, APIError)
+    exceptions: Tuple[Type[Exception], ...] = (NetworkError, APIError, OSError)
 ):
     """Decorator to retry function on transient errors.
     

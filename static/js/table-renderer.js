@@ -500,13 +500,6 @@ class TableRenderer {
     let latestPrice = '-';
     if (holding.latest_ibja_price_per_gm) {
       latestPrice = Formatter.formatCurrency(holding.latest_ibja_price_per_gm);
-      
-      if (holding.gold_price_date) {
-        const formattedDate = Formatter.formatRelativeDate(holding.gold_price_date, true);
-        if (formattedDate) {
-          latestPrice += ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
-        }
-      }
     }
     
     const pl = holding.pl || 0;

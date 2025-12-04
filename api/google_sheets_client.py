@@ -129,6 +129,16 @@ class GoogleSheetsClient:
                 # Permanent error (4xx) - log and return None
                 logger.error("Google Sheets API error (permanent): %s", e)
                 return None
+        except OSError as e:
+            # Handle network-level errors (port exhaustion, connection issues, etc.)
+            if e.errno == 49:  # Can't assign requested address
+                logger.warning("Network error (port exhaustion or connection issue): %s - This is usually temporary", e)
+            else:
+                logger.warning("Network OS error: %s", e)
+            # Raise to trigger retry mechanism
+            if ERROR_HANDLING_AVAILABLE:
+                raise NetworkError(f"Network connection error: {e}", original_error=e)
+            raise
         except Exception as e:
             logger.exception("Error fetching data from Google Sheets: %s", e)
             raise

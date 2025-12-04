@@ -14,6 +14,9 @@ MARKET_CLOSE_HOUR = 16
 MARKET_CLOSE_MINUTE = 0
 WEEKEND_SATURDAY = 5
 
+# Gold Price Fetch Schedule (IST)
+GOLD_PRICE_FETCH_HOURS = [13, 20]  # 1pm and 8pm IST
+
 # Default configuration values
 DEFAULT_REQUEST_TOKEN_TIMEOUT = 180  # seconds
 DEFAULT_AUTO_REFRESH_INTERVAL = 60  # seconds

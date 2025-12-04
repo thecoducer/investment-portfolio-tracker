@@ -35,10 +35,9 @@ class GoldPriceService:
         Fetch latest available gold prices for different purities.
         
         Returns:
-            Dict with 'prices' and 'date' keys, or None if fetch fails
+            Dict with 'prices' key, or None if fetch fails
             Prices are per gram in INR.
             Example: {
-                'date': '2025-12-03',
                 'prices': {
                     '999': {'am': 12855.0, 'pm': 12821.0},
                     '995': {'am': 12803.5, 'pm': 12770.0},
@@ -105,30 +104,9 @@ class GoldPriceService:
                 logger.error("No valid gold prices found in span elements")
                 return None
             
-            price_date = None
-            import re
-            from datetime import datetime
-            
-            table_cells = soup.find_all('td', {'data-label': ['PM', 'AM']})
-            for cell in table_cells:
-                strong_elem = cell.find('strong')
-                if strong_elem:
-                    date_text = strong_elem.get_text(strip=True)
-                    date_match = re.match(r'(\d{2})/(\d{2})/(\d{4})', date_text)
-                    if date_match:
-                        day, month, year = date_match.groups()
-                        price_date = f"{year}-{month}-{day}"
-                        logger.info(f"Extracted date from table: {price_date}")
-                        break
-            
-            if not price_date:
-                price_date = datetime.now().strftime("%Y-%m-%d")
-                logger.warning(f"Could not extract date from page, using today: {price_date}")
-            
             if prices:
-                logger.info(f"Successfully fetched prices for {len(prices)} gold purities (Date: {price_date})")
+                logger.info(f"Successfully fetched prices for {len(prices)} gold purities")
                 return {
-                    'date': price_date,
                     'prices': prices
                 }
             else:
@@ -215,9 +193,8 @@ if __name__ == '__main__':
     
     if result and 'prices' in result:
         prices = result['prices']
-        price_date = result.get('date', 'Unknown')
         
-        print(f"\n✅ Successfully fetched gold prices for {price_date}:\n")
+        print(f"\n✅ Successfully fetched gold prices:\n")
         
         # Display all purities
         for purity in sorted(prices.keys(), key=lambda x: int(x), reverse=True):

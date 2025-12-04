@@ -13,7 +13,7 @@ Usage:
 import os
 import threading
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import json
 import webbrowser
 from datetime import datetime
@@ -41,7 +41,8 @@ from constants import (
     DEFAULT_UI_PORT,
     DEFAULT_REQUEST_TOKEN_TIMEOUT,
     DEFAULT_AUTO_REFRESH_INTERVAL,
-    NIFTY50_FALLBACK_SYMBOLS
+    NIFTY50_FALLBACK_SYMBOLS,
+    GOLD_PRICE_FETCH_HOURS
 )
 
 # --------------------------
@@ -129,6 +130,7 @@ merged_sips_global: List[Dict[str, Any]] = []
 nifty50_data_global: List[Dict[str, Any]] = []
 physical_gold_holdings_global: List[Dict[str, Any]] = []
 gold_prices_cache: Dict[str, Dict[str, float]] = {}  # Cache for IBJA gold prices
+gold_prices_last_fetch: Optional[datetime] = None  # Timestamp of last gold price fetch
 
 # Thread synchronization
 fetch_in_progress = threading.Event()
@@ -369,7 +371,7 @@ def refresh_route():
 
     # Check if any account session is expired
     needs_login = not _all_sessions_valid()
-    run_background_fetch(force_login=needs_login)
+    run_background_fetch(force_login=needs_login, is_manual=True)
     
     return make_response(jsonify({"status": "started", "needs_login": needs_login}), HTTP_ACCEPTED)
 
@@ -428,16 +430,50 @@ def fetch_portfolio_data(force_login: bool = False) -> None:
         fetch_in_progress.clear()
 
 
-def fetch_physical_gold_data() -> None:
+def _should_fetch_gold_prices() -> bool:
+    """Check if gold prices should be fetched based on schedule.
+    
+    Returns:
+        True if prices should be fetched (first load or scheduled times defined in GOLD_PRICE_FETCH_HOURS)
+    """
+    global gold_prices_last_fetch
+    
+    # First load - always fetch
+    if gold_prices_last_fetch is None:
+        return True
+    
+    now = datetime.now()
+    today = now.date()
+    last_fetch_date = gold_prices_last_fetch.date()
+    
+    # If last fetch was on a different day, allow fetching again
+    if today != last_fetch_date:
+        return True
+    
+    # Check if we're in one of the scheduled time windows
+    current_hour = now.hour
+    last_fetch_hour = gold_prices_last_fetch.hour
+    
+    # Allow fetch during scheduled hours if not already fetched in that hour
+    if current_hour in GOLD_PRICE_FETCH_HOURS and last_fetch_hour != current_hour:
+        return True
+    
+    return False
+
+
+def fetch_physical_gold_data(force_gold_price_fetch: bool = False) -> None:
     """Fetch physical gold holdings from Google Sheets.
     
     This function:
     - Fetches physical gold data from configured Google Sheets
     - Updates the global physical gold holdings cache
-    - Fetches and caches latest IBJA gold prices
+    - Fetches and caches latest IBJA gold prices (on first load or scheduled times)
     - Runs silently if Google Sheets is not configured
+    
+    Args:
+        force_gold_price_fetch: If True, bypass schedule and fetch gold prices immediately
     """
-    global physical_gold_holdings_global, gold_prices_cache
+    global physical_gold_holdings_global, gold_prices_cache, gold_prices_last_fetch
     
     if not physical_gold_service:
         # Service not initialized - skip silently
@@ -463,19 +499,25 @@ def fetch_physical_gold_data() -> None:
         physical_gold_holdings_global = holdings
         logger.info("Physical Gold data updated: %d holdings", len(holdings))
         
-        # Fetch and cache latest IBJA gold prices
-        try:
-            gold_service = get_gold_price_service()
-            gold_prices = gold_service.fetch_gold_prices()
-            if gold_prices:
-                global gold_prices_cache
-                gold_prices_cache = gold_prices
-                logger.info("Gold prices updated: %s", list(gold_prices.keys()))
-            else:
-                logger.warning("Failed to fetch gold prices - keeping cached prices if available")
-        except Exception as gold_error:
-            logger.error("Error fetching gold prices: %s - keeping cached prices", gold_error)
-            # Don't fail physical gold fetch if gold prices fail - use cached prices
+        # Fetch and cache latest IBJA gold prices (on schedule or forced)
+        should_fetch = force_gold_price_fetch or _should_fetch_gold_prices()
+        
+        if should_fetch:
+            try:
+                gold_service = get_gold_price_service()
+                gold_prices = gold_service.fetch_gold_prices()
+                if gold_prices:
+                    gold_prices_cache = gold_prices
+                    gold_prices_last_fetch = datetime.now()
+                    logger.info("Gold prices updated: %s", list(gold_prices.keys()))
+                else:
+                    logger.warning("Failed to fetch gold prices - keeping cached prices if available")
+            except Exception as gold_error:
+                logger.error("Error fetching gold prices: %s - keeping cached prices", gold_error)
+                # Don't fail physical gold fetch if gold prices fail - use cached prices
+        else:
+            scheduled_times = ", ".join([f"{h}:00" for h in GOLD_PRICE_FETCH_HOURS])
+            logger.info(f"Skipping gold price fetch - using cached prices (next scheduled: {scheduled_times} IST)")
         
     except Exception as e:
         logger.exception("Error fetching Physical Gold data: %s", e)
@@ -553,7 +595,7 @@ def fetch_nifty50_data() -> None:
     threading.Thread(target=_fetch_task, daemon=True).start()
 
 
-def run_background_fetch(force_login: bool = False, on_complete=None) -> None:
+def run_background_fetch(force_login: bool = False, on_complete=None, is_manual: bool = False) -> None:
     """Orchestrate concurrent fetching of portfolio and market data.
     
     Launches parallel background tasks:
@@ -564,6 +606,7 @@ def run_background_fetch(force_login: bool = False, on_complete=None) -> None:
     Args:
         force_login: If True, force re-authentication for portfolio data
         on_complete: Optional callback to execute after all tasks complete
+        is_manual: If True, this is a manual refresh (always fetch gold prices)
     """
     def _orchestrate_fetch():
         """Coordinate parallel fetch operations."""
@@ -576,8 +619,11 @@ def run_background_fetch(force_login: bool = False, on_complete=None) -> None:
             target=fetch_nifty50_data,
             daemon=True
         )
+        # Force gold price fetch on manual refresh or first load
+        force_gold_fetch = is_manual or (gold_prices_last_fetch is None)
         physical_gold_thread = threading.Thread(
             target=fetch_physical_gold_data,
+            args=(force_gold_fetch,),
             daemon=True
         )
         
