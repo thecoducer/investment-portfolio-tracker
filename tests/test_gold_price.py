@@ -14,37 +14,38 @@ class TestGoldPriceService(unittest.TestCase):
         """Set up test fixtures."""
         self.service = GoldPriceService()
     
-    @patch('api.gold_price.requests.get')
+    @patch('api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_success(self, mock_get):
         """Test successful fetching of gold prices."""
-        # Mock HTML response
+        # Mock HTML response with span elements matching actual IBJA structure
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.content = b'''
         <html>
-            <table>
-                <tr><th>Purity</th><th>AM</th><th>PM</th></tr>
-                <tr><td>Gold 999</td><td>128550</td><td>128214</td></tr>
-                <tr><td>Gold 995</td><td>128035</td><td>127701</td></tr>
-                <tr><td>Gold 916</td><td>117752</td><td>117444</td></tr>
-                <tr><td>Gold 750</td><td>96413</td><td>96161</td></tr>
-                <tr><td>Gold 585</td><td>75202</td><td>75005</td></tr>
-            </table>
+            <body>
+                <span id="GoldRatesCompare999">128550</span>
+                <span id="GoldRatesCompare995">128035</span>
+                <span id="GoldRatesCompare916">117752</span>
+                <span id="GoldRatesCompare750">96413</span>
+                <span id="GoldRatesCompare585">75202</span>
+            </body>
         </html>
         '''
         mock_get.return_value = mock_response
         
-        prices = self.service.fetch_gold_prices()
+        result = self.service.fetch_gold_prices()
         
-        self.assertIsNotNone(prices)
+        self.assertIsNotNone(result)
+        self.assertIn('prices', result)
+        prices = result['prices']
         self.assertIn('999', prices)
         self.assertIn('916', prices)
         self.assertEqual(prices['999']['am'], 128550.0)
-        self.assertEqual(prices['999']['pm'], 128214.0)
+        self.assertEqual(prices['999']['pm'], 128550.0)
         self.assertEqual(prices['916']['am'], 117752.0)
-        self.assertEqual(prices['916']['pm'], 117444.0)
+        self.assertEqual(prices['916']['pm'], 117752.0)
     
-    @patch('api.gold_price.requests.get')
+    @patch('api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_no_tables(self, mock_get):
         """Test handling of page with no tables."""
         mock_response = Mock()
@@ -56,7 +57,7 @@ class TestGoldPriceService(unittest.TestCase):
         
         self.assertIsNone(prices)
     
-    @patch('api.gold_price.requests.get')
+    @patch('api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_network_error(self, mock_get):
         """Test handling of network errors."""
         mock_get.side_effect = Exception("Network error")
@@ -65,7 +66,7 @@ class TestGoldPriceService(unittest.TestCase):
         
         self.assertIsNone(prices)
     
-    @patch('api.gold_price.requests.get')
+    @patch('api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_invalid_data(self, mock_get):
         """Test handling of invalid price data."""
         mock_response = Mock()
@@ -89,8 +90,10 @@ class TestGoldPriceService(unittest.TestCase):
     def test_get_24k_price_pm(self, mock_fetch):
         """Test getting 24K PM price."""
         mock_fetch.return_value = {
-            '999': {'am': 128550.0, 'pm': 128214.0},
-            '916': {'am': 117752.0, 'pm': 117444.0}
+            'prices': {
+                '999': {'am': 128550.0, 'pm': 128214.0},
+                '916': {'am': 117752.0, 'pm': 117444.0}
+            }
         }
         
         price = self.service.get_24k_price('pm')
@@ -101,7 +104,9 @@ class TestGoldPriceService(unittest.TestCase):
     def test_get_24k_price_am(self, mock_fetch):
         """Test getting 24K AM price."""
         mock_fetch.return_value = {
-            '999': {'am': 128550.0, 'pm': 128214.0}
+            'prices': {
+                '999': {'am': 128550.0, 'pm': 128214.0}
+            }
         }
         
         price = self.service.get_24k_price('am')
@@ -112,7 +117,9 @@ class TestGoldPriceService(unittest.TestCase):
     def test_get_24k_price_default_pm(self, mock_fetch):
         """Test that PM is default for 24K price."""
         mock_fetch.return_value = {
-            '999': {'am': 128550.0, 'pm': 128214.0}
+            'prices': {
+                '999': {'am': 128550.0, 'pm': 128214.0}
+            }
         }
         
         price = self.service.get_24k_price()
@@ -132,8 +139,10 @@ class TestGoldPriceService(unittest.TestCase):
     def test_get_22k_price_pm(self, mock_fetch):
         """Test getting 22K PM price."""
         mock_fetch.return_value = {
-            '999': {'am': 128550.0, 'pm': 128214.0},
-            '916': {'am': 117752.0, 'pm': 117444.0}
+            'prices': {
+                '999': {'am': 128550.0, 'pm': 128214.0},
+                '916': {'am': 117752.0, 'pm': 117444.0}
+            }
         }
         
         price = self.service.get_22k_price('pm')
@@ -144,7 +153,9 @@ class TestGoldPriceService(unittest.TestCase):
     def test_get_22k_price_am(self, mock_fetch):
         """Test getting 22K AM price."""
         mock_fetch.return_value = {
-            '916': {'am': 117752.0, 'pm': 117444.0}
+            'prices': {
+                '916': {'am': 117752.0, 'pm': 117444.0}
+            }
         }
         
         price = self.service.get_22k_price('am')
@@ -155,7 +166,9 @@ class TestGoldPriceService(unittest.TestCase):
     def test_get_22k_price_invalid_time(self, mock_fetch):
         """Test that invalid time_of_day defaults to PM."""
         mock_fetch.return_value = {
-            '916': {'am': 117752.0, 'pm': 117444.0}
+            'prices': {
+                '916': {'am': 117752.0, 'pm': 117444.0}
+            }
         }
         
         price = self.service.get_22k_price('invalid')

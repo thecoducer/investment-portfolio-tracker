@@ -15,7 +15,7 @@ except ImportError:
     logger.warning("Google Sheets API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
 
 try:
-    from error_handler import retry_on_transient_error, ErrorHandler, APIError
+    from error_handler import retry_on_transient_error, ErrorHandler, APIError, NetworkError
     ERROR_HANDLING_AVAILABLE = True
 except ImportError:
     ERROR_HANDLING_AVAILABLE = False
@@ -146,7 +146,7 @@ class GoogleSheetsClient:
     def parse_physical_gold_data(
         self, 
         spreadsheet_id: str, 
-        range_name: str = 'Sheet1!A:K'
+        range_name: str = 'Sheet1!A:F'
     ) -> List[Dict[str, Any]]:
         """Fetch and parse physical gold holdings from Google Sheets.
         
@@ -157,15 +157,10 @@ class GoogleSheetsClient:
         D: Purity
         E: Weight in gms
         F: IBJA PM rate per 1 gm
-        G: Retail cost per 1 gm
-        H: Total retail value
-        I: Total spend
-        J: Wastage (GST + Making charges)
-        K: Wastage %
         
         Args:
             spreadsheet_id: The ID of the spreadsheet
-            range_name: The range to fetch (default: entire sheet A:K)
+            range_name: The range to fetch (default: entire sheet A:F)
         
         Returns:
             List of dictionaries with parsed gold holdings
@@ -189,7 +184,7 @@ class GoogleSheetsClient:
                 continue
             
             try:
-                while len(row) < 11:
+                while len(row) < 6:
                     row.append('')
                 
                 holding = {
@@ -199,11 +194,6 @@ class GoogleSheetsClient:
                     'purity': row[3] if len(row) > 3 else '',
                     'weight_gms': self._parse_number(row[4]) if len(row) > 4 else 0,
                     'bought_ibja_rate_per_gm': self._parse_number(row[5]) if len(row) > 5 else 0,
-                    'retail_cost_per_gm': self._parse_number(row[6]) if len(row) > 6 else 0,
-                    'total_retail_value': self._parse_number(row[7]) if len(row) > 7 else 0,
-                    'total_spend': self._parse_number(row[8]) if len(row) > 8 else 0,
-                    'wastage_amount': self._parse_number(row[9]) if len(row) > 9 else 0,
-                    'wastage_pct': self._parse_number(row[10]) if len(row) > 10 else 0,
                     'row_number': idx
                 }
                 
@@ -256,13 +246,13 @@ class PhysicalGoldService:
     def fetch_holdings(
         self, 
         spreadsheet_id: str, 
-        range_name: str = 'Sheet1!A:K'
+        range_name: str = 'Sheet1!A:F'
     ) -> List[Dict[str, Any]]:
         """Fetch physical gold holdings from Google Sheets.
         
         Args:
             spreadsheet_id: The Google Sheets spreadsheet ID
-            range_name: The range to fetch (default: Sheet1!A:K)
+            range_name: The range to fetch (default: Sheet1!A:F)
         
         Returns:
             List of physical gold holdings with calculated P/L
@@ -289,16 +279,19 @@ class PhysicalGoldService:
             Dictionary with total metrics
         """
         total_weight = sum(h.get('weight_gms', 0) for h in holdings)
-        total_invested = sum(h.get('total_spend', 0) for h in holdings)
-        total_retail_value = sum(h.get('total_retail_value', 0) for h in holdings)
         total_current_value = sum(h.get('current_value', 0) for h in holdings)
-        total_pl = total_current_value - total_invested
+        total_pl = sum(h.get('pl', 0) for h in holdings)
+        
+        # Calculate invested based on IBJA rates
+        total_invested = sum(
+            h.get('weight_gms', 0) * h.get('bought_ibja_rate_per_gm', 0) 
+            for h in holdings
+        )
         total_pl_pct = (total_pl / total_invested * 100) if total_invested > 0 else 0
         
         return {
             'total_weight_gms': total_weight,
             'total_invested': total_invested,
-            'total_retail_value': total_retail_value,
             'total_current_value': total_current_value,
             'total_pl': total_pl,
             'total_pl_pct': total_pl_pct,

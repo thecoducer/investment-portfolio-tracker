@@ -2,7 +2,7 @@
 Unit tests for server.py
 """
 import unittest
-from unittest.mock import Mock, MagicMock, patch, call
+from unittest.mock import Mock, MagicMock, patch, call, PropertyMock
 import json
 import threading
 import time
@@ -57,13 +57,16 @@ class TestUIServerRoutes(unittest.TestCase):
              patch('server.format_timestamp') as mock_format, \
              patch('server.is_market_open_ist') as mock_market:
             
-            mock_state.get_combined_state.return_value = 'idle'
-            mock_state.last_error = None
-            mock_state.portfolio_state = 'updated'
-            mock_state.nifty50_state = 'updated'
-            mock_state.portfolio_last_updated = None
-            mock_state.nifty50_last_updated = None
-            mock_state.waiting_for_login = False
+            # Mock state properties as actual attributes
+            type(mock_state).last_error = PropertyMock(return_value=None)
+            type(mock_state).portfolio_state = PropertyMock(return_value='updated')
+            type(mock_state).nifty50_state = PropertyMock(return_value='updated')
+            type(mock_state).physical_gold_state = PropertyMock(return_value='updated')
+            type(mock_state).portfolio_last_updated = PropertyMock(return_value=None)
+            type(mock_state).nifty50_last_updated = PropertyMock(return_value=None)
+            type(mock_state).physical_gold_last_updated = PropertyMock(return_value=None)
+            type(mock_state).waiting_for_login = PropertyMock(return_value=False)
+            
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             mock_market.return_value = False
@@ -140,7 +143,7 @@ class TestUIServerRoutes(unittest.TestCase):
             self.assertEqual(response.status_code, 202)
             data = json.loads(response.data)
             self.assertEqual(data['status'], 'started')
-            mock_fetch.assert_called_once_with(force_login=False)
+            mock_fetch.assert_called_once_with(force_login=False, is_manual=True)
     
     def test_refresh_route_conflict(self):
         """Test /refresh returns conflict when fetch in progress"""
@@ -168,7 +171,7 @@ class TestUIServerRoutes(unittest.TestCase):
             self.assertEqual(response.status_code, 202)
             data = json.loads(response.data)
             self.assertTrue(data['needs_login'])
-            mock_fetch.assert_called_once_with(force_login=True)
+            mock_fetch.assert_called_once_with(force_login=True, is_manual=True)
 
 
 class TestSSE(unittest.TestCase):
@@ -186,12 +189,16 @@ class TestSSE(unittest.TestCase):
              patch('server.format_timestamp') as mock_format, \
              patch('server.is_market_open_ist') as mock_market:
             
-            mock_state.portfolio_state = 'updated'
-            mock_state.nifty50_state = 'updated'
-            mock_state.last_error = None
-            mock_state.portfolio_last_updated = None
-            mock_state.nifty50_last_updated = None
-            mock_state.waiting_for_login = False
+            # Mock all state properties as actual attributes
+            type(mock_state).last_error = PropertyMock(return_value=None)
+            type(mock_state).portfolio_state = PropertyMock(return_value='updated')
+            type(mock_state).nifty50_state = PropertyMock(return_value='updated')
+            type(mock_state).physical_gold_state = PropertyMock(return_value='updated')
+            type(mock_state).portfolio_last_updated = PropertyMock(return_value=None)
+            type(mock_state).nifty50_last_updated = PropertyMock(return_value=None)
+            type(mock_state).physical_gold_last_updated = PropertyMock(return_value=None)
+            type(mock_state).waiting_for_login = PropertyMock(return_value=False)
+            
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             mock_market.return_value = True
@@ -204,19 +211,24 @@ class TestSSE(unittest.TestCase):
     
     def test_broadcast_state_change(self):
         """Test broadcast_state_change sends to all clients"""
-        with patch('server.state_manager') as mock_state, \
+        from server import broadcast_state_change
+        
+        with patch('server.sse_manager.clients', []) as mock_clients, \
+             patch('server.state_manager') as mock_state, \
              patch('server.session_manager') as mock_session, \
              patch('server.format_timestamp') as mock_format, \
-             patch('server.is_market_open_ist') as mock_market, \
-             patch('server.sse_manager.clients', []) as mock_clients:
+             patch('server.is_market_open_ist') as mock_market:
             
-            # Set up mocks
-            mock_state.portfolio_state = 'updated'
-            mock_state.nifty50_state = 'updated'
-            mock_state.last_error = None
-            mock_state.portfolio_last_updated = None
-            mock_state.nifty50_last_updated = None
-            mock_state.waiting_for_login = False
+            # Mock state using PropertyMock for attributes
+            type(mock_state).last_error = PropertyMock(return_value=None)
+            type(mock_state).portfolio_state = PropertyMock(return_value='updated')
+            type(mock_state).nifty50_state = PropertyMock(return_value='updated')
+            type(mock_state).physical_gold_state = PropertyMock(return_value='updated')
+            type(mock_state).portfolio_last_updated = PropertyMock(return_value=None)
+            type(mock_state).nifty50_last_updated = PropertyMock(return_value=None)
+            type(mock_state).physical_gold_last_updated = PropertyMock(return_value=None)
+            type(mock_state).waiting_for_login = PropertyMock(return_value=False)
+            
             mock_session.get_validity.return_value = {}
             mock_format.return_value = None
             mock_market.return_value = True
@@ -371,31 +383,45 @@ class TestHelperFunctions(unittest.TestCase):
     
     @patch('server.is_market_open_ist')
     @patch('server.AUTO_REFRESH_OUTSIDE_MARKET_HOURS', False)
-    def test_should_auto_refresh_market_closed(self, mock_market_open):
+    @patch('server.fetch_in_progress')
+    def test_should_auto_refresh_market_closed(self, mock_in_progress, mock_market_open):
         """Test _should_auto_refresh when market is closed"""
         from server import _should_auto_refresh
         
-        should_run, reason = _should_auto_refresh(market_open=False, in_progress=False)
+        mock_market_open.return_value = False
+        mock_in_progress.is_set.return_value = False
+        
+        should_run, reason = _should_auto_refresh()
         
         self.assertFalse(should_run)
         self.assertIn("market closed", reason)
     
-    def test_should_auto_refresh_in_progress(self):
+    @patch('server.is_market_open_ist')
+    @patch('server.fetch_in_progress')
+    def test_should_auto_refresh_in_progress(self, mock_in_progress, mock_market):
         """Test _should_auto_refresh when refresh in progress"""
         from server import _should_auto_refresh
         
-        should_run, reason = _should_auto_refresh(market_open=True, in_progress=True)
+        mock_market.return_value = True
+        mock_in_progress.is_set.return_value = True
+        
+        should_run, reason = _should_auto_refresh()
         
         self.assertFalse(should_run)
         self.assertIn("manual refresh", reason)
     
     @patch('server._all_sessions_valid')
-    def test_should_auto_refresh_allowed(self, mock_sessions_valid):
+    @patch('server.fetch_in_progress')
+    @patch('server.is_market_open_ist')
+    def test_should_auto_refresh_allowed(self, mock_market_open, mock_in_progress, mock_sessions_valid):
         """Test _should_auto_refresh when refresh allowed"""
         from server import _should_auto_refresh
         
+        mock_market_open.return_value = True
+        mock_in_progress.is_set.return_value = False
         mock_sessions_valid.return_value = True
-        should_run, reason = _should_auto_refresh(market_open=True, in_progress=False)
+        
+        should_run, reason = _should_auto_refresh()
         
         self.assertTrue(should_run)
         self.assertIsNone(reason)
@@ -502,7 +528,7 @@ class TestRefreshConflict(unittest.TestCase):
             self.assertEqual(response.status_code, 202)
             data = json.loads(response.data)
             self.assertTrue(data['needs_login'])
-            mock_fetch.assert_called_once_with(force_login=True)
+            mock_fetch.assert_called_once_with(force_login=True, is_manual=True)
 
 
 if __name__ == '__main__':

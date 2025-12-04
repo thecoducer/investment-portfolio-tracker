@@ -136,12 +136,6 @@ class SortManager {
       'date_asc': this._numericComparator(h => new Date(h.date || 0).getTime(), false),
       'weight_desc': this._numericComparator(h => h.weight_gms || 0, true),
       'weight_asc': this._numericComparator(h => h.weight_gms || 0, false),
-      'spend_desc': this._numericComparator(h => h.total_spend || 0, true),
-      'spend_asc': this._numericComparator(h => h.total_spend || 0, false),
-      'value_desc': this._numericComparator(h => h.total_retail_value || 0, true),
-      'value_asc': this._numericComparator(h => h.total_retail_value || 0, false),
-      'wastage_pct_desc': this._numericComparator(h => h.wastage_pct || 0, true),
-      'wastage_pct_asc': this._numericComparator(h => h.wastage_pct || 0, false),
       'type_asc': this._stringComparator(h => h.type, false),
       'type_desc': this._stringComparator(h => h.type, true)
     };
