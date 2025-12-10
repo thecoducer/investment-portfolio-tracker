@@ -6,10 +6,12 @@ class DataManager {
     this.latestMFHoldings = [];
     this.latestSIPs = [];
     this.latestPhysicalGold = [];
+    this.latestFixedDeposits = [];
     this.lastRenderedJSON = "";
     this.lastRenderedMFJSON = "";
     this.lastRenderedSIPsJSON = "";
     this.lastRenderedPhysicalGoldJSON = "";
+    this.lastRenderedFixedDepositsJSON = "";
   }
 
   async _fetchEndpoint(endpoint) {
@@ -33,19 +35,24 @@ class DataManager {
     return this._fetchEndpoint('/physical_gold_data');
   }
 
+  async fetchFixedDeposits() {
+    return this._fetchEndpoint('/fixed_deposits_data');
+  }
+
   async fetchStatus() {
     return this._fetchEndpoint('/status');
   }
 
   async fetchAllData() {
-    const [holdings, mfHoldings, sips, physicalGold, status] = await Promise.all([
+    const [holdings, mfHoldings, sips, physicalGold, fixedDeposits, status] = await Promise.all([
       this.fetchHoldings(),
       this.fetchMFHoldings(),
       this.fetchSIPs(),
       this.fetchPhysicalGold(),
+      this.fetchFixedDeposits(),
       this.fetchStatus()
     ]);
-    return { holdings, mfHoldings, sips, physicalGold, status };
+    return { holdings, mfHoldings, sips, physicalGold, fixedDeposits, status };
   }
 
   _updateData(data, currentData, lastJSON, forceUpdate) {
@@ -106,6 +113,19 @@ class DataManager {
 
   getPhysicalGold() {
     return this.latestPhysicalGold;
+  }
+
+  updateFixedDeposits(fixedDeposits, forceUpdate = false) {
+    const result = this._updateData(fixedDeposits, this.latestFixedDeposits, this.lastRenderedFixedDepositsJSON, forceUpdate);
+    if (result.updated) {
+      this.latestFixedDeposits = result.newData;
+      this.lastRenderedFixedDepositsJSON = result.newJSON;
+    }
+    return result.updated;
+  }
+
+  getFixedDeposits() {
+    return this.latestFixedDeposits;
   }
 
   async triggerRefresh() {

@@ -25,9 +25,10 @@ from flask import Flask, request, jsonify, Response, render_template, make_respo
 
 from utils import SessionManager, StateManager, load_config, validate_accounts, format_timestamp, is_market_open_ist
 from api import AuthenticationManager, HoldingsService, SIPService, NSEAPIClient, ZerodhaAPIClient
-from api.google_sheets_client import GoogleSheetsClient, PhysicalGoldService, GOOGLE_SHEETS_AVAILABLE
+from api.google_sheets_client import GoogleSheetsClient, PhysicalGoldService, FixedDepositsService, GOOGLE_SHEETS_AVAILABLE
 from api.ibja_gold_price import get_gold_price_service
 from api.physical_gold import enrich_holdings_with_prices
+from api.fixed_deposits import calculate_current_value
 from error_handler import ErrorAggregator, ErrorHandler
 from constants import (
     HTTP_ACCEPTED,
@@ -49,11 +50,12 @@ from constants import (
 # CONFIGURATION
 # --------------------------
 
-def _load_application_config():
+def _load_application_config() -> tuple:
     """Load and parse application configuration from config.json.
     
     Returns:
-        Tuple of configuration values for the application
+        tuple: Configuration values for the application including accounts,
+            server settings, timeouts, and feature flags.
     """
     config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
     
@@ -129,6 +131,7 @@ merged_mf_holdings_global: List[Dict[str, Any]] = []
 merged_sips_global: List[Dict[str, Any]] = []
 nifty50_data_global: List[Dict[str, Any]] = []
 physical_gold_holdings_global: List[Dict[str, Any]] = []
+fixed_deposits_global: List[Dict[str, Any]] = []
 gold_prices_cache: Dict[str, Dict[str, float]] = {}  # Cache for IBJA gold prices
 gold_prices_last_fetch: Optional[datetime] = None  # Timestamp of last gold price fetch
 
@@ -186,11 +189,12 @@ holdings_service = HoldingsService()
 sip_service = SIPService()
 zerodha_client = ZerodhaAPIClient(auth_manager, holdings_service, sip_service)
 
-# Physical Gold services (optional - requires Google Sheets API setup)
+# Physical Gold and Fixed Deposits services (optional - requires Google Sheets API setup)
 google_sheets_client = None
 physical_gold_service = None
+fixed_deposits_service = None
 
-def _initialize_physical_gold_service():
+def _initialize_physical_gold_service() -> None:
     """Initialize Google Sheets client for physical gold tracking."""
     global google_sheets_client, physical_gold_service
     
@@ -213,7 +217,33 @@ def _initialize_physical_gold_service():
     else:
         logger.warning("Physical Gold tracking unavailable: credentials file not found")
 
+def _initialize_fixed_deposits_service() -> None:
+    """Initialize Google Sheets client for fixed deposits tracking."""
+    global google_sheets_client, fixed_deposits_service
+    
+    if not GOOGLE_SHEETS_AVAILABLE:
+        logger.info("Fixed Deposits tracking unavailable: Google Sheets libraries not installed")
+        return
+    
+    config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
+    fixed_deposits_config = config.get("features", {}).get("fetch_fixed_deposits_from_google_sheets", {})
+    
+    if not fixed_deposits_config.get("enabled", False):
+        logger.info("Fixed Deposits tracking disabled in configuration")
+        return
+    
+    credentials_file = fixed_deposits_config.get("credentials_file")
+    if credentials_file and os.path.exists(credentials_file):
+        # Reuse google_sheets_client if already initialized
+        if not google_sheets_client:
+            google_sheets_client = GoogleSheetsClient(credentials_file)
+        fixed_deposits_service = FixedDepositsService(google_sheets_client)
+        logger.info("Fixed Deposits tracking initialized")
+    else:
+        logger.warning("Fixed Deposits tracking unavailable: credentials file not found")
+
 _initialize_physical_gold_service()
+_initialize_fixed_deposits_service()
 
 
 # --------------------------
@@ -233,7 +263,7 @@ def _build_status_response() -> Dict[str, Any]:
     """Build comprehensive status response for API and SSE.
     
     Returns:
-        Dict containing application state, timestamps, and session info
+        Dict[str, Any]: Dictionary containing application state, timestamps, and session info.
     """
     # Get all account names from config
     all_account_names = [acc["name"] for acc in ACCOUNTS_CONFIG]
@@ -246,6 +276,8 @@ def _build_status_response() -> Dict[str, Any]:
         "nifty50_last_updated": format_timestamp(state_manager.nifty50_last_updated),
         "physical_gold_state": state_manager.physical_gold_state,
         "physical_gold_last_updated": format_timestamp(state_manager.physical_gold_last_updated),
+        "fixed_deposits_state": state_manager.fixed_deposits_state,
+        "fixed_deposits_last_updated": format_timestamp(state_manager.fixed_deposits_last_updated),
         "market_open": is_market_open_ist(),
         "session_validity": session_manager.get_validity(all_account_names),
         "waiting_for_login": state_manager.waiting_for_login
@@ -253,7 +285,7 @@ def _build_status_response() -> Dict[str, Any]:
 
 
 def broadcast_state_change() -> None:
-    """Broadcast state change to all connected SSE clients."""
+    """Broadcast current state to all connected SSE clients."""
     message = json.dumps(_build_status_response())
     sse_manager.broadcast(message)
 
@@ -290,6 +322,7 @@ def status():
 def events():
     """Server-Sent Events endpoint for real-time status updates."""
     def event_stream():
+        """Generate server-sent events stream for client."""
         client_queue = Queue(maxsize=10)
         sse_manager.add_client(client_queue)
         
@@ -315,15 +348,15 @@ def events():
         'Connection': 'keep-alive'
     })
 
-def _create_json_response_no_cache(data: List[Dict[str, Any]], sort_key: str = None) -> Response:
+def _create_json_response_no_cache(data: List[Dict[str, Any]], sort_key: Optional[str] = None) -> Response:
     """Create JSON response with no-cache headers and optional sorting.
     
     Args:
-        data: Data to serialize as JSON
-        sort_key: Optional key to sort data by
+        data: Data to serialize as JSON.
+        sort_key: Optional key to sort data by.
     
     Returns:
-        Flask Response object with JSON data and no-cache headers
+        Response: Flask Response object with JSON data and no-cache headers.
     """
     sorted_data = sorted(data, key=lambda x: x.get(sort_key, "")) if sort_key else data
     response = jsonify(sorted_data)
@@ -363,6 +396,13 @@ def physical_gold_data():
     return _create_json_response_no_cache(enriched_holdings, sort_key="date")
 
 
+@app_ui.route("/fixed_deposits_data", methods=["GET"])
+def fixed_deposits_data():
+    """Return fixed deposits as JSON with maturity status."""
+    enriched_deposits = calculate_current_value(fixed_deposits_global)
+    return _create_json_response_no_cache(enriched_deposits, sort_key="deposited_on")
+
+
 @app_ui.route("/refresh", methods=["POST"])
 def refresh_route():
     """Trigger a refresh of holdings data."""
@@ -378,10 +418,23 @@ def refresh_route():
 
 @app_ui.route("/holdings", methods=["GET"])
 def holdings_page():
-    """Serve the main holdings page."""
+    """Serve the main holdings page with feature flags."""
     config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
-    physical_gold_enabled = config.get("features", {}).get("fetch_physical_gold_from_google_sheets", {}).get("enabled", False)
-    return render_template("holdings.html", physical_gold_enabled=physical_gold_enabled)
+    features = config.get("features", {})
+    
+    physical_gold_enabled = features.get(
+        "fetch_physical_gold_from_google_sheets", {}
+    ).get("enabled", False)
+    
+    fixed_deposits_enabled = features.get(
+        "fetch_fixed_deposits_from_google_sheets", {}
+    ).get("enabled", False)
+    
+    return render_template(
+        "holdings.html",
+        physical_gold_enabled=physical_gold_enabled,
+        fixed_deposits_enabled=fixed_deposits_enabled
+    )
 
 
 @app_ui.route("/nifty50", methods=["GET"])
@@ -397,12 +450,12 @@ def fetch_portfolio_data(force_login: bool = False) -> None:
     """Fetch holdings and SIPs for all configured accounts.
     
     This function:
-    - Fetches stock holdings, mutual fund holdings, and SIPs from all accounts
-    - Updates the global state with merged results
-    - Handles errors gracefully and updates state accordingly
+    - Fetches stock holdings, mutual fund holdings, and SIPs from all accounts.
+    - Updates the global state with merged results.
+    - Handles errors gracefully and updates state accordingly.
     
     Args:
-        force_login: If True, force re-authentication even if cached tokens exist
+        force_login: If True, force re-authentication even if cached tokens exist.
     """
     fetch_in_progress.set()
     state_manager.set_portfolio_updating()
@@ -434,7 +487,7 @@ def _should_fetch_gold_prices() -> bool:
     """Check if gold prices should be fetched based on schedule.
     
     Returns:
-        True if prices should be fetched (first load or scheduled times defined in GOLD_PRICE_FETCH_HOURS)
+        bool: True if prices should be fetched (first load or during scheduled hours).
     """
     global gold_prices_last_fetch
     
@@ -465,13 +518,13 @@ def fetch_physical_gold_data(force_gold_price_fetch: bool = False) -> None:
     """Fetch physical gold holdings from Google Sheets.
     
     This function:
-    - Fetches physical gold data from configured Google Sheets
-    - Updates the global physical gold holdings cache
-    - Fetches and caches latest IBJA gold prices (on first load or scheduled times)
-    - Runs silently if Google Sheets is not configured
+    - Fetches physical gold data from configured Google Sheets.
+    - Updates the global physical gold holdings cache.
+    - Fetches and caches latest IBJA gold prices (on first load or scheduled times).
+    - Runs silently if Google Sheets is not configured.
     
     Args:
-        force_gold_price_fetch: If True, bypass schedule and fetch gold prices immediately
+        force_gold_price_fetch: If True, bypass schedule and fetch gold prices immediately.
     """
     global physical_gold_holdings_global, gold_prices_cache, gold_prices_last_fetch
     
@@ -522,23 +575,75 @@ def fetch_physical_gold_data(force_gold_price_fetch: bool = False) -> None:
     except Exception as e:
         logger.exception("Error fetching Physical Gold data: %s", e)
         error_occurred = True
-        # Don't fail the entire fetch if physical gold fails - preserve existing data
+        # Preserve existing data if fetch fails
         if not physical_gold_holdings_global:
             physical_gold_holdings_global = []
-        logger.info("Preserved %d existing physical gold holdings after fetch failure", 
-                   len(physical_gold_holdings_global))
+        logger.info(
+            "Preserved %d existing physical gold holdings after fetch failure",
+            len(physical_gold_holdings_global)
+        )
     finally:
-        state_manager.set_physical_gold_updated(error="Failed to fetch physical gold data" if error_occurred else None)
+        error_msg = "Failed to fetch physical gold data" if error_occurred else None
+        state_manager.set_physical_gold_updated(error=error_msg)
         
+
+def fetch_fixed_deposits_data() -> None:
+    """Fetch fixed deposits from Google Sheets.
+    
+    This function:
+    - Fetches fixed deposits data from configured Google Sheets.
+    - Updates the global fixed deposits cache.
+    - Runs silently if Google Sheets is not configured.
+    """
+    global fixed_deposits_global
+    
+    if not fixed_deposits_service:
+        # Service not initialized - skip silently
+        return
+    
+    state_manager.set_fixed_deposits_updating()
+    error_occurred = False
+    
+    try:
+        config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
+        fixed_deposits_config = config.get("features", {}).get("fetch_fixed_deposits_from_google_sheets", {})
+        
+        spreadsheet_id = fixed_deposits_config.get("spreadsheet_id")
+        range_name = fixed_deposits_config.get("range_name", "FixedDeposits!A:J")
+        
+        if not spreadsheet_id:
+            state_manager.set_fixed_deposits_updated()
+            return
+        
+        logger.info("Fetching Fixed Deposits data from Google Sheets...")
+        deposits = fixed_deposits_service.fetch_deposits(spreadsheet_id, range_name)
+        
+        fixed_deposits_global = deposits
+        logger.info("Fixed Deposits data updated: %d deposits", len(deposits))
+        
+    except Exception as e:
+        logger.exception("Error fetching Fixed Deposits data: %s", e)
+        error_occurred = True
+        # Preserve existing data if fetch fails
+        if not fixed_deposits_global:
+            fixed_deposits_global = []
+        logger.info(
+            "Preserved %d existing fixed deposits after fetch failure",
+            len(fixed_deposits_global)
+        )
+    finally:
+        error_msg = "Failed to fetch fixed deposits data" if error_occurred else None
+        state_manager.set_fixed_deposits_updated(error=error_msg)
+
 
 def fetch_nifty50_data() -> None:
     """Fetch Nifty 50 index constituent stocks data from NSE API.
     
     This function:
-    - Fetches the list of Nifty 50 constituent symbols
-    - Retrieves real-time quotes for each stock
-    - Updates the global Nifty 50 data cache
-    - Runs asynchronously in a background thread
+    - Fetches the list of Nifty 50 constituent symbols.
+    - Retrieves real-time quotes for each stock.
+    - Updates the global Nifty 50 data cache.
+    - Runs asynchronously in a background thread.
     """
     if nifty50_fetch_in_progress.is_set():
         logger.info("Nifty 50 fetch already in progress, skipping")
@@ -595,35 +700,50 @@ def fetch_nifty50_data() -> None:
     threading.Thread(target=_fetch_task, daemon=True).start()
 
 
-def run_background_fetch(force_login: bool = False, on_complete=None, is_manual: bool = False) -> None:
+def run_background_fetch(
+    force_login: bool = False,
+    on_complete: Optional[callable] = None,
+    is_manual: bool = False
+) -> None:
     """Orchestrate concurrent fetching of portfolio and market data.
     
     Launches parallel background tasks:
-    1. Portfolio data (holdings and SIPs) from Zerodha
-    2. Nifty 50 market data from NSE
-    3. Physical Gold data from Google Sheets (if configured)
+    1. Portfolio data (holdings and SIPs) from Zerodha.
+    2. Nifty 50 market data from NSE.
+    3. Physical Gold data from Google Sheets (if configured).
+    4. Fixed Deposits data from Google Sheets (if configured).
     
     Args:
-        force_login: If True, force re-authentication for portfolio data
-        on_complete: Optional callback to execute after all tasks complete
-        is_manual: If True, this is a manual refresh (always fetch gold prices)
+        force_login: If True, force re-authentication for portfolio data.
+        on_complete: Optional callback to execute after all tasks complete.
+        is_manual: If True, this is a manual refresh (always fetch gold prices).
     """
     def _orchestrate_fetch():
         """Coordinate parallel fetch operations."""
+        # Force gold price fetch on manual refresh or first load
+        force_gold_fetch = is_manual or (gold_prices_last_fetch is None)
+        
+        # Create all threads
         portfolio_thread = threading.Thread(
             target=fetch_portfolio_data,
             args=(force_login,),
+            name="PortfolioFetch",
             daemon=True
         )
         nifty50_thread = threading.Thread(
             target=fetch_nifty50_data,
+            name="Nifty50Fetch",
             daemon=True
         )
-        # Force gold price fetch on manual refresh or first load
-        force_gold_fetch = is_manual or (gold_prices_last_fetch is None)
         physical_gold_thread = threading.Thread(
             target=fetch_physical_gold_data,
             args=(force_gold_fetch,),
+            name="PhysicalGoldFetch",
+            daemon=True
+        )
+        fixed_deposits_thread = threading.Thread(
+            target=fetch_fixed_deposits_data,
+            name="FixedDepositsFetch",
             daemon=True
         )
         
@@ -631,11 +751,13 @@ def run_background_fetch(force_login: bool = False, on_complete=None, is_manual:
         portfolio_thread.start()
         nifty50_thread.start()
         physical_gold_thread.start()
+        fixed_deposits_thread.start()
         
         # Wait for completion
         portfolio_thread.join()
         nifty50_thread.join()
         physical_gold_thread.join()
+        fixed_deposits_thread.join()
         
         # Execute callback if provided
         if on_complete:
@@ -647,11 +769,13 @@ def run_background_fetch(force_login: bool = False, on_complete=None, is_manual:
 # --------------------------
 # AUTOMATIC REFRESH
 # --------------------------
-def _should_auto_refresh() -> tuple[bool, str]:
+def _should_auto_refresh() -> tuple[bool, Optional[str]]:
     """Check if auto-refresh should run and return reason if not.
     
     Returns:
-        (should_run, skip_reason)
+        tuple[bool, Optional[str]]: A tuple containing:
+            - should_run: Whether auto-refresh should execute.
+            - skip_reason: Reason for skipping, or None if should run.
     """
     market_open = is_market_open_ist()
     
@@ -667,14 +791,13 @@ def _should_auto_refresh() -> tuple[bool, str]:
     
     return True, None
 
-def run_auto_refresh():
-    """
-    Periodically trigger full holdings refresh.
+def run_auto_refresh() -> None:
+    """Periodically trigger full holdings refresh.
     
     Auto-refresh behavior:
-    - During market hours: Runs only if all sessions are valid
-    - Outside market hours: Only if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True and sessions are valid
-    - Skips if any session is invalid (requires manual login via button)
+    - During market hours: Runs only if all sessions are valid.
+    - Outside market hours: Only if AUTO_REFRESH_OUTSIDE_MARKET_HOURS is True and sessions are valid.
+    - Skips if any session is invalid (requires manual login via button).
     """
     while True:
         time.sleep(AUTO_REFRESH_INTERVAL)
@@ -699,12 +822,12 @@ def start_server(app: Flask, host: str, port: int) -> threading.Thread:
     """Start a Flask application in a background daemon thread.
     
     Args:
-        app: Flask application instance
-        host: Host address to bind to
-        port: Port number to bind to
+        app: Flask application instance.
+        host: Host address to bind to.
+        port: Port number to bind to.
     
     Returns:
-        Thread object running the Flask server
+        threading.Thread: Thread object running the Flask server.
     """
     def _run_server():
         app.run(host=host, port=port, debug=False, use_reloader=False)
@@ -720,18 +843,18 @@ def _start_auto_refresh_service() -> None:
     threading.Thread(target=run_auto_refresh, daemon=True).start()
 
 
-def main():
+def main() -> None:
     """Initialize and start the Investment Portfolio Tracker application.
     
     This function:
-    1. Configures logging
-    2. Loads cached authentication sessions
-    3. Validates account configuration
-    4. Starts callback and UI Flask servers
-    5. Opens the dashboard in a web browser
-    6. Triggers initial data fetch
-    7. Starts the auto-refresh service
-    8. Keeps the application running
+    1. Configures logging.
+    2. Loads cached authentication sessions.
+    3. Validates account configuration.
+    4. Starts callback and UI Flask servers.
+    5. Opens the dashboard in a web browser.
+    6. Triggers initial data fetch.
+    7. Starts the auto-refresh service.
+    8. Keeps the application running.
     """
     try:
         # Initialize application

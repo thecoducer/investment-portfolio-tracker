@@ -9,6 +9,7 @@ class TableRenderer {
     this.stocksPagination = new PaginationManager(25, 1);
     this.mfPagination = new PaginationManager(25, 1);
     this.physicalGoldPagination = new PaginationManager(10, 1);
+    this.fixedDepositsPagination = new PaginationManager(10, 1);
   }
 
   setSearchQuery(query) {
@@ -520,7 +521,7 @@ class TableRenderer {
 
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
       <td>${holding.date || '-'}</td>
-      <td style="">${holding.type || '-'}</td>
+      <td>${holding.type || '-'}</td>
       <td>${holding.retail_outlet || '-'}</td>
       <td style="font-weight:600;color:#d4af37">${holding.purity || '-'}</td>
       <td>${weight}</td>
@@ -551,6 +552,106 @@ class TableRenderer {
 
   goToPhysicalGoldPage(page) {
     this.physicalGoldPagination.goToPage(page);
+  }
+
+  /**
+   * Render fixed deposits table with pagination
+   */
+  renderFixedDepositsTable(deposits) {
+    const tbody = document.getElementById('fixed_deposits_table_body');
+    const section = document.getElementById('fixed-deposits-section');
+    
+    if (!tbody) return { invested: 0, maturity: 0, returns: 0, returnsPct: 0 };
+
+    tbody.innerHTML = '';
+
+    const table = section ? section.querySelector('table') : null;
+    const emptyState = document.getElementById('fixed_deposits_empty_state');
+    const controlsContainer = section ? section.querySelector('.controls-container') : null;
+    const paginationInfo = document.getElementById('fixed_deposits_pagination_info');
+    const paginationButtons = document.getElementById('fixed_deposits_pagination_buttons');
+
+    if (!deposits || deposits.length === 0) {
+      if (table) table.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'block';
+      if (controlsContainer) controlsContainer.style.display = 'none';
+      if (paginationInfo) paginationInfo.style.display = 'none';
+      if (paginationButtons) paginationButtons.style.display = 'none';
+      return { invested: 0, maturity: 0, returns: 0, returnsPct: 0 };
+    }
+
+    if (table) table.style.display = 'table';
+    if (emptyState) emptyState.style.display = 'none';
+    if (controlsContainer) controlsContainer.style.display = 'flex';
+    if (paginationInfo) paginationInfo.style.display = 'block';
+    if (paginationButtons) paginationButtons.style.display = 'flex';
+
+    // Calculate totals
+    let totalInvested = 0;
+    let totalCurrentValue = 0;
+    
+    deposits.forEach((deposit) => {
+      totalInvested += deposit.amount || 0;
+      totalCurrentValue += deposit.current_value || 0;
+    });
+    
+    const totalReturns = totalCurrentValue - totalInvested;
+    const returnsPct = totalInvested > 0 ? (totalReturns / totalInvested * 100) : 0;
+
+    const paginationData = this.fixedDepositsPagination.paginate(deposits);
+    const { pageData } = paginationData;
+
+    pageData.forEach((deposit) => {
+      tbody.innerHTML += this._buildFixedDepositRow(deposit);
+    });
+
+    this._renderFixedDepositsPagination(paginationData);
+    
+    return {
+      invested: totalInvested,
+      maturity: totalCurrentValue,
+      returns: totalReturns,
+      returnsPct: returnsPct
+    };
+  }
+
+  _buildFixedDepositRow(deposit) {
+    const amount = Formatter.formatCurrency(deposit.amount || 0);
+    const currentValue = Formatter.formatCurrency(deposit.current_value || 0);
+    const interestRate = deposit.interest_rate ? `${deposit.interest_rate.toFixed(2)}%` : '-';
+
+    return `<tr>
+      <td>${deposit.deposited_on || '-'}</td>
+      <td>${deposit.bank_name || '-'}</td>
+      <td>${amount}</td>
+      <td style="color:#3498db;font-weight:600">${interestRate}</td>
+      <td>${deposit.maturity_date || '-'}</td>
+      <td>${currentValue}</td>
+      <td>${deposit.account || '-'}</td>
+    </tr>`;
+  }
+
+  _renderFixedDepositsPagination(paginationData) {
+    const paginationInfo = document.getElementById('fixed_deposits_pagination_info');
+    const paginationButtons = document.getElementById('fixed_deposits_pagination_buttons');
+
+    if (!paginationInfo || !paginationButtons) return;
+
+    PaginationManager.updatePaginationUI(
+      paginationData,
+      'fixed_deposits_pagination_info',
+      'fixed_deposits_pagination_buttons',
+      'goToFixedDepositsPage',
+      'deposits'
+    );
+  }
+
+  changeFixedDepositsPageSize(size) {
+    this.fixedDepositsPagination.changePageSize(size);
+  }
+
+  goToFixedDepositsPage(page) {
+    this.fixedDepositsPagination.goToPage(page);
   }
 
 }

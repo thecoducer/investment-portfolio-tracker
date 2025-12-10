@@ -65,10 +65,9 @@
         <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="combined_total_pl">0.00</span></div>
         <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="combined_total_pl_pct">0.00%</span></div>
     </div>
-    <div class="loading-placeholder" id="combined_summary_loading" style="display:none;">Loading...</div>
 </div>
 
-<div class="card" id="portfolio_summary">
+<div class="card" id="stocks_summary">
     <h3 class="card-title"><span class="allocation-pct" id="stocks_allocation_pct"></span>Stocks</h3>
     <div class="card-metrics">
         <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="total_invested">0.00</span></div>
@@ -76,7 +75,6 @@
         <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="total_pl">0.00</span></div>
         <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="total_pl_pct">0.00%</span></div>
     </div>
-    <div class="loading-placeholder" id="stocks_summary_loading" style="display:none;">Loading...</div>
 </div>
 
 <div class="card" id="mf_summary">
@@ -87,7 +85,6 @@
         <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="mf_total_pl">0.00</span></div>
         <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="mf_total_pl_pct">0.00%</span></div>
     </div>
-    <div class="loading-placeholder" id="mf_summary_loading" style="display:none;">Loading...</div>
 </div>
 
 <div class="card" id="gold_summary">
@@ -98,7 +95,6 @@
         <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="gold_total_pl">0.00</span></div>
         <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="gold_total_pl_pct">0.00%</span></div>
     </div>
-    <div class="loading-placeholder" id="gold_summary_loading" style="display:none;">Loading...</div>
 </div>
 
 <div class="card" id="silver_summary">
@@ -109,8 +105,19 @@
         <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="silver_total_pl">0.00</span></div>
         <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="silver_total_pl_pct">0.00%</span></div>
     </div>
-    <div class="loading-placeholder" id="silver_summary_loading" style="display:none;">Loading...</div>
 </div>
+
+{% if fixed_deposits_enabled %}
+<div class="card" id="fd_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="fd_allocation_pct"></span>Fixed Deposits</h3>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Deposited</span><span class="summary-value" id="fd_total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="fd_maturity_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Returns</span><span class="summary-value" id="fd_total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Return %</span><span class="summary-value" id="fd_total_pl_pct">0.00%</span></div>
+    </div>
+</div>
+{% endif %}
 </div>
 
 <div class="section-wrapper" id="stocks-section">
@@ -253,6 +260,58 @@
 <div class="empty-state-message" id="physical_gold_empty_state" style="display:none;">No physical gold holdings available</div>
 <div class="pagination-info" id="physical_gold_pagination_info"></div>
 <div class="pagination-buttons" id="physical_gold_pagination_buttons"></div>
+</div>
+{% endif %}
+
+<!-- Fixed Deposits Section -->
+{% if fixed_deposits_enabled %}
+<div class="section-wrapper" id="fixed-deposits-section">
+<div class="section-header">
+<h2>Fixed Deposits</h2>
+<div class="controls-container">
+<div class="sort-controls">
+<span class="sort-icon">⇅</span>
+<select id="fixed_deposits_sort" onchange="window.sortFixedDepositsTable(this.value)">
+<option value="default">Default Order</option>
+<option value="date_desc">📅 Date (Newest First)</option>
+<option value="date_asc">📅 Date (Oldest First)</option>
+<option value="amount_desc">💰 Amount (High to Low)</option>
+<option value="amount_asc">💰 Amount (Low to High)</option>
+<option value="bank_asc">🏦 Bank (A-Z)</option>
+<option value="bank_desc">🏦 Bank (Z-A)</option>
+<option value="maturity_asc">📆 Maturity (Earliest First)</option>
+<option value="maturity_desc">📆 Maturity (Latest First)</option>
+</select>
+</div>
+<div class="pagination-controls">
+<label for="fixed_deposits_page_size">Show:</label>
+<select id="fixed_deposits_page_size" onchange="window.changeFixedDepositsPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="fixedDepositsTable" aria-label="Fixed Deposits table">
+<thead>
+<tr>
+<th>Deposited On</th>
+<th>Bank</th>
+<th>Amount</th>
+<th>Interest Rate</th>
+<th>Maturity Date</th>
+<th>Current Value</th>
+<th>Account</th>
+</tr>
+</thead>
+<tbody id="fixed_deposits_table_body">
+</tbody>
+</table>
+<div class="empty-state-message" id="fixed_deposits_empty_state" style="display:none;">No fixed deposits available</div>
+<div class="pagination-info" id="fixed_deposits_pagination_info"></div>
+<div class="pagination-buttons" id="fixed_deposits_pagination_buttons"></div>
 </div>
 {% endif %}
 

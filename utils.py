@@ -154,10 +154,12 @@ class StateManager:
         self.portfolio_state = None  # None indicates no data fetched yet
         self.nifty50_state = None  # None indicates no data fetched yet
         self.physical_gold_state = None  # None indicates no data fetched yet
+        self.fixed_deposits_state = None  # None indicates no data fetched yet
         self.last_error: str = None
         self.portfolio_last_updated: float = None
         self.nifty50_last_updated: float = None
         self.physical_gold_last_updated: float = None
+        self.fixed_deposits_last_updated: float = None
         self.waiting_for_login = False
         self._change_listeners = []
     
@@ -244,9 +246,33 @@ class StateManager:
             # Don't clear last_error here as it might be from other fetches
             self._set_state('physical_gold_state', STATE_UPDATED)
     
+    def set_fixed_deposits_updating(self, error: str = None):
+        """Set fixed deposits state to updating and optionally set error."""
+        self._set_state('fixed_deposits_state', STATE_UPDATING)
+        if error:
+            self.last_error = error
+
+    def set_fixed_deposits_updated(self, error: str = None):
+        """Mark fixed deposits data as updated and update timestamp.
+        
+        Args:
+            error: Optional error message. If provided, state is set to ERROR.
+        """
+        if error:
+            self.last_error = error
+            self._set_state('fixed_deposits_state', STATE_ERROR)
+        else:
+            # Update timestamp BEFORE setting state so it's included in the notification
+            self.fixed_deposits_last_updated = time.time()
+            # Don't clear last_error here as it might be from other fetches
+            self._set_state('fixed_deposits_state', STATE_UPDATED)
+    
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""
-        return self.portfolio_state == STATE_UPDATING or self.nifty50_state == STATE_UPDATING or self.physical_gold_state == STATE_UPDATING
+        return (self.portfolio_state == STATE_UPDATING or 
+                self.nifty50_state == STATE_UPDATING or 
+                self.physical_gold_state == STATE_UPDATING or
+                self.fixed_deposits_state == STATE_UPDATING)
     
     def clear_error(self):
         """Clear the last error message."""

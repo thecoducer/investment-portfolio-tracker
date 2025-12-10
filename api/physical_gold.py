@@ -50,3 +50,25 @@ def enrich_holdings_with_prices(holdings: List[Dict[str, Any]], gold_prices_data
         enriched_holdings.append(holding_copy)
     
     return enriched_holdings
+
+
+def calculate_totals(holdings: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Calculate total investment and metrics for physical gold.
+    
+    Args:
+        holdings: List of physical gold holdings
+    
+    Returns:
+        Dictionary with total metrics
+    """
+    total_weight = sum(h.get('weight_gms', 0) for h in holdings)
+    total_invested = sum(
+        h.get('weight_gms', 0) * h.get('bought_ibja_rate_per_gm', 0) 
+        for h in holdings
+    )
+    
+    return {
+        'total_weight_gms': total_weight,
+        'total_invested': total_invested,
+        'count': len(holdings)
+    }

@@ -28,7 +28,13 @@
       "enabled": false,
       "credentials_file": "path/to/service-account-credentials.json",
       "spreadsheet_id": "your_google_sheets_spreadsheet_id",
-      "range_name": "Sheet1!A:K"
+      "range_name": "Gold!A:K"
+    },
+    "fetch_fixed_deposits_from_google_sheets": {
+      "enabled": false,
+      "credentials_file": "path/to/service-account-credentials.json",
+      "spreadsheet_id": "your_google_sheets_spreadsheet_id",
+      "range_name": "FixedDeposits!A:J"
     }
   }
 }

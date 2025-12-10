@@ -7,6 +7,7 @@ class SortManager {
     this.stocksSortOrder = 'default';
     this.mfSortOrder = 'default';
     this.physicalGoldSortOrder = 'default';
+    this.fixedDepositsSortOrder = 'default';
   }
 
   /**
@@ -20,6 +21,25 @@ class SortManager {
       const aVal = getValue(a);
       const bVal = getValue(b);
       return descending ? bVal - aVal : aVal - bVal;
+    };
+  }
+
+  /**
+   * Generic comparator for date string sorting
+   * @param {function} getValue - Function to extract date string from item
+   * @param {boolean} descending - Sort direction (true = newest first)
+   * @returns {function} Comparator function
+   */
+  _dateComparator(getValue, descending = true) {
+    return (a, b) => {
+      const aVal = getValue(a);
+      const bVal = getValue(b);
+      
+      // Parse dates (format: "Month Day, Year")
+      const aDate = aVal ? new Date(aVal) : new Date(0);
+      const bDate = bVal ? new Date(bVal) : new Date(0);
+      
+      return descending ? bDate - aDate : aDate - bDate;
     };
   }
 
@@ -150,6 +170,43 @@ class SortManager {
 
   getPhysicalGoldSortOrder() {
     return this.physicalGoldSortOrder;
+  }
+
+  /**
+   * Sort fixed deposits array based on selected criteria
+   * @param {Array} deposits - Fixed deposits array
+   * @param {string} sortBy - Sort criteria
+   * @returns {Array} Sorted array
+   */
+  sortFixedDeposits(deposits, sortBy = 'default') {
+    if (sortBy === 'default' || !deposits || deposits.length === 0) {
+      return deposits;
+    }
+
+    const sorted = [...deposits];
+
+    // Map sort criteria to comparator functions
+    const comparators = {
+      'date_desc': this._dateComparator(d => d.deposited_on, true),
+      'date_asc': this._dateComparator(d => d.deposited_on, false),
+      'amount_desc': this._numericComparator(d => d.amount || 0, true),
+      'amount_asc': this._numericComparator(d => d.amount || 0, false),
+      'bank_asc': this._stringComparator(d => d.bank_name, false),
+      'bank_desc': this._stringComparator(d => d.bank_name, true),
+      'maturity_desc': this._dateComparator(d => d.maturity_date, true),
+      'maturity_asc': this._dateComparator(d => d.maturity_date, false)
+    };
+
+    const comparator = comparators[sortBy];
+    return comparator ? sorted.sort(comparator) : deposits;
+  }
+
+  setFixedDepositsSortOrder(sortBy) {
+    this.fixedDepositsSortOrder = sortBy;
+  }
+
+  getFixedDepositsSortOrder() {
+    return this.fixedDepositsSortOrder;
   }
 }
 

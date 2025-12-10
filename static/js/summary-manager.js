@@ -28,6 +28,12 @@ const ELEMENT_IDS = {
     PL: 'mf_total_pl',
     PL_PCT: 'mf_total_pl_pct'
   },
+  FD: {
+    INVESTED: 'fd_total_invested',
+    MATURITY: 'fd_maturity_value',
+    PL: 'fd_total_pl',
+    PL_PCT: 'fd_total_pl_pct'
+  },
   COMBINED: {
     INVESTED: 'combined_total_invested',
     CURRENT: 'combined_current_value',
@@ -43,30 +49,20 @@ class SummaryManager {
    * @param {Object} goldTotals - { invested, current, pl, plPct }
    * @param {Object} silverTotals - { invested, current, pl, plPct }
    * @param {Object} mfTotals - { invested, current, pl, plPct }
+   * @param {Object} fdTotals - { invested, maturity, returns, returnsPct }
    * @param {boolean} isUpdating - Whether refresh/update is in progress
    */
-  updateAllSummaries(stockTotals, goldTotals, silverTotals, mfTotals, isUpdating = false) {
-    // Hide loading placeholders
-    const combinedLoading = document.getElementById('combined_summary_loading');
-    if (combinedLoading) combinedLoading.style.display = 'none';
-    const stocksLoading = document.getElementById('stocks_summary_loading');
-    if (stocksLoading) stocksLoading.style.display = 'none';
-    const goldLoading = document.getElementById('gold_summary_loading');
-    if (goldLoading) goldLoading.style.display = 'none';
-    const silverLoading = document.getElementById('silver_summary_loading');
-    if (silverLoading) silverLoading.style.display = 'none';
-    const mfLoading = document.getElementById('mf_summary_loading');
-    if (mfLoading) mfLoading.style.display = 'none';
-
+  updateAllSummaries(stockTotals, goldTotals, silverTotals, mfTotals, fdTotals, isUpdating = false) {
     // Provide default values if undefined
     const stock = stockTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const gold = goldTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const silver = silverTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const mf = mfTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
+    const fd = fdTotals || { invested: 0, maturity: 0, returns: 0, returnsPct: 0 };
 
-    // Calculate combined totals
-    const combinedInvested = stock.invested + gold.invested + silver.invested + mf.invested;
-    const combinedCurrent = stock.current + gold.current + silver.current + mf.current;
+    // Calculate combined totals (FD maturity counts as "current")
+    const combinedInvested = stock.invested + gold.invested + silver.invested + mf.invested + fd.invested;
+    const combinedCurrent = stock.current + gold.current + silver.current + mf.current + fd.maturity;
     const combinedPL = combinedCurrent - combinedInvested;
     const combinedPLPct = combinedInvested ? (combinedPL / combinedInvested * 100) : 0;
 
@@ -75,18 +71,21 @@ class SummaryManager {
     const goldAllocation = combinedInvested ? (gold.invested / combinedInvested * 100) : 0;
     const silverAllocation = combinedInvested ? (silver.invested / combinedInvested * 100) : 0;
     const mfAllocation = combinedInvested ? (mf.invested / combinedInvested * 100) : 0;
+    const fdAllocation = combinedInvested ? (fd.invested / combinedInvested * 100) : 0;
 
     // Update allocation percentages
     this._updateAllocationPercentage('stocks_allocation_pct', stockAllocation);
     this._updateAllocationPercentage('gold_allocation_pct', goldAllocation);
     this._updateAllocationPercentage('silver_allocation_pct', silverAllocation);
     this._updateAllocationPercentage('mf_allocation_pct', mfAllocation);
+    this._updateAllocationPercentage('fd_allocation_pct', fdAllocation);
 
     // Update all cards
     this._updateStockCard(stock);
     this._updateGoldCard(gold);
     this._updateSilverCard(silver);
     this._updateMFCard(mf);
+    this._updateFDCard(fd);
     this._updateCombinedCard({
       invested: combinedInvested,
       current: combinedCurrent,
@@ -115,6 +114,8 @@ class SummaryManager {
           color = '#d4af37'; // gold
         } else if (elementId === 'silver_allocation_pct') {
           color = '#c0c0c0'; // silver
+        } else if (elementId === 'fd_allocation_pct') {
+          color = '#5f9e8a'; // turtle green
         }
         card.style.setProperty('--allocation-color', color);
       }
@@ -159,6 +160,34 @@ class SummaryManager {
       ELEMENT_IDS.MF.PL_PCT,
       totals
     );
+  }
+
+  _updateFDCard(totals) {
+    // Fixed deposits use invested, maturity (instead of current), returns, returnsPct
+    const investedEl = document.getElementById(ELEMENT_IDS.FD.INVESTED);
+    const maturityEl = document.getElementById(ELEMENT_IDS.FD.MATURITY);
+    const plEl = document.getElementById(ELEMENT_IDS.FD.PL);
+    const plPctEl = document.getElementById(ELEMENT_IDS.FD.PL_PCT);
+
+    if (!investedEl || !maturityEl || !plEl || !plPctEl) return;
+
+    const invested = isNaN(totals.invested) ? 0 : totals.invested;
+    const maturity = isNaN(totals.maturity) ? 0 : totals.maturity;
+    const returns = isNaN(totals.returns) ? 0 : totals.returns;
+    const returnsPct = isNaN(totals.returnsPct) ? 0 : totals.returnsPct;
+
+    investedEl.innerText = Formatter.formatCurrencyForSummary(invested);
+    maturityEl.innerText = Formatter.formatCurrencyForSummary(maturity);
+    
+    if (returns < 0) {
+      plEl.innerText = '-' + Formatter.formatCurrencyForSummary(Math.abs(returns));
+    } else {
+      plEl.innerText = Formatter.formatCurrencyForSummary(returns);
+    }
+    plEl.style.color = Formatter.colorPL(returns);
+    
+    plPctEl.innerText = Formatter.formatPercentage(returnsPct);
+    plPctEl.style.color = Formatter.colorPL(returns);
   }
 
   _updateCombinedCard(totals) {

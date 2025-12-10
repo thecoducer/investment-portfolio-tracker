@@ -22,7 +22,7 @@ class GoldPriceService:
     """Service for fetching current gold prices from ibjarates.com"""
     
     BASE_URL = "https://ibjarates.com/"
-    TIMEOUT = 10
+    TIMEOUT = 20
     
     def __init__(self):
         """Initialize the gold price service."""

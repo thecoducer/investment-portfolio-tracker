@@ -59,12 +59,14 @@ class PortfolioApp {
     this.tableRenderer.renderMFTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderSIPsTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderPhysicalGoldTable([]);
+    this.tableRenderer.renderFixedDepositsTable([]);
   }
 
   _isStatusUpdating(status) {
-    // Portfolio page: only check portfolio and physical gold (not Nifty50 background fetch)
+    // Portfolio page: check portfolio, physical gold, and fixed deposits (not Nifty50 background fetch)
     return status.portfolio_state === 'updating' || 
-           status.physical_gold_state === 'updating';
+           status.physical_gold_state === 'updating' ||
+           status.fixed_deposits_state === 'updating';
   }
 
   /**
@@ -112,6 +114,7 @@ class PortfolioApp {
     window.sortStocksTable = (sortBy) => this.handleStocksSort(sortBy);
     window.sortMFTable = (sortBy) => this.handleMFSort(sortBy);
     window.sortPhysicalGoldTable = (sortBy) => this.handlePhysicalGoldSort(sortBy);
+    window.sortFixedDepositsTable = (sortBy) => this.handleFixedDepositsSort(sortBy);
     window.changeStocksPageSize = (size) => {
       this.tableRenderer.changeStocksPageSize(size);
       this.updateData();
@@ -136,6 +139,14 @@ class PortfolioApp {
       this.tableRenderer.goToPhysicalGoldPage(page);
       this.updateData();
     };
+    window.changeFixedDepositsPageSize = (size) => {
+      this.tableRenderer.changeFixedDepositsPageSize(parseInt(size));
+      this.updateData();
+    };
+    window.goToFixedDepositsPage = (page) => {
+      this.tableRenderer.goToFixedDepositsPage(page);
+      this.updateData();
+    };
   }
 
   connectEventSource() {
@@ -155,6 +166,11 @@ class PortfolioApp {
     const physicalGoldIsUpdating = status.physical_gold_state === 'updating';
     const physicalGoldJustCompleted = physicalGoldWasUpdating && !physicalGoldIsUpdating && status.physical_gold_state === 'updated';
     this._physicalGoldWasUpdating = physicalGoldIsUpdating;
+
+    const fixedDepositsWasUpdating = this._fixedDepositsWasUpdating || false;
+    const fixedDepositsIsUpdating = status.fixed_deposits_state === 'updating';
+    const fixedDepositsJustCompleted = fixedDepositsWasUpdating && !fixedDepositsIsUpdating && status.fixed_deposits_state === 'updated';
+    this._fixedDepositsWasUpdating = fixedDepositsIsUpdating;
 
     const sessionValidity = status.session_validity || {};
     const anyAccountInvalid = Object.keys(sessionValidity).length > 0 && 
@@ -190,14 +206,15 @@ class PortfolioApp {
     // 1. First time receiving status with portfolio already updated (initial page load)
     // 2. State changed from 'updating' to 'updated' (normal refresh complete)
     // 3. Login just completed (was waiting, now not waiting)
-    // 4. Physical gold just completed fetching
+    // 4. Physical gold or fixed deposits just completed fetching
     const isFirstStatusUpdate = this._wasUpdating === undefined;
     const portfolioAlreadyUpdated = status.portfolio_state === 'updated' && !isUpdating;
     const justCompletedLogin = this._wasWaitingForLogin && !waitingForLogin && !isUpdating;
     const shouldFetchData = (isFirstStatusUpdate && portfolioAlreadyUpdated) ||
                            (!isUpdating && this._wasUpdating) ||
                            justCompletedLogin ||
-                           physicalGoldJustCompleted;
+                           physicalGoldJustCompleted ||
+                           fixedDepositsJustCompleted;
 
     if (shouldFetchData) {
       this.updateData();
@@ -213,6 +230,12 @@ class PortfolioApp {
       this.sortManager.getPhysicalGoldSortOrder()
     );
     const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
+
+    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+      this.dataManager.getFixedDeposits(),
+      this.sortManager.getFixedDepositsSortOrder()
+    );
+    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
 
     if (hasData) {
       const sortedHoldings = this.sortManager.sortStocks(
@@ -230,7 +253,7 @@ class PortfolioApp {
       
       const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
       
-      this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, isUpdating);
+      this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, isUpdating);
     } else {
       const combinedGoldTotals = this._calculateCombinedGoldTotals(
         { invested: 0, current: 0, pl: 0, plPct: 0 },
@@ -241,6 +264,7 @@ class PortfolioApp {
         combinedGoldTotals,
         { invested: 0, current: 0, pl: 0, plPct: 0 },
         { invested: 0, current: 0, pl: 0, plPct: 0 },
+        fdTotals,
         isUpdating
       );
     }
@@ -263,20 +287,25 @@ class PortfolioApp {
       this.dataManager.getPhysicalGold(),
       this.sortManager.getPhysicalGoldSortOrder()
     );
+    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+      this.dataManager.getFixedDeposits(),
+      this.sortManager.getFixedDepositsSortOrder()
+    );
 
     const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
     const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
     this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
     const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
+    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
     
     const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
     
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, false);
+    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
   }
 
   async updateData() {
     try {
-      const { holdings, mfHoldings, sips, physicalGold, status } = await this.dataManager.fetchAllData();
+      const { holdings, mfHoldings, sips, physicalGold, fixedDeposits, status } = await this.dataManager.fetchAllData();
 
       this._hideLoadingIndicators();
 
@@ -287,6 +316,7 @@ class PortfolioApp {
       this.dataManager.updateMFHoldings(mfHoldings, forceUpdate);
       this.dataManager.updateSIPs(sips, forceUpdate);
       this.dataManager.updatePhysicalGold(physicalGold, forceUpdate);
+      this.dataManager.updateFixedDeposits(fixedDeposits, forceUpdate);
 
       this.tableRenderer.setSearchQuery(searchQuery);
 
@@ -302,16 +332,21 @@ class PortfolioApp {
         this.dataManager.getPhysicalGold(),
         this.sortManager.getPhysicalGoldSortOrder()
       );
+      const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+        this.dataManager.getFixedDeposits(),
+        this.sortManager.getFixedDepositsSortOrder()
+      );
 
       const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
       const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
       const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
+      const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
 
       const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
 
       const isUpdating = this._isStatusUpdating(status);
-      this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, isUpdating);
+      this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, isUpdating);
     } catch (error) {
       console.error('Error updating data:', error);
     }
@@ -332,14 +367,19 @@ class PortfolioApp {
       this.dataManager.getPhysicalGold(),
       this.sortManager.getPhysicalGoldSortOrder()
     );
+    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+      this.dataManager.getFixedDeposits(),
+      this.sortManager.getFixedDepositsSortOrder()
+    );
     
     const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
     const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
     const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
+    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
     
     const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
     
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, false);
+    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
   }
 
   handleMFSort(sortBy) {
@@ -349,7 +389,27 @@ class PortfolioApp {
       this.dataManager.getMFHoldings(),
       this.sortManager.getMFSortOrder()
     );
-    this.tableRenderer.renderMFTable(sortedMFHoldings, status);
+    const sortedHoldings = this.sortManager.sortStocks(
+      this.dataManager.getHoldings(),
+      this.sortManager.getStocksSortOrder()
+    );
+    const sortedPhysicalGold = this.sortManager.sortPhysicalGold(
+      this.dataManager.getPhysicalGold(),
+      this.sortManager.getPhysicalGoldSortOrder()
+    );
+    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+      this.dataManager.getFixedDeposits(),
+      this.sortManager.getFixedDepositsSortOrder()
+    );
+    
+    const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
+    const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
+    const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
+    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
+    
+    const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
+    
+    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
   }
 
   handlePhysicalGoldSort(sortBy) {
@@ -367,14 +427,28 @@ class PortfolioApp {
       this.dataManager.getPhysicalGold(),
       this.sortManager.getPhysicalGoldSortOrder()
     );
+    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+      this.dataManager.getFixedDeposits(),
+      this.sortManager.getFixedDepositsSortOrder()
+    );
     
     const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
     const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
     const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
+    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
     
     const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
     
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, false);
+    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
+  }
+
+  handleFixedDepositsSort(sortBy) {
+    this.sortManager.setFixedDepositsSortOrder(sortBy);
+    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
+      this.dataManager.getFixedDeposits(),
+      this.sortManager.getFixedDepositsSortOrder()
+    );
+    this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
   }
 
   async handleRefresh() {
