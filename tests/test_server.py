@@ -55,16 +55,19 @@ class TestUIServerRoutes(unittest.TestCase):
         with patch('server.state_manager') as mock_state, \
              patch('server.session_manager') as mock_session, \
              patch('server.format_timestamp') as mock_format, \
-             patch('server.is_market_open_ist') as mock_market:
+             patch('server.is_market_open_ist') as mock_market, \
+             patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', []):
             
             # Mock state properties as actual attributes
             type(mock_state).last_error = PropertyMock(return_value=None)
             type(mock_state).portfolio_state = PropertyMock(return_value='updated')
             type(mock_state).nifty50_state = PropertyMock(return_value='updated')
             type(mock_state).physical_gold_state = PropertyMock(return_value='updated')
+            type(mock_state).fixed_deposits_state = PropertyMock(return_value='updated')
             type(mock_state).portfolio_last_updated = PropertyMock(return_value=None)
             type(mock_state).nifty50_last_updated = PropertyMock(return_value=None)
             type(mock_state).physical_gold_last_updated = PropertyMock(return_value=None)
+            type(mock_state).fixed_deposits_last_updated = PropertyMock(return_value=None)
             type(mock_state).waiting_for_login = PropertyMock(return_value=False)
             
             mock_session.get_validity.return_value = {}
@@ -81,7 +84,7 @@ class TestUIServerRoutes(unittest.TestCase):
     
     def test_holdings_data_endpoint(self):
         """Test /holdings_data endpoint"""
-        with patch('server.merged_holdings_global', [
+        with patch.object(__import__('server', fromlist=['cache']).cache, 'holdings', [
             {"tradingsymbol": "INFY", "quantity": 10},
             {"tradingsymbol": "TCS", "quantity": 5}
         ]):
@@ -95,7 +98,7 @@ class TestUIServerRoutes(unittest.TestCase):
     
     def test_mf_holdings_data_endpoint(self):
         """Test /mf_holdings_data endpoint"""
-        with patch('server.merged_mf_holdings_global', [
+        with patch.object(__import__('server', fromlist=['cache']).cache, 'mf_holdings', [
             {"tradingsymbol": "MF2", "fund": "Fund B", "quantity": 100},
             {"tradingsymbol": "MF1", "fund": "Fund A", "quantity": 200}
         ]):
@@ -109,7 +112,7 @@ class TestUIServerRoutes(unittest.TestCase):
     
     def test_sips_data_endpoint(self):
         """Test /sips_data endpoint"""
-        with patch('server.merged_sips_global', [
+        with patch.object(__import__('server', fromlist=['cache']).cache, 'sips', [
             {"tradingsymbol": "SIP2", "status": "inactive"},
             {"tradingsymbol": "SIP1", "status": "active"}
         ]):
@@ -133,7 +136,7 @@ class TestUIServerRoutes(unittest.TestCase):
         with patch('server.fetch_in_progress') as mock_event, \
              patch('server.run_background_fetch') as mock_fetch, \
              patch('server.session_manager.is_valid') as mock_valid, \
-             patch('server.ACCOUNTS_CONFIG', [{"name": "test"}]):
+             patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', [{"name": "test"}]):
             
             mock_event.is_set.return_value = False
             mock_valid.return_value = True
@@ -161,7 +164,7 @@ class TestUIServerRoutes(unittest.TestCase):
         with patch('server.fetch_in_progress') as mock_event, \
              patch('server.run_background_fetch') as mock_fetch, \
              patch('server.session_manager.is_valid') as mock_valid, \
-             patch('server.ACCOUNTS_CONFIG', [{"name": "test"}]):
+             patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', [{"name": "test"}]):
             
             mock_event.is_set.return_value = False
             mock_valid.return_value = False  # Session expired
@@ -187,16 +190,19 @@ class TestSSE(unittest.TestCase):
         with patch('server.state_manager') as mock_state, \
              patch('server.session_manager') as mock_session, \
              patch('server.format_timestamp') as mock_format, \
-             patch('server.is_market_open_ist') as mock_market:
+             patch('server.is_market_open_ist') as mock_market, \
+             patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', []):
             
             # Mock all state properties as actual attributes
             type(mock_state).last_error = PropertyMock(return_value=None)
             type(mock_state).portfolio_state = PropertyMock(return_value='updated')
             type(mock_state).nifty50_state = PropertyMock(return_value='updated')
             type(mock_state).physical_gold_state = PropertyMock(return_value='updated')
+            type(mock_state).fixed_deposits_state = PropertyMock(return_value='updated')
             type(mock_state).portfolio_last_updated = PropertyMock(return_value=None)
             type(mock_state).nifty50_last_updated = PropertyMock(return_value=None)
             type(mock_state).physical_gold_last_updated = PropertyMock(return_value=None)
+            type(mock_state).fixed_deposits_last_updated = PropertyMock(return_value=None)
             type(mock_state).waiting_for_login = PropertyMock(return_value=False)
             
             mock_session.get_validity.return_value = {}
@@ -217,16 +223,19 @@ class TestSSE(unittest.TestCase):
              patch('server.state_manager') as mock_state, \
              patch('server.session_manager') as mock_session, \
              patch('server.format_timestamp') as mock_format, \
-             patch('server.is_market_open_ist') as mock_market:
+             patch('server.is_market_open_ist') as mock_market, \
+             patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', []):
             
             # Mock state using PropertyMock for attributes
             type(mock_state).last_error = PropertyMock(return_value=None)
             type(mock_state).portfolio_state = PropertyMock(return_value='updated')
             type(mock_state).nifty50_state = PropertyMock(return_value='updated')
             type(mock_state).physical_gold_state = PropertyMock(return_value='updated')
+            type(mock_state).fixed_deposits_state = PropertyMock(return_value='updated')
             type(mock_state).portfolio_last_updated = PropertyMock(return_value=None)
             type(mock_state).nifty50_last_updated = PropertyMock(return_value=None)
             type(mock_state).physical_gold_last_updated = PropertyMock(return_value=None)
+            type(mock_state).fixed_deposits_last_updated = PropertyMock(return_value=None)
             type(mock_state).waiting_for_login = PropertyMock(return_value=False)
             
             mock_session.get_validity.return_value = {}
@@ -254,7 +263,6 @@ class TestSSE(unittest.TestCase):
 
 class TestDataFetching(unittest.TestCase):
     """Test data fetching functions"""
-    
     def test_fetch_account_holdings(self):
         """Test fetch_account_holdings function"""
         with patch('server.auth_manager.authenticate') as mock_auth, \
@@ -382,19 +390,19 @@ class TestHelperFunctions(unittest.TestCase):
             self.assertEqual(result_data[2]["name"], "C")
     
     @patch('server.is_market_open_ist')
-    @patch('server.AUTO_REFRESH_OUTSIDE_MARKET_HOURS', False)
     @patch('server.fetch_in_progress')
     def test_should_auto_refresh_market_closed(self, mock_in_progress, mock_market_open):
         """Test _should_auto_refresh when market is closed"""
-        from server import _should_auto_refresh
+        from server import _should_auto_refresh, app_config
         
-        mock_market_open.return_value = False
-        mock_in_progress.is_set.return_value = False
-        
-        should_run, reason = _should_auto_refresh()
-        
-        self.assertFalse(should_run)
-        self.assertIn("market closed", reason)
+        with patch.object(app_config, 'auto_refresh_outside_market_hours', False):
+            mock_market_open.return_value = False
+            mock_in_progress.is_set.return_value = False
+            
+            should_run, reason = _should_auto_refresh()
+            
+            self.assertFalse(should_run)
+            self.assertIn("market closed", reason)
     
     @patch('server.is_market_open_ist')
     @patch('server.fetch_in_progress')
@@ -444,7 +452,7 @@ class TestDataFetchingFunctions(unittest.TestCase):
             None
         )
         
-        with patch('server.ACCOUNTS_CONFIG', [{"name": "test"}]):
+        with patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', [{"name": "test"}]):
             fetch_portfolio_data(force_login=False)
         
         mock_event.set.assert_called_once()
@@ -466,7 +474,7 @@ class TestDataFetchingFunctions(unittest.TestCase):
             "Test error"
         )
         
-        with patch('server.ACCOUNTS_CONFIG', []):
+        with patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', []):
             fetch_portfolio_data(force_login=False)
         
         mock_state.set_portfolio_updated.assert_called_with(error="Test error")
@@ -518,7 +526,7 @@ class TestRefreshConflict(unittest.TestCase):
         with patch('server.fetch_in_progress') as mock_event, \
              patch('server.run_background_fetch') as mock_fetch, \
              patch('server.session_manager.is_valid') as mock_valid, \
-             patch('server.ACCOUNTS_CONFIG', [{"name": "test"}]):
+             patch.object(__import__('server', fromlist=['app_config']).app_config, 'accounts', [{"name": "test"}]):
             
             mock_event.is_set.return_value = False
             mock_valid.return_value = False  # Session expired

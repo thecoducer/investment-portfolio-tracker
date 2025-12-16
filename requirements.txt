@@ -3,6 +3,7 @@ kiteconnect==5.0.1
 requests==2.31.0
 python-dotenv==1.0.0
 cryptography==46.0.0
+beautifulsoup4==4.12.2
 
 # Google Sheets API for Physical Gold tracking
 google-auth==2.23.4

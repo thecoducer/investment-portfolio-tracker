@@ -88,7 +88,7 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
                     maturity_date_str = maturity_date.strftime("%B %d, %Y")
                     deposit_copy['maturity_date'] = maturity_date_str
                     
-                    logger.info(
+                    logger.debug(
                         "Calculated maturity date for %s: %s (Period: %dy %dm %dd)",
                         deposit['bank_name'],
                         maturity_date_str,

@@ -150,23 +150,18 @@ class SessionManager:
 class StateManager:
     """Manages application state with thread safety."""
     
+    # State type names for dynamic attribute access
+    STATE_TYPES = ('portfolio', 'nifty50', 'physical_gold', 'fixed_deposits')
+    
     def __init__(self):
-        self.portfolio_state = None  # None indicates no data fetched yet
-        self.nifty50_state = None  # None indicates no data fetched yet
-        self.physical_gold_state = None  # None indicates no data fetched yet
-        self.fixed_deposits_state = None  # None indicates no data fetched yet
+        # Initialize all state types dynamically
+        for state_type in self.STATE_TYPES:
+            setattr(self, f'{state_type}_state', None)
+            setattr(self, f'{state_type}_last_updated', None)
+        
         self.last_error: str = None
-        self.portfolio_last_updated: float = None
-        self.nifty50_last_updated: float = None
-        self.physical_gold_last_updated: float = None
-        self.fixed_deposits_last_updated: float = None
         self.waiting_for_login = False
         self._change_listeners = []
-    
-    def _set_state(self, state_attr: str, value: str):
-        """Helper to set any state attribute and notify listeners."""
-        setattr(self, state_attr, value)
-        self._notify_change()
     
     def _notify_change(self):
         """Notify all listeners that state has changed."""
@@ -180,99 +175,64 @@ class StateManager:
         """Add a callback to be notified on state changes."""
         self._change_listeners.append(callback)
     
-    def set_portfolio_updating(self, error: str = None):
-        """Set portfolio state to updating and optionally set error."""
-        self._set_state('portfolio_state', STATE_UPDATING)
+    def _set_updating(self, state_type: str, error: str = None):
+        """Generic method to set any state type to updating."""
+        setattr(self, f'{state_type}_state', STATE_UPDATING)
         if error:
             self.last_error = error
+        self._notify_change()
+    
+    def _set_updated(self, state_type: str, error: str = None, clear_global_error: bool = False):
+        """Generic method to mark any state type as updated.
+        
+        Args:
+            state_type: Type of state (portfolio, nifty50, etc.)
+            error: Optional error message. If provided, state is set to ERROR.
+            clear_global_error: If True and no error, clear last_error.
+        """
+        if error:
+            self.last_error = error
+            setattr(self, f'{state_type}_state', STATE_ERROR)
+        else:
+            setattr(self, f'{state_type}_last_updated', time.time())
+            if clear_global_error:
+                self.last_error = None
+            setattr(self, f'{state_type}_state', STATE_UPDATED)
+        self._notify_change()
+    
+    # Portfolio-specific methods (has additional login flag logic)
+    def set_portfolio_updating(self, error: str = None):
+        self._set_updating('portfolio', error)
     
     def set_portfolio_updated(self, error: str = None):
-        """Mark portfolio refresh as complete and update timestamp.
-        
-        Args:
-            error: Optional error message. If provided, state is set to ERROR.
-        """
-        # Clear waiting_for_login flag when fetch completes
         self.waiting_for_login = False
-        
-        if error:
-            self.last_error = error
-            self._set_state('portfolio_state', STATE_ERROR)
-        else:
-            # Update timestamp BEFORE setting state so it's included in the notification
-            self.portfolio_last_updated = time.time()
-            self.last_error = None  # Clear error on successful update
-            self._set_state('portfolio_state', STATE_UPDATED)
-        
+        self._set_updated('portfolio', error, clear_global_error=True)
+    
+    # Generic setters for other state types
     def set_nifty50_updating(self, error: str = None):
-        """Set Nifty50 state to updating and optionally set error."""
-        self._set_state('nifty50_state', STATE_UPDATING)
-        if error:
-            self.last_error = error
+        self._set_updating('nifty50', error)
 
     def set_nifty50_updated(self, error: str = None):
-        """Mark Nifty 50 data as updated and update timestamp.
-        
-        Args:
-            error: Optional error message. If provided, state is set to ERROR.
-        """
-        if error:
-            self.last_error = error
-            self._set_state('nifty50_state', STATE_ERROR)
-        else:
-            # Update timestamp BEFORE setting state so it's included in the notification
-            self.nifty50_last_updated = time.time()
-            # Don't clear last_error here as it might be from portfolio fetch
-            self._set_state('nifty50_state', STATE_UPDATED)
+        self._set_updated('nifty50', error)
     
     def set_physical_gold_updating(self, error: str = None):
-        """Set physical gold state to updating and optionally set error."""
-        self._set_state('physical_gold_state', STATE_UPDATING)
-        if error:
-            self.last_error = error
+        self._set_updating('physical_gold', error)
 
     def set_physical_gold_updated(self, error: str = None):
-        """Mark physical gold data as updated and update timestamp.
-        
-        Args:
-            error: Optional error message. If provided, state is set to ERROR.
-        """
-        if error:
-            self.last_error = error
-            self._set_state('physical_gold_state', STATE_ERROR)
-        else:
-            # Update timestamp BEFORE setting state so it's included in the notification
-            self.physical_gold_last_updated = time.time()
-            # Don't clear last_error here as it might be from other fetches
-            self._set_state('physical_gold_state', STATE_UPDATED)
+        self._set_updated('physical_gold', error)
     
     def set_fixed_deposits_updating(self, error: str = None):
-        """Set fixed deposits state to updating and optionally set error."""
-        self._set_state('fixed_deposits_state', STATE_UPDATING)
-        if error:
-            self.last_error = error
+        self._set_updating('fixed_deposits', error)
 
     def set_fixed_deposits_updated(self, error: str = None):
-        """Mark fixed deposits data as updated and update timestamp.
-        
-        Args:
-            error: Optional error message. If provided, state is set to ERROR.
-        """
-        if error:
-            self.last_error = error
-            self._set_state('fixed_deposits_state', STATE_ERROR)
-        else:
-            # Update timestamp BEFORE setting state so it's included in the notification
-            self.fixed_deposits_last_updated = time.time()
-            # Don't clear last_error here as it might be from other fetches
-            self._set_state('fixed_deposits_state', STATE_UPDATED)
+        self._set_updated('fixed_deposits', error)
     
     def is_any_running(self) -> bool:
         """Check if any operation is currently updating."""
-        return (self.portfolio_state == STATE_UPDATING or 
-                self.nifty50_state == STATE_UPDATING or 
-                self.physical_gold_state == STATE_UPDATING or
-                self.fixed_deposits_state == STATE_UPDATING)
+        return any(
+            getattr(self, f'{st}_state') == STATE_UPDATING 
+            for st in self.STATE_TYPES
+        )
     
     def clear_error(self):
         """Clear the last error message."""
