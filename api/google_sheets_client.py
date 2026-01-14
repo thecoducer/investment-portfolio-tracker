@@ -290,15 +290,15 @@ class FixedDepositsService:
         parse_bool = GoogleSheetsClient.parse_yes_no
         
         deposit = {
-            'deposited_on': row[0] if len(row) > 0 else '',
-            'bank_name': row[1] if len(row) > 1 else '',
-            'deposit_year': parse_num(row[2]) if len(row) > 2 else 0,
-            'deposit_month': parse_num(row[3]) if len(row) > 3 else 0,
-            'deposit_day': parse_num(row[4]) if len(row) > 4 else 0,
-            'maturity_date': row[5] if len(row) > 5 else '',
-            'amount': parse_num(row[6]) if len(row) > 6 else 0,
-            'interest_rate': parse_num(row[7]) if len(row) > 7 else 0,
-            'maturity_amount': parse_num(row[8]) if len(row) > 8 else 0,
+            'original_investment_date': row[0] if len(row) > 0 else '',
+            'reinvested_date': row[1] if len(row) > 1 else '',
+            'bank_name': row[2] if len(row) > 1 else '',
+            'deposit_year': parse_num(row[3]) if len(row) > 2 else 0,
+            'deposit_month': parse_num(row[4]) if len(row) > 3 else 0,
+            'deposit_day': parse_num(row[5]) if len(row) > 4 else 0,
+            'original_amount': parse_num(row[6]) if len(row) > 5 else '',
+            'reinvested_amount': parse_num(row[7]) if len(row) > 6 else 0,
+            'interest_rate': parse_num(row[8]) if len(row) > 7 else 0,
             'redeemed': parse_bool(row[9]) if len(row) > 9 else False,
             'account': row[10] if len(row) > 10 else ''
         }
@@ -306,9 +306,6 @@ class FixedDepositsService:
         # Validate required fields
         if not deposit['bank_name']:
             raise DataError("Missing bank name in fixed deposit row")
-        
-        if deposit['amount'] <= 0:
-            raise DataError(f"Invalid amount for deposit at {deposit['bank_name']}")
         
         if deposit['interest_rate'] <= 0:
             raise DataError(f"Invalid interest rate for deposit at {deposit['bank_name']}")

@@ -1344,11 +1344,13 @@ body.privacy-mode #fixed-deposits-section tbody tr td span {
   color: inherit !important;
 }
 
-/* Blur all columns in Fixed Deposits table except Deposited On (1st), Bank (2nd), and Account (7th) */
-body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(3),  /* Amount */
-body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(4),  /* Interest Rate */
-body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(5),  /* Maturity Date */
-body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(6)   /* Current Value */ {
+/* Blur all columns in Fixed Deposits table except Account (7th) */
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(1),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(2),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(3),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(4),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(5),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(6) {
   filter: blur(6px);
   user-select: none;
 }
@@ -1420,6 +1422,7 @@ body.dark-theme #physicalGoldTable td:nth-child(4) {
 }
 
 /* Privacy mode for physical gold */
+body.privacy-mode #physicalGoldTable tbody tr td:nth-child(1),
 body.privacy-mode #physicalGoldTable tbody tr td:nth-child(5),  /* Weight */
 body.privacy-mode #physicalGoldTable tbody tr td:nth-child(6),  /* IBJA Rate */
 body.privacy-mode #physicalGoldTable tbody tr td:nth-child(7)  /* Latest IBJA Price */ {

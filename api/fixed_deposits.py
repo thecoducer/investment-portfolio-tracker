@@ -55,7 +55,7 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
         deposit_copy = deposit.copy()
         
         # Parse deposit date
-        deposited_on_str = deposit.get('deposited_on', '')
+        deposited_on_str = deposit.get('reinvested_date', '')
         deposit_date = None
         
         if deposited_on_str:
@@ -73,44 +73,41 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
                     except (ValueError, TypeError) as e:
                         logger.warning("Error creating deposit date from year/month/day: %s", e)
         
-        # Calculate or validate maturity date
-        maturity_date_str = deposit_copy.get('maturity_date', '')
-        if not maturity_date_str:
-            # Try to calculate from deposit period
-            if deposit_date and deposit.get('deposit_year', 0) > 0:
-                try:
-                    # Calculate maturity date by adding the deposit period
-                    total_days = int(deposit['deposit_year'] * 365)
-                    total_days += int(deposit.get('deposit_month', 0) * 30)
-                    total_days += int(deposit.get('deposit_day', 0))
-                    
-                    maturity_date = deposit_date + timedelta(days=total_days)
-                    maturity_date_str = maturity_date.strftime("%B %d, %Y")
-                    deposit_copy['maturity_date'] = maturity_date_str
-                    
-                    logger.debug(
-                        "Calculated maturity date for %s: %s (Period: %dy %dm %dd)",
-                        deposit['bank_name'],
-                        maturity_date_str,
-                        int(deposit['deposit_year']),
-                        int(deposit.get('deposit_month', 0)),
-                        int(deposit.get('deposit_day', 0))
-                    )
-                except Exception as e:
-                    logger.error("Error calculating maturity date for %s: %s", deposit['bank_name'], e)
-                    raise DataError(
-                        f"Cannot calculate maturity date for deposit at {deposit['bank_name']}: "
-                        f"deposit period provided but calculation failed"
-                    )
-            else:
-                # Neither maturity date nor valid deposit period provided
-                raise DataError(
-                    f"Missing maturity date for deposit at {deposit['bank_name']}: "
-                    f"provide either maturity date (Till column) or deposit period (Year/Month/Day)"
+        #Calculate maturity date from deposit period
+        if deposit_date and deposit.get('deposit_year', 0) > 0:
+            try:
+                # Calculate maturity date by adding the deposit period
+                total_days = int(deposit['deposit_year'] * 365)
+                total_days += int(deposit.get('deposit_month', 0) * 30)
+                total_days += int(deposit.get('deposit_day', 0))
+                
+                maturity_date = deposit_date + timedelta(days=total_days)
+                maturity_date_str = maturity_date.strftime("%B %d, %Y")
+                deposit_copy['maturity_date'] = maturity_date_str
+                
+                logger.debug(
+                    "Calculated maturity date for %s: %s (Period: %dy %dm %dd)",
+                    deposit['bank_name'],
+                    maturity_date_str,
+                    int(deposit['deposit_year']),
+                    int(deposit.get('deposit_month', 0)),
+                    int(deposit.get('deposit_day', 0))
                 )
+            except Exception as e:
+                logger.error("Error calculating maturity date for %s: %s", deposit['bank_name'], e)
+                raise DataError(
+                    f"Cannot calculate maturity date for deposit at {deposit['bank_name']}: "
+                    f"deposit period provided but calculation failed"
+                )
+        else:
+            # Neither maturity date nor valid deposit period provided
+            raise DataError(
+                f"Missing maturity date for deposit at {deposit['bank_name']}: "
+                f"provide either maturity date (Till column) or deposit period (Year/Month/Day)"
+            )
         
         # Get principal and interest rate
-        principal = deposit.get('amount', 0)
+        principal = deposit.get('reinvested_amount', 0)
         annual_rate = deposit.get('interest_rate', 0)
         
         if deposit_date and principal > 0 and annual_rate > 0:

@@ -591,7 +591,7 @@ class TableRenderer {
     let totalCurrentValue = 0;
     
     deposits.forEach((deposit) => {
-      totalInvested += deposit.amount || 0;
+      totalInvested += deposit.original_amount || 0;
       totalCurrentValue += deposit.current_value || 0;
     });
     
@@ -616,14 +616,17 @@ class TableRenderer {
   }
 
   _buildFixedDepositRow(deposit) {
-    const amount = Formatter.formatCurrency(deposit.amount || 0);
+    const originalAmount = Formatter.formatCurrency(deposit.original_amount || 0);
+    const reinvestedAmount = Formatter.formatCurrency(deposit.reinvested_amount)
     const currentValue = Formatter.formatCurrency(deposit.current_value || 0);
     const interestRate = deposit.interest_rate ? `${deposit.interest_rate.toFixed(2)}%` : '-';
 
     return `<tr>
-      <td>${deposit.deposited_on || '-'}</td>
+      <td>${deposit.original_investment_date || '-'}</td>
+      <td>${deposit.reinvested_date || '-'}</td>
       <td>${deposit.bank_name || '-'}</td>
-      <td>${amount}</td>
+      <td>${originalAmount}</td>
+      <td>${reinvestedAmount}</td>
       <td style="color:#3498db;font-weight:600">${interestRate}</td>
       <td>${deposit.maturity_date || '-'}</td>
       <td>${currentValue}</td>

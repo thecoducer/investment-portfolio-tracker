@@ -417,8 +417,8 @@ def physical_gold_data():
 @app_ui.route("/fixed_deposits_data", methods=["GET"])
 def fixed_deposits_data():
     """Return fixed deposits as JSON with maturity status."""
-    enriched_deposits = calculate_current_value(cache.fixed_deposits)
-    return _create_json_response_no_cache(enriched_deposits, sort_key="deposited_on")
+    # Data is already enriched with maturity dates during fetch
+    return _create_json_response_no_cache(cache.fixed_deposits, sort_key="deposited_on")
 
 
 @app_ui.route("/refresh", methods=["POST"])
@@ -617,7 +617,7 @@ def fetch_fixed_deposits_data() -> None:
         fixed_deposits_config = config.get("features", {}).get("fetch_fixed_deposits_from_google_sheets", {})
         
         spreadsheet_id = fixed_deposits_config.get("spreadsheet_id")
-        range_name = fixed_deposits_config.get("range_name", "FixedDeposits!A:J")
+        range_name = fixed_deposits_config.get("range_name", "FixedDeposits!A2:K")
         
         if not spreadsheet_id:
             state_manager.set_fixed_deposits_updated()
@@ -626,8 +626,9 @@ def fetch_fixed_deposits_data() -> None:
         logger.info("Fetching Fixed Deposits data from Google Sheets...")
         deposits = fixed_deposits_service.fetch_deposits(spreadsheet_id, range_name)
         
-        cache.fixed_deposits = deposits
-        logger.info("Fixed Deposits data updated: %d deposits", len(deposits))
+        # Calculate enriched data (with maturity dates) once and cache it
+        cache.fixed_deposits = calculate_current_value(deposits)
+        logger.info("Fixed Deposits data updated: %d deposits", len(cache.fixed_deposits))
         
     except Exception as e:
         logger.exception("Error fetching Fixed Deposits data: %s", e)
