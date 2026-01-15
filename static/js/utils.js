@@ -88,6 +88,26 @@ class Formatter {
   }
 
   /**
+   * Format LTP/NAV with full precision (no rounding).
+   * @param {number} n - The value to format
+   * @returns {string} Formatted currency with full precision
+   */
+  static formatLTP(n) {
+    try {
+      // Use maximum possible fraction digits to preserve precision
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 20
+      }).format(n);
+    } catch (e) {
+      // Fallback
+      return `₹${Number(n).toString()}`;
+    }
+  }
+
+  /**
    * Format currency for summary cards - respects compact format toggle.
    * @param {number} n
    * @param {number} digits

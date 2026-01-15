@@ -10,6 +10,7 @@ class TableRenderer {
     this.mfPagination = new PaginationManager(25, 1);
     this.physicalGoldPagination = new PaginationManager(10, 1);
     this.fixedDepositsPagination = new PaginationManager(10, 1);
+    this.expandedGroups = new Set(); // Track which groups are expanded
   }
 
   setSearchQuery(query) {
@@ -119,14 +120,19 @@ class TableRenderer {
       }
     });
 
-    // Use pagination manager
-    const paginationData = this.stocksPagination.paginate(filteredHoldings);
+    // Group holdings by symbol
+    const groupedHoldings = this._groupStocksBySymbol(filteredHoldings);
+    const groupedArray = Object.values(groupedHoldings);
+
+    // Use pagination manager on grouped holdings
+    const paginationData = this.stocksPagination.paginate(groupedArray);
     const { pageData } = paginationData;
 
     tbody.innerHTML = '';
-    pageData.forEach(holding => {
-      const metrics = Calculator.calculateStockMetrics(holding);
-      tbody.innerHTML += this._buildStockRow(holding, metrics, {
+    pageData.forEach((group, index) => {
+      const groupId = `stock-group-${index}`;
+      const metrics = this._calculateAggregatedStockMetrics(group.holdings);
+      tbody.innerHTML += this._buildStockRow(group.holdings[0], metrics, {
         symbolClass: this._getUpdateClass(isUpdating),
         qtyClass: this._getUpdateClass(isUpdating),
         avgClass: this._getUpdateClass(isUpdating),
@@ -136,8 +142,19 @@ class TableRenderer {
         dayChangeClass: this._getUpdateClass(isUpdating),
         currentClass: this._getUpdateClass(isUpdating),
         exchangeClass: this._getUpdateClass(isUpdating),
-        accountClass: this._getUpdateClass(isUpdating)
+        accountClass: this._getUpdateClass(isUpdating),
+        groupId: groupId,
+        hasMultipleAccounts: group.holdings.length > 1,
+        isGroupRow: true
       });
+
+      // Add breakdown rows if multiple accounts
+      if (group.holdings.length > 1) {
+        group.holdings.forEach(holding => {
+          const holdingMetrics = Calculator.calculateStockMetrics(holding);
+          tbody.innerHTML += this._buildStockBreakdownRow(holding, holdingMetrics, groupId);
+        });
+      }
     });
 
     // Show/hide table and empty state
@@ -169,6 +186,9 @@ class TableRenderer {
       'goToStocksPage',
       'stocks'
     );
+
+    // Restore expanded state for groups that were previously expanded
+    this._restoreExpandedState();
 
     // Return separate totals for stocks, gold, and silver
     const stockTotals = {
@@ -216,14 +236,19 @@ class TableRenderer {
       mfTotalCurrent += metrics.current;
     });
 
-    // Use pagination manager
-    const paginationData = this.mfPagination.paginate(filteredHoldings);
+    // Group mutual funds by fund name
+    const groupedMF = this._groupMFByFundName(filteredHoldings);
+    const groupedArray = Object.values(groupedMF);
+
+    // Use pagination manager on grouped holdings
+    const paginationData = this.mfPagination.paginate(groupedArray);
     const { pageData } = paginationData;
 
-    pageData.forEach(mf => {
-      const fundName = mf.fund || mf.tradingsymbol;
-      const metrics = Calculator.calculateMFMetrics(mf);
-      tbody.innerHTML += this._buildMFRow(fundName, mf, metrics, {
+    pageData.forEach((group, index) => {
+      const groupId = `mf-group-${index}`;
+      const fundName = group.holdings[0].fund || group.holdings[0].tradingsymbol;
+      const metrics = this._calculateAggregatedMFMetrics(group.holdings);
+      tbody.innerHTML += this._buildMFRow(fundName, group.holdings[0], metrics, {
         fundClass: this._getUpdateClass(isUpdating),
         qtyClass: this._getUpdateClass(isUpdating),
         avgClass: this._getUpdateClass(isUpdating),
@@ -231,8 +256,20 @@ class TableRenderer {
         navClass: this._getUpdateClass(isUpdating),
         currentClass: this._getUpdateClass(isUpdating),
         plClass: this._getUpdateClass(isUpdating),
-        accountClass: this._getUpdateClass(isUpdating)
+        accountClass: this._getUpdateClass(isUpdating),
+        groupId: groupId,
+        hasMultipleAccounts: group.holdings.length > 1,
+        isGroupRow: true
       });
+
+      // Add breakdown rows if multiple accounts
+      if (group.holdings.length > 1) {
+        group.holdings.forEach(mf => {
+          const fundName = mf.fund || mf.tradingsymbol;
+          const holdingMetrics = Calculator.calculateMFMetrics(mf);
+          tbody.innerHTML += this._buildMFBreakdownRow(fundName, mf, holdingMetrics, groupId);
+        });
+      }
     });
 
     // Show/hide table and empty state
@@ -264,6 +301,9 @@ class TableRenderer {
       'goToMFPage',
       'funds'
     );
+
+    // Restore expanded state for groups that were previously expanded
+    this._restoreExpandedState();
 
     return {
       invested: mfTotalInvested,
@@ -337,24 +377,223 @@ class TableRenderer {
 </tr>`;
   }
 
+  /**
+   * Group stocks by symbol
+   */
+  _groupStocksBySymbol(holdings) {
+    const groups = {};
+    holdings.forEach(holding => {
+      const symbol = holding.tradingsymbol || '';
+      if (!groups[symbol]) {
+        groups[symbol] = { holdings: [] };
+      }
+      groups[symbol].holdings.push(holding);
+    });
+    return groups;
+  }
+
+  /**
+   * Group mutual funds by fund name
+   */
+  _groupMFByFundName(holdings) {
+    const groups = {};
+    holdings.forEach(mf => {
+      const fundName = mf.fund || mf.tradingsymbol;
+      if (!groups[fundName]) {
+        groups[fundName] = { holdings: [] };
+      }
+      groups[fundName].holdings.push(mf);
+    });
+    return groups;
+  }
+
+  /**
+   * Track that a group is expanded
+   */
+  markGroupExpanded(groupId) {
+    this.expandedGroups.add(groupId);
+  }
+
+  /**
+   * Track that a group is collapsed
+   */
+  markGroupCollapsed(groupId) {
+    this.expandedGroups.delete(groupId);
+  }
+
+  /**
+   * Restore previously expanded groups
+   */
+  _restoreExpandedState() {
+    this.expandedGroups.forEach(groupId => {
+      const breakdownRows = document.querySelectorAll(`.breakdown-row.${groupId}`);
+      const toggleBtn = document.querySelector(`.expand-toggle[data-group-id="${groupId}"]`);
+      
+      if (breakdownRows.length > 0) {
+        breakdownRows.forEach(row => {
+          row.style.display = 'table-row';
+        });
+        if (toggleBtn) {
+          toggleBtn.classList.add('expanded');
+          toggleBtn.textContent = '▼';
+        }
+      }
+    });
+  }
+
+  /**
+   * Calculate aggregated metrics for a group of stocks
+   */
+  _calculateAggregatedStockMetrics(holdings) {
+    let totalQty = 0;
+    let totalInvested = 0;
+    let totalCurrent = 0;
+    let weightedAvg = 0;
+    let totalDayChange = 0;
+    let ltpValue = 0;
+    let dayChangePerShare = 0;
+
+    holdings.forEach((holding, index) => {
+      const metrics = Calculator.calculateStockMetrics(holding);
+      totalQty += metrics.qty;
+      totalInvested += metrics.invested;
+      totalCurrent += metrics.current;
+      weightedAvg += metrics.avg * metrics.qty;
+      totalDayChange += metrics.dayChange;
+      
+      // Use LTP and day change from first holding (should be same for all accounts)
+      if (index === 0) {
+        ltpValue = metrics.ltp;
+        dayChangePerShare = metrics.dayChange / metrics.qty;
+      }
+    });
+
+    const avgPrice = totalQty > 0 ? weightedAvg / totalQty : 0;
+    const pl = totalCurrent - totalInvested;
+    const plPct = totalInvested > 0 ? ((pl / totalInvested) * 100) : 0;
+    const dayChangePct = ltpValue > 0 ? (dayChangePerShare / ltpValue * 100) : 0;
+
+    return {
+      qty: totalQty,
+      avg: avgPrice,
+      invested: totalInvested,
+      ltp: ltpValue,
+      dayChange: totalDayChange,
+      pl: pl,
+      current: totalCurrent,
+      plPct: plPct,
+      dayChangePct: dayChangePct
+    };
+  }
+
+  /**
+   * Calculate aggregated metrics for a group of mutual funds
+   */
+  _calculateAggregatedMFMetrics(holdings) {
+    let totalQty = 0;
+    let totalInvested = 0;
+    let totalCurrent = 0;
+    let weightedAvg = 0;
+    let navValue = 0;
+
+    holdings.forEach((mf, index) => {
+      const metrics = Calculator.calculateMFMetrics(mf);
+      totalQty += metrics.qty;
+      totalInvested += metrics.invested;
+      totalCurrent += metrics.current;
+      weightedAvg += metrics.avg * metrics.qty;
+      
+      // Use NAV from first holding (should be same for all accounts)
+      if (index === 0) {
+        navValue = metrics.nav;
+      }
+    });
+
+    const avgPrice = totalQty > 0 ? weightedAvg / totalQty : 0;
+    const pl = totalCurrent - totalInvested;
+    const plPct = totalInvested > 0 ? ((pl / totalInvested) * 100) : 0;
+
+    return {
+      qty: totalQty,
+      avg: avgPrice,
+      invested: totalInvested,
+      nav: navValue,
+      current: totalCurrent,
+      pl: pl,
+      plPct: plPct
+    };
+  }
+
   _buildStockRow(holding, metrics, classes) {
     const { qty, avg, invested, ltp, dayChange, pl, current, plPct, dayChangePct } = metrics;
+    const expandBtn = classes.hasMultipleAccounts ? 
+      `<span class="expand-toggle" data-group-id="${classes.groupId}" onclick="toggleGroupExpand(event, '${classes.groupId}')" style="cursor:pointer;margin-right:8px;">▶</span>` : 
+      `<span style="display:inline-block;width:20px;margin-right:8px;"></span>`;
     
-    return `<tr style="background-color:${Formatter.rowColor(pl)}">
-  ${this._buildCell(holding.tradingsymbol, classes.symbolClass)}
+    const symbol = classes.isGroupRow ? holding.tradingsymbol : holding.tradingsymbol;
+    const accountDisplay = classes.hasMultipleAccounts ? 'Both' : (holding.account || '-');
+    
+    return `<tr class="${classes.groupId ? `group-row ${classes.groupId}` : ''}" style="background-color:${Formatter.rowColor(pl)}">
+  ${this._buildCell(expandBtn + symbol, classes.symbolClass)}
   ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
   ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
   ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
   ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
-  ${this._buildCell(Formatter.formatCurrency(ltp), classes.ltpClass)}
+  ${this._buildCell(Formatter.formatLTP(ltp), classes.ltpClass)}
   ${this._buildPLCell(pl, classes.plClass)}
   ${this._buildChangeCell(dayChange, dayChangePct, classes.dayChangeClass)}
   ${this._buildCell(holding.exchange, classes.exchangeClass)}
-  ${this._buildCell(holding.account, classes.accountClass)}
+  ${this._buildCell(accountDisplay, classes.accountClass)}
+  </tr>`;
+  }
+
+  _buildStockBreakdownRow(holding, metrics, groupId) {
+    const { qty, avg, invested, ltp, dayChange, pl, current, plPct, dayChangePct } = metrics;
+    
+    return `<tr class="breakdown-row ${groupId}" style="display:none;background-color:${Formatter.rowColor(pl)};opacity:0.85;">
+  ${this._buildCell(`&nbsp;&nbsp;&nbsp;&nbsp;└ ${holding.account}`, '')}
+  ${this._buildCell(qty.toLocaleString(), '')}
+  ${this._buildCell(Formatter.formatCurrency(avg), '')}
+  ${this._buildCell(Formatter.formatCurrency(invested), '')}
+  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, '')}
+  ${this._buildCell(Formatter.formatLTP(ltp), '')}
+  ${this._buildPLCell(pl, '')}
+  ${this._buildChangeCell(dayChange, dayChangePct, '')}
+  ${this._buildCell(holding.exchange, '')}
+  ${this._buildCell('', '')}
   </tr>`;
   }
 
   _buildMFRow(fundName, mf, metrics, classes) {
+    const { qty, avg, invested, nav, current, pl, plPct } = metrics;
+    
+    const expandBtn = classes.hasMultipleAccounts ? 
+      `<span class="expand-toggle" data-group-id="${classes.groupId}" onclick="toggleGroupExpand(event, '${classes.groupId}')" style="cursor:pointer;margin-right:8px;">▶</span>` : 
+      `<span style="display:inline-block;width:20px;margin-right:8px;"></span>`;
+    
+    const accountDisplay = classes.hasMultipleAccounts ? 'Both' : (mf.account || '-');
+    
+    let navDateText = '';
+    if (mf.last_price_date) {
+      const formattedDate = Formatter.formatRelativeDate(mf.last_price_date, true);
+      if (formattedDate) {
+        navDateText = ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
+      }
+    }
+    
+    return `<tr class="${classes.groupId ? `group-row ${classes.groupId}` : ''}" style="background-color:${Formatter.rowColor(pl)}">
+  ${this._buildCell(expandBtn + fundName, classes.fundClass)}
+  ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
+  ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
+  ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
+  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
+  ${this._buildCell(Formatter.formatLTP(nav) + navDateText, classes.navClass)}
+  ${this._buildPLCell(pl, classes.plClass)}
+  ${this._buildCell(accountDisplay, classes.accountClass)}
+  </tr>`;
+  }
+
+  _buildMFBreakdownRow(fundName, mf, metrics, groupId) {
     const { qty, avg, invested, nav, current, pl, plPct } = metrics;
     
     let navDateText = '';
@@ -365,15 +604,15 @@ class TableRenderer {
       }
     }
     
-    return `<tr style="background-color:${Formatter.rowColor(pl)}">
-  ${this._buildCell(fundName, classes.fundClass)}
-  ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
-  ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
-  ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
-  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
-  ${this._buildCell(Formatter.formatCurrency(nav) + navDateText, classes.navClass)}
-  ${this._buildPLCell(pl, classes.plClass)}
-  ${this._buildCell(mf.account, classes.accountClass)}
+    return `<tr class="breakdown-row ${groupId}" style="display:none;background-color:${Formatter.rowColor(pl)};opacity:0.85;">
+  ${this._buildCell(`&nbsp;&nbsp;&nbsp;&nbsp;└ ${mf.account}`, '')}
+  ${this._buildCell(qty.toLocaleString(), '')}
+  ${this._buildCell(Formatter.formatCurrency(avg), '')}
+  ${this._buildCell(Formatter.formatCurrency(invested), '')}
+  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, '')}
+  ${this._buildCell(Formatter.formatLTP(nav) + navDateText, '')}
+  ${this._buildPLCell(pl, '')}
+  ${this._buildCell('', '')}
   </tr>`;
   }
 

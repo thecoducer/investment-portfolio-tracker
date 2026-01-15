@@ -480,9 +480,37 @@ class PortfolioApp {
   }
 }
 
+// Global function to toggle group expansion
+window.toggleGroupExpand = function(event, groupId) {
+  event.stopPropagation();
+  const toggleBtn = event.target;
+  const breakdownRows = document.querySelectorAll(`.breakdown-row.${groupId}`);
+  const isExpanded = toggleBtn.classList.contains('expanded');
+  
+  // Access the global app instance to track expanded state
+  if (window.portfolioApp && window.portfolioApp.tableRenderer) {
+    if (isExpanded) {
+      breakdownRows.forEach(row => {
+        row.style.display = 'none';
+      });
+      toggleBtn.classList.remove('expanded');
+      toggleBtn.textContent = '▶';
+      window.portfolioApp.tableRenderer.markGroupCollapsed(groupId);
+    } else {
+      breakdownRows.forEach(row => {
+        row.style.display = 'table-row';
+      });
+      toggleBtn.classList.add('expanded');
+      toggleBtn.textContent = '▼';
+      window.portfolioApp.tableRenderer.markGroupExpanded(groupId);
+    }
+  }
+};
+
 // Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
   const app = new PortfolioApp();
+  window.portfolioApp = app; // Expose app globally for toggle function
   app.init();
 });
 

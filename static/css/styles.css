@@ -880,6 +880,45 @@ tbody td:first-child {
   border-left: none;
 }
 
+/* Expandable group rows styling */
+tbody tr.group-row {
+  cursor: pointer;
+}
+
+tbody tr.group-row:hover {
+  background-color: rgba(122, 104, 87, 0.15) !important;
+}
+
+tbody tr.breakdown-row {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+tbody tr.breakdown-row td:first-child {
+  padding-left: 30px;
+  font-style: italic;
+  color: #666;
+}
+
+/* Expand/collapse toggle button */
+.expand-toggle {
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: #7a6857;
+  transition: transform 0.2s ease;
+  user-select: none;
+}
+
+.expand-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.expand-toggle:hover {
+  color: #5d4e42;
+}
+
 /* Change color indicators */
 .positive {
   color: #2ecc71;
