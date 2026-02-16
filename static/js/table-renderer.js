@@ -6,8 +6,8 @@ import PaginationManager from './pagination.js';
 class TableRenderer {
   constructor() {
     this.searchQuery = '';
-    this.stocksPagination = new PaginationManager(25, 1);
-    this.mfPagination = new PaginationManager(25, 1);
+    this.stocksPagination = new PaginationManager(10, 1);
+    this.mfPagination = new PaginationManager(10, 1);
     this.physicalGoldPagination = new PaginationManager(10, 1);
     this.fixedDepositsPagination = new PaginationManager(10, 1);
     this.expandedGroups = new Set(); // Track which groups are expanded
@@ -67,17 +67,16 @@ class TableRenderer {
   }
 
   /**
-   * Build a cell with change value and percentage.
-   * @param {number} changeValue - Change value
+   * Build a cell with change percentage only.
+   * @param {number} changeValue - Change value (used for color determination)
    * @param {number} changePercent - Change percentage
    * @param {string} cssClass - Optional CSS class
    * @returns {string} HTML string
    */
   _buildChangeCell(changeValue, changePercent, cssClass = '') {
     const color = Formatter.colorPL(changeValue);
-    const formattedValue = Formatter.formatCurrency(changeValue);
     const formattedPct = Formatter.formatPercentage(changePercent);
-    return `<td class="${cssClass}"><span style="color:${color};font-weight:600">${formattedValue}</span> <span class="pl_pct_small" style="color:${color}">${formattedPct}</span></td>`;
+    return `<td class="${cssClass}"><span style="color:${color};font-weight:600">${formattedPct}</span></td>`;
   }
 
   renderStocksTable(holdings, status) {
@@ -451,7 +450,7 @@ class TableRenderer {
     let weightedAvg = 0;
     let totalDayChange = 0;
     let ltpValue = 0;
-    let dayChangePerShare = 0;
+    let dayChangePct = 0;
 
     holdings.forEach((holding, index) => {
       const metrics = Calculator.calculateStockMetrics(holding);
@@ -461,17 +460,16 @@ class TableRenderer {
       weightedAvg += metrics.avg * metrics.qty;
       totalDayChange += metrics.dayChange;
       
-      // Use LTP and day change from first holding (should be same for all accounts)
+      // Use LTP and day change percentage from first holding (should be same for all accounts)
       if (index === 0) {
         ltpValue = metrics.ltp;
-        dayChangePerShare = metrics.dayChange / metrics.qty;
+        dayChangePct = metrics.dayChangePct;
       }
     });
 
     const avgPrice = totalQty > 0 ? weightedAvg / totalQty : 0;
     const pl = totalCurrent - totalInvested;
     const plPct = totalInvested > 0 ? ((pl / totalInvested) * 100) : 0;
-    const dayChangePct = ltpValue > 0 ? (dayChangePerShare / ltpValue * 100) : 0;
 
     return {
       qty: totalQty,
@@ -531,7 +529,7 @@ class TableRenderer {
       `<span style="display:inline-block;width:20px;margin-right:8px;"></span>`;
     
     const symbol = classes.isGroupRow ? holding.tradingsymbol : holding.tradingsymbol;
-    const accountDisplay = classes.hasMultipleAccounts ? 'Both' : (holding.account || '-');
+    const accountDisplay = classes.hasMultipleAccounts ? '> 1' : (holding.account || '-');
     
     return `<tr class="${classes.groupId ? `group-row ${classes.groupId}` : ''}" style="background-color:${Formatter.rowColor(pl)}">
   ${this._buildCell(expandBtn + symbol, classes.symbolClass)}
@@ -571,7 +569,7 @@ class TableRenderer {
       `<span class="expand-toggle" data-group-id="${classes.groupId}" onclick="toggleGroupExpand(event, '${classes.groupId}')" style="cursor:pointer;margin-right:8px;">▶</span>` : 
       `<span style="display:inline-block;width:20px;margin-right:8px;"></span>`;
     
-    const accountDisplay = classes.hasMultipleAccounts ? 'Both' : (mf.account || '-');
+    const accountDisplay = classes.hasMultipleAccounts ? '> 1' : (mf.account || '-');
     
     let navDateText = '';
     if (mf.last_price_date) {

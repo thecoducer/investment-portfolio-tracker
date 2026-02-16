@@ -217,7 +217,7 @@ class Calculator {
 
     const current = ltp * qty;
     const { pl, plPct } = this._calculatePL(invested, current);
-    const dayChangePct = ltp ? (dayChange / ltp * 100) : 0;
+    const dayChangePct = holding.day_change_percentage || 0;
 
     return {
       qty,
@@ -286,10 +286,8 @@ class Calculator {
 }
 
 // Constants
-const GOLD_SYMBOLS = ['GOLDBEES'];
-const GOLD_PREFIX = 'SGB';
-const SILVER_SYMBOLS = ['SILVERBEES'];
-const SILVER_PREFIX = 'SILVR';
+const GOLD_PREFIXES = ['SGB', 'GOLD'];
+const SILVER_PREFIXES = ['SILVR', 'SILVER'];
 
 /**
  * Check if a symbol represents a gold instrument
@@ -297,7 +295,7 @@ const SILVER_PREFIX = 'SILVR';
  * @returns {boolean} - True if symbol is a gold instrument
  */
 function isGoldInstrument(symbol) {
-  return GOLD_SYMBOLS.includes(symbol) || symbol.startsWith(GOLD_PREFIX);
+  return GOLD_PREFIXES.some(prefix => symbol.startsWith(prefix));
 }
 
 /**
@@ -306,7 +304,7 @@ function isGoldInstrument(symbol) {
  * @returns {boolean} - True if symbol is a silver instrument
  */
 function isSilverInstrument(symbol) {
-  return SILVER_SYMBOLS.includes(symbol) || symbol.startsWith(SILVER_PREFIX);
+  return SILVER_PREFIXES.some(prefix => symbol.startsWith(prefix));
 }
 
 export { Formatter, Calculator, isGoldInstrument, isSilverInstrument };

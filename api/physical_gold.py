@@ -20,8 +20,8 @@ def enrich_holdings_with_prices(holdings: List[Dict[str, Any]], gold_prices_data
     
     for holding in holdings:
         # Exclude "Jewellery" type
-        if holding.get('type', '').lower() == 'jewellery':
-            continue
+        # if holding.get('type', '').lower() == 'jewellery':
+        #     continue
             
         holding_copy = holding.copy()
         purity = holding.get('purity', '')

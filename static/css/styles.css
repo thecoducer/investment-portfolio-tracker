@@ -878,6 +878,11 @@ tbody tr:last-child td {
 
 tbody td:first-child {
   border-left: none;
+  padding-left: 8px;
+}
+
+tbody tr.group-row td:first-child {
+  padding-left: 4px;
 }
 
 /* Expandable group rows styling */

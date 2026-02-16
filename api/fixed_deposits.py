@@ -54,19 +54,19 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
             
         deposit_copy = deposit.copy()
         
-        # Parse deposit date
-        deposited_on_str = deposit.get('reinvested_date', '')
+        # Parse deposit date: prefer reinvested date, but fall back to original investment date
+        deposit_date_str = deposit.get('reinvested_date') or deposit.get('original_investment_date', '')
         deposit_date = None
-        
-        if deposited_on_str:
+
+        if deposit_date_str:
             try:
-                deposit_date = datetime.strptime(deposited_on_str, "%B %d, %Y")
+                deposit_date = datetime.strptime(deposit_date_str, "%B %d, %Y")
             except (ValueError, TypeError):
                 # Fallback to year/month/day fields if main date parsing fails
                 year = deposit.get('deposit_year')
                 month = deposit.get('deposit_month')
                 day = deposit.get('deposit_day')
-                
+
                 if year and month and day:
                     try:
                         deposit_date = datetime(int(year), int(month), int(day))
@@ -107,7 +107,7 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
             )
         
         # Get principal and interest rate
-        principal = deposit.get('reinvested_amount', 0)
+        principal = deposit.get('reinvested_amount', 0) or deposit.get('original_amount', '')
         annual_rate = deposit.get('interest_rate', 0)
         
         if deposit_date and principal > 0 and annual_rate > 0:
