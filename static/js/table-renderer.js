@@ -10,6 +10,7 @@ class TableRenderer {
     this.mfPagination = new PaginationManager(10, 1);
     this.physicalGoldPagination = new PaginationManager(10, 1);
     this.fixedDepositsPagination = new PaginationManager(10, 1);
+    this.fdSummaryPagination = new PaginationManager(10, 1);
     this.expandedGroups = new Set(); // Track which groups are expanded
   }
 
@@ -757,7 +758,7 @@ class TableRenderer {
     }
 
     return `<tr style="background-color:${Formatter.rowColor(pl)}">
-      <td>${holding.date || '-'}</td>
+      <td>${Formatter.formatShortDate(holding.date)}</td>
       <td>${holding.type || '-'}</td>
       <td>${holding.retail_outlet || '-'}</td>
       <td style="font-weight:600;color:#d4af37">${holding.purity || '-'}</td>
@@ -835,14 +836,36 @@ class TableRenderer {
     const totalReturns = totalCurrentValue - totalInvested;
     const returnsPct = totalInvested > 0 ? (totalReturns / totalInvested * 100) : 0;
 
-    const paginationData = this.fixedDepositsPagination.paginate(deposits);
+    // Group fixed deposits by Maturity Date, ROI, and Bank (in that order)
+    const groupedDeposits = this._groupFixedDepositsByMaturityROIBank(deposits);
+    const groupedArray = Object.values(groupedDeposits);
+
+    // Use pagination manager on grouped deposits
+    const paginationData = this.fixedDepositsPagination.paginate(groupedArray);
     const { pageData } = paginationData;
 
-    pageData.forEach((deposit) => {
-      tbody.innerHTML += this._buildFixedDepositRow(deposit);
+    pageData.forEach((group, index) => {
+      const groupId = `fd-group-${index}`;
+      const metrics = this._calculateAggregatedFixedDepositMetrics(group.holdings);
+      tbody.innerHTML += this._buildFixedDepositRow(group.holdings[0], metrics, {
+        groupId: groupId,
+        hasMultipleAccounts: group.holdings.length > 1,
+        isGroupRow: true
+      });
+
+      // Add breakdown rows if multiple accounts
+      if (group.holdings.length > 1) {
+        group.holdings.forEach(deposit => {
+          const depositMetrics = this._calculateFixedDepositMetrics(deposit);
+          tbody.innerHTML += this._buildFixedDepositBreakdownRow(deposit, depositMetrics, groupId);
+        });
+      }
     });
 
     this._renderFixedDepositsPagination(paginationData);
+    
+    // Restore expanded state for groups that were previously expanded
+    this._restoreExpandedState();
     
     return {
       invested: totalInvested,
@@ -852,21 +875,120 @@ class TableRenderer {
     };
   }
 
-  _buildFixedDepositRow(deposit) {
-    const originalAmount = Formatter.formatCurrency(deposit.original_amount || 0);
-    const reinvestedAmount = Formatter.formatCurrency(deposit.reinvested_amount)
-    const currentValue = Formatter.formatCurrency(deposit.current_value || 0);
-    const interestRate = deposit.interest_rate ? `${deposit.interest_rate.toFixed(2)}%` : '-';
+  /**
+   * Group fixed deposits by Maturity Date, ROI (Interest Rate), and Bank
+   */
+  _groupFixedDepositsByMaturityROIBank(deposits) {
+    const groups = {};
+    deposits.forEach(deposit => {
+      const maturityDate = deposit.maturity_date || '';
+      const roi = deposit.interest_rate ? deposit.interest_rate.toFixed(2) : '0.00';
+      const bank = deposit.bank_name || '';
+      const groupKey = `${maturityDate}|${roi}|${bank}`;
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = { holdings: [] };
+      }
+      groups[groupKey].holdings.push(deposit);
+    });
+    return groups;
+  }
 
-    return `<tr>
-      <td>${deposit.original_investment_date || '-'}</td>
-      <td>${deposit.reinvested_date || '-'}</td>
+  /**
+   * Calculate metrics for a single fixed deposit
+   */
+  _calculateFixedDepositMetrics(deposit) {
+    const originalAmount = deposit.original_amount || 0;
+    const currentValue = deposit.current_value || 0;
+    const pl = currentValue - originalAmount;
+    const plPct = originalAmount > 0 ? (pl / originalAmount * 100) : 0;
+    
+    return {
+      originalAmount: originalAmount,
+      reinvestedAmount: deposit.reinvested_amount || 0,
+      interestRate: deposit.interest_rate || 0,
+      currentValue: currentValue,
+      pl: pl,
+      plPct: plPct
+    };
+  }
+
+  /**
+   * Calculate aggregated metrics for a group of fixed deposits
+   */
+  _calculateAggregatedFixedDepositMetrics(holdings) {
+    let totalOriginalAmount = 0;
+    let totalReinvestedAmount = 0;
+    let totalCurrentValue = 0;
+    let interestRate = 0;
+
+    holdings.forEach((deposit, index) => {
+      totalOriginalAmount += deposit.original_amount || 0;
+      totalReinvestedAmount += deposit.reinvested_amount || 0;
+      totalCurrentValue += deposit.current_value || 0;
+      
+      // Use interest rate from first deposit (should be same for all in group)
+      if (index === 0) {
+        interestRate = deposit.interest_rate || 0;
+      }
+    });
+
+    const pl = totalCurrentValue - totalOriginalAmount;
+    const plPct = totalOriginalAmount > 0 ? (pl / totalOriginalAmount * 100) : 0;
+
+    return {
+      originalAmount: totalOriginalAmount,
+      reinvestedAmount: totalReinvestedAmount,
+      interestRate: interestRate,
+      currentValue: totalCurrentValue,
+      pl: pl,
+      plPct: plPct
+    };
+  }
+
+  _buildFixedDepositRow(deposit, metrics, classes) {
+    const { originalAmount, reinvestedAmount, interestRate, currentValue, pl } = metrics;
+    const accountDisplay = classes.hasMultipleAccounts ? '> 1' : (deposit.account || '-');
+    
+    const expandBtn = classes.hasMultipleAccounts ? 
+      `<span class="expand-toggle" data-group-id="${classes.groupId}" onclick="toggleGroupExpand(event, '${classes.groupId}')" style="cursor:pointer;margin-right:8px;">▶</span>` : 
+      `<span style="display:inline-block;width:20px;margin-right:8px;"></span>`;
+    
+    const reinvestedDisplay = (reinvestedAmount && Number(reinvestedAmount) > 0)
+      ? Formatter.formatCurrency(reinvestedAmount)
+      : '-';
+    const interestRateDisplay = interestRate ? `${interestRate.toFixed(2)}%` : '-';
+
+    return `<tr class="${classes.groupId ? `group-row ${classes.groupId}` : ''}">
+      <td>${expandBtn}${Formatter.formatShortDate(deposit.original_investment_date)}</td>
+      <td>${Formatter.formatShortDate(deposit.reinvested_date)}</td>
       <td>${deposit.bank_name || '-'}</td>
-      <td>${originalAmount}</td>
-      <td>${reinvestedAmount}</td>
-      <td style="color:#3498db;font-weight:600">${interestRate}</td>
-      <td>${deposit.maturity_date || '-'}</td>
-      <td>${currentValue}</td>
+      <td>${Formatter.formatCurrency(originalAmount)}</td>
+      <td>${reinvestedDisplay}</td>
+      <td style="color:#3498db;font-weight:600">${interestRateDisplay}</td>
+      <td>${Formatter.formatShortDate(deposit.maturity_date)}</td>
+      <td>${Formatter.formatCurrency(currentValue)}</td>
+      <td>${accountDisplay}</td>
+    </tr>`;
+  }
+
+  _buildFixedDepositBreakdownRow(deposit, metrics, groupId) {
+    const { originalAmount, reinvestedAmount, interestRate, currentValue, pl } = metrics;
+    
+    const reinvestedDisplay = (reinvestedAmount && Number(reinvestedAmount) > 0)
+      ? Formatter.formatCurrency(reinvestedAmount)
+      : '-';
+    const interestRateDisplay = interestRate ? `${interestRate.toFixed(2)}%` : '-';
+
+    return `<tr class="breakdown-row ${groupId}" style="display:none;">
+      <td>&nbsp;&nbsp;&nbsp;&nbsp;└ ${Formatter.formatShortDate(deposit.original_investment_date)}</td>
+      <td>${Formatter.formatShortDate(deposit.reinvested_date)}</td>
+      <td>${deposit.bank_name || '-'}</td>
+      <td>${Formatter.formatCurrency(originalAmount)}</td>
+      <td>${reinvestedDisplay}</td>
+      <td style="color:#3498db;font-weight:600">${interestRateDisplay}</td>
+      <td>${Formatter.formatShortDate(deposit.maturity_date)}</td>
+      <td>${Formatter.formatCurrency(currentValue)}</td>
       <td>${deposit.account || '-'}</td>
     </tr>`;
   }
@@ -892,6 +1014,121 @@ class TableRenderer {
 
   goToFixedDepositsPage(page) {
     this.fixedDepositsPagination.goToPage(page);
+  }
+
+  /**
+   * Render fixed deposits summary table grouped by bank and account
+   * @param {Array} summaryArray - Pre-computed summary data from renderFixedDepositsTable
+   */
+  renderFDSummaryTable(summaryArray) {
+    const tbody = document.getElementById('fd_summary_table_body');
+    const section = document.getElementById('fd-summary-section');
+    
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    const table = section ? section.querySelector('table') : null;
+    const emptyState = document.getElementById('fd_summary_empty_state');
+    const controlsContainer = section ? section.querySelector('.controls-container') : null;
+    const paginationInfo = document.getElementById('fd_summary_pagination_info');
+    const paginationButtons = document.getElementById('fd_summary_pagination_buttons');
+
+    if (!summaryArray || summaryArray.length === 0) {
+      if (table) table.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'block';
+      if (controlsContainer) controlsContainer.style.display = 'none';
+      if (paginationInfo) paginationInfo.style.display = 'none';
+      if (paginationButtons) paginationButtons.style.display = 'none';
+      return;
+    }
+
+    // Use pagination manager on pre-computed summary data
+    const paginationData = this.fdSummaryPagination.paginate(summaryArray);
+    const { pageData } = paginationData;
+
+    pageData.forEach((summary) => {
+      tbody.innerHTML += this._buildFDSummaryRow(summary);
+    });
+
+    if (table) table.style.display = 'table';
+    if (emptyState) emptyState.style.display = 'none';
+    if (controlsContainer) controlsContainer.style.display = 'flex';
+    if (paginationInfo) paginationInfo.style.display = 'block';
+    if (paginationButtons) paginationButtons.style.display = 'flex';
+
+    PaginationManager.updatePaginationUI(
+      paginationData,
+      'fd_summary_pagination_info',
+      'fd_summary_pagination_buttons',
+      'goToFDSummaryPage',
+      'summaries'
+    );
+  }
+
+  /**
+   * Group fixed deposits by bank and account name
+   */
+  _groupFDByBankAndAccount(deposits) {
+    const groups = {};
+    deposits.forEach(deposit => {
+      const bank = deposit.bank_name || 'Unknown';
+      const account = deposit.account || 'Unknown';
+      const groupKey = `${bank}|${account}`;
+      
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          bank: bank,
+          account: account,
+          totalDeposited: 0,
+          totalCurrentValue: 0,
+          totalReturns: 0
+        };
+      }
+      
+      groups[groupKey].totalDeposited += deposit.original_amount || 0;
+      groups[groupKey].totalCurrentValue += deposit.current_value || 0;
+    });
+
+    // Calculate returns for each group
+    Object.values(groups).forEach(group => {
+      group.totalReturns = group.totalCurrentValue - group.totalDeposited;
+    });
+
+    return groups;
+  }
+
+  /**
+   * Check if bank+account total is >= 5 Lakhs
+   */
+  _isFDSummaryHighValue(totalCurrentValue) {
+    return totalCurrentValue >= 500000; // 5 Lakhs
+  }
+
+  _buildFDSummaryRow(summary) {
+    const { bank, account, totalDeposited, totalCurrentValue, totalReturns } = summary;
+    const isHighValue = this._isFDSummaryHighValue(totalCurrentValue);
+    const currentValueColor = isHighValue ? 'rgba(218, 165, 32, 1)' : 'inherit'; // Gold text color
+    const currentValueFontWeight = isHighValue ? '600' : 'normal'; // Bold when >5L
+    const returnColor = Formatter.colorPL(totalReturns);
+    const returnsPct = totalDeposited > 0 ? (totalReturns / totalDeposited * 100) : 0;
+    const returnsPctText = Formatter.formatPercentage(returnsPct);
+
+    return `<tr>
+      <td>${bank}</td>
+      <td>${account}</td>
+      <td>${Formatter.formatCurrency(totalDeposited)}</td>
+      <td><span style="color:${currentValueColor};font-weight:${currentValueFontWeight}">${Formatter.formatCurrency(totalCurrentValue)}</span></td>
+      <td><span style="color:${returnColor};font-weight:600">${Formatter.formatCurrency(totalReturns)} <span class="pl_pct_small" style="color:${returnColor}">${returnsPctText}</span></span></td>
+    </tr>`;
+  }
+
+  changeFDSummaryPageSize(size) {
+    this.fdSummaryPagination.changePageSize(size);
+  }
+
+  goToFDSummaryPage(page) {
+    this.fdSummaryPagination.goToPage(page);
   }
 
 }

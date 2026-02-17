@@ -317,6 +317,58 @@
 </div>
 {% endif %}
 
+<!-- Fixed Deposits Summary by Bank+Account -->
+{% if fixed_deposits_enabled %}
+<div class="section-wrapper" id="fd-summary-section">
+<div class="section-header">
+<h2>Fixed Deposits Summary</h2>
+<div class="controls-container">
+<div class="sort-controls">
+<span class="sort-icon">⇅</span>
+<select id="fd_summary_sort" onchange="window.sortFDSummaryTable(this.value)">
+<option value="default">Default Order</option>
+<option value="bank_asc">🏦 Bank (A-Z)</option>
+<option value="bank_desc">🏦 Bank (Z-A)</option>
+<option value="account_asc">👤 Account (A-Z)</option>
+<option value="account_desc">👤 Account (Z-A)</option>
+<option value="deposited_desc">💰 Total Deposited (High to Low)</option>
+<option value="deposited_asc">💰 Total Deposited (Low to High)</option>
+<option value="current_desc">💵 Total Current (High to Low)</option>
+<option value="current_asc">💵 Total Current (Low to High)</option>
+<option value="returns_desc">📈 Returns (High to Low)</option>
+<option value="returns_asc">📉 Returns (Low to High)</option>
+</select>
+</div>
+<div class="pagination-controls">
+<label for="fd_summary_page_size">Show:</label>
+<select id="fd_summary_page_size" onchange="window.changeFDSummaryPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="fdSummaryTable" aria-label="Fixed Deposits Summary table">
+<thead>
+<tr>
+<th>Bank</th>
+<th>Account</th>
+<th>Total Deposited</th>
+<th>Total Current Value</th>
+<th>Total Returns</th>
+</tr>
+</thead>
+<tbody id="fd_summary_table_body">
+</tbody>
+</table>
+<div class="empty-state-message" id="fd_summary_empty_state" style="display:none;">No fixed deposits summary available</div>
+<div class="pagination-info" id="fd_summary_pagination_info"></div>
+<div class="pagination-buttons" id="fd_summary_pagination_buttons"></div>
+</div>
+{% endif %}
+
 <div class="section-wrapper" id="sips-section">
 <div class="section-header">
 <h2>Active SIPs</h2>

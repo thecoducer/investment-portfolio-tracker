@@ -8,6 +8,7 @@ class SortManager {
     this.mfSortOrder = 'default';
     this.physicalGoldSortOrder = 'default';
     this.fixedDepositsSortOrder = 'default';
+    this.fdSummarySortOrder = 'default';
   }
 
   /**
@@ -207,6 +208,41 @@ class SortManager {
 
   getFixedDepositsSortOrder() {
     return this.fixedDepositsSortOrder;
+  }
+
+  /**
+   * Sort FD summary data
+   */
+  sortFDSummary(summaries, sortBy = 'default') {
+    const sorted = [...summaries];
+
+    if (sortBy === 'default') {
+      return sorted;
+    }
+
+    const comparators = {
+      'bank_asc': this._stringComparator(s => s.bank, false),
+      'bank_desc': this._stringComparator(s => s.bank, true),
+      'account_asc': this._stringComparator(s => s.account, false),
+      'account_desc': this._stringComparator(s => s.account, true),
+      'deposited_desc': this._numericComparator(s => s.totalDeposited, true),
+      'deposited_asc': this._numericComparator(s => s.totalDeposited, false),
+      'current_desc': this._numericComparator(s => s.totalCurrentValue, true),
+      'current_asc': this._numericComparator(s => s.totalCurrentValue, false),
+      'returns_desc': this._numericComparator(s => s.totalReturns, true),
+      'returns_asc': this._numericComparator(s => s.totalReturns, false)
+    };
+
+    const comparator = comparators[sortBy];
+    return comparator ? sorted.sort(comparator) : summaries;
+  }
+
+  setFDSummarySortOrder(sortBy) {
+    this.fdSummarySortOrder = sortBy;
+  }
+
+  getFDSummarySortOrder() {
+    return this.fdSummarySortOrder;
   }
 }
 

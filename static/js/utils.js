@@ -149,6 +149,29 @@ class Formatter {
   }
 
   /**
+   * Format a date string to short format: "MMM DD, YY" (e.g., "Feb 20, 26")
+   * @param {string} dateStr - Date string to format
+   * @returns {string} Formatted short date string
+   */
+  static formatShortDate(dateStr) {
+    if (!dateStr) return '-';
+    
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '-';
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const month = months[date.getMonth()];
+      const day = date.getDate();
+      const year = date.getFullYear().toString().slice(-2);
+      
+      return `${day} ${month} ${year}`;
+    } catch (e) {
+      return '-';
+    }
+  }
+
+  /**
    * Format a date string to relative format (today, yesterday, X days ago, or date)
    * @param {string} dateStr - Date string to format
    * @param {boolean} isPastDate - If true, shows "X days ago", if false shows "In X days"

@@ -142,6 +142,7 @@ class PortfolioCache:
     nifty50: List[Dict[str, Any]] = None
     physical_gold: List[Dict[str, Any]] = None
     fixed_deposits: List[Dict[str, Any]] = None
+    fd_summary: List[Dict[str, Any]] = None  # Pre-computed FD summary by bank+account
     gold_prices: Dict[str, Dict[str, float]] = None
     gold_prices_last_fetch: Optional[datetime] = None
     
@@ -153,6 +154,7 @@ class PortfolioCache:
         self.nifty50 = self.nifty50 or []
         self.physical_gold = self.physical_gold or []
         self.fixed_deposits = self.fixed_deposits or []
+        self.fd_summary = self.fd_summary or []
         self.gold_prices = self.gold_prices or {}
 
 
@@ -382,6 +384,44 @@ def _create_json_response_no_cache(data: List[Dict[str, Any]], sort_key: Optiona
     return response
 
 
+def _compute_fd_summary(deposits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Compute FD summary grouped by bank and account.
+    
+    Args:
+        deposits: List of fixed deposit records.
+    
+    Returns:
+        List of summary dictionaries with bank, account, and aggregated amounts.
+    """
+    if not deposits:
+        return []
+    
+    # Group by bank and account
+    groups = {}
+    for deposit in deposits:
+        bank = deposit.get('bank_name', 'Unknown')
+        account = deposit.get('account', 'Unknown')
+        group_key = f"{bank}|{account}"
+        
+        if group_key not in groups:
+            groups[group_key] = {
+                'bank': bank,
+                'account': account,
+                'totalDeposited': 0,
+                'totalCurrentValue': 0,
+                'totalReturns': 0
+            }
+        
+        groups[group_key]['totalDeposited'] += deposit.get('original_amount', 0)
+        groups[group_key]['totalCurrentValue'] += deposit.get('current_value', 0)
+    
+    # Calculate returns for each group
+    for group in groups.values():
+        group['totalReturns'] = group['totalCurrentValue'] - group['totalDeposited']
+    
+    return list(groups.values())
+
+
 @app_ui.route("/holdings_data", methods=["GET"])
 def holdings_data():
     """Return stock holdings as JSON."""
@@ -419,6 +459,12 @@ def fixed_deposits_data():
     """Return fixed deposits as JSON with maturity status."""
     # Data is already enriched with maturity dates during fetch
     return _create_json_response_no_cache(cache.fixed_deposits, sort_key="deposited_on")
+
+
+@app_ui.route("/fd_summary_data", methods=["GET"])
+def fd_summary_data():
+    """Return pre-computed FD summary grouped by bank and account."""
+    return _create_json_response_no_cache(cache.fd_summary)
 
 
 @app_ui.route("/refresh", methods=["POST"])
@@ -628,7 +674,12 @@ def fetch_fixed_deposits_data() -> None:
         
         # Calculate enriched data (with maturity dates) once and cache it
         cache.fixed_deposits = calculate_current_value(deposits)
-        logger.info("Fixed Deposits data updated: %d deposits", len(cache.fixed_deposits))
+        
+        # Compute and cache FD summary (grouped by bank and account)
+        cache.fd_summary = _compute_fd_summary(cache.fixed_deposits)
+        
+        logger.info("Fixed Deposits data updated: %d deposits, %d summary groups", 
+                   len(cache.fixed_deposits), len(cache.fd_summary))
         
     except Exception as e:
         logger.exception("Error fetching Fixed Deposits data: %s", e)

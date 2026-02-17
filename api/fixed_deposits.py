@@ -107,7 +107,7 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
             )
         
         # Get principal and interest rate
-        principal = deposit.get('reinvested_amount', 0) or deposit.get('original_amount', '')
+        principal = deposit.get('reinvested_amount', 0) or deposit.get('original_amount', 0)
         annual_rate = deposit.get('interest_rate', 0)
         
         if deposit_date and principal > 0 and annual_rate > 0:

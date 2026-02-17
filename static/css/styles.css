@@ -1331,6 +1331,12 @@ body.privacy-mode .sip-total-value {
   will-change: filter;
 }
 
+/* Blur Account column (10th) in Stocks table */
+body.privacy-mode #stocks-section tbody tr td:nth-child(10) {
+  filter: blur(6px);
+  user-select: none;
+}
+
 /* Don't blur Latest IBJA Price/gm column (7th) in physical gold table */
 body.privacy-mode #physical-gold-section tbody tr td:nth-child(7) {
   filter: none !important;
@@ -1388,13 +1394,26 @@ body.privacy-mode #fixed-deposits-section tbody tr td span {
   color: inherit !important;
 }
 
-/* Blur all columns in Fixed Deposits table except Account (7th) */
+/* Blur all columns in Fixed Deposits table except Account (9th) */
 body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(1),
 body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(2),
 body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(3),
 body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(4),
 body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(5),
-body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(6) {
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(6),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(7),
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(8) {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* Blur Account column in Fixed Deposits table (9th column) */
+body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(9) {
+  filter: blur(6px);
+  user-select: none;
+}
+
+body.privacy-mode #fd-summary-section tbody tr td:nth-child(1) {
   filter: blur(6px);
   user-select: none;
 }

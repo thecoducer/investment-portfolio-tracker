@@ -7,6 +7,7 @@ import SortManager from './sort-manager.js';
 import ThemeManager from './theme-manager.js';
 import PrivacyManager from './visibility-manager.js';
 import SSEConnectionManager from './sse-manager.js';
+import PaginationManager from './pagination.js';
 import { Formatter, Calculator } from './utils.js';
 
 class PortfolioApp {
@@ -60,6 +61,7 @@ class PortfolioApp {
     this.tableRenderer.renderSIPsTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderPhysicalGoldTable([]);
     this.tableRenderer.renderFixedDepositsTable([]);
+    this.tableRenderer.renderFDSummaryTable([]);
   }
 
   _isStatusUpdating(status) {
@@ -145,6 +147,15 @@ class PortfolioApp {
     };
     window.goToFixedDepositsPage = (page) => {
       this.tableRenderer.goToFixedDepositsPage(page);
+      this.updateData();
+    };
+    window.sortFDSummaryTable = (sortBy) => this.handleFDSummarySort(sortBy);
+    window.changeFDSummaryPageSize = (size) => {
+      this.tableRenderer.changeFDSummaryPageSize(parseInt(size));
+      this.updateData();
+    };
+    window.goToFDSummaryPage = (page) => {
+      this.tableRenderer.goToFDSummaryPage(page);
       this.updateData();
     };
   }
@@ -305,7 +316,7 @@ class PortfolioApp {
 
   async updateData() {
     try {
-      const { holdings, mfHoldings, sips, physicalGold, fixedDeposits, status } = await this.dataManager.fetchAllData();
+      const { holdings, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status } = await this.dataManager.fetchAllData();
 
       this._hideLoadingIndicators();
 
@@ -317,6 +328,7 @@ class PortfolioApp {
       this.dataManager.updateSIPs(sips, forceUpdate);
       this.dataManager.updatePhysicalGold(physicalGold, forceUpdate);
       this.dataManager.updateFixedDeposits(fixedDeposits, forceUpdate);
+      this.dataManager.updateFDSummary(fdSummary, forceUpdate);
 
       this.tableRenderer.setSearchQuery(searchQuery);
 
@@ -342,6 +354,12 @@ class PortfolioApp {
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
       const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
       const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
+      
+      // Render FD summary with server-provided data
+      const fdSummaryData = this.dataManager.getFDSummary();
+      if (fdSummaryData && fdSummaryData.length > 0) {
+        this.tableRenderer.renderFDSummaryTable(fdSummaryData);
+      }
 
       const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
 
@@ -449,6 +467,38 @@ class PortfolioApp {
       this.sortManager.getFixedDepositsSortOrder()
     );
     this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
+    this.tableRenderer.renderFDSummaryTable(sortedFixedDeposits);
+  }
+
+  handleFDSummarySort(sortBy) {
+    this.sortManager.setFDSummarySortOrder(sortBy);
+    const fixedDeposits = this.dataManager.getFixedDeposits();
+    const tbody = document.getElementById('fd_summary_table_body');
+    if (!tbody) return;
+
+    // Get current summary data from table
+    const groupedData = this.tableRenderer._groupFDByBankAndAccount(fixedDeposits);
+    const summaryArray = Object.values(groupedData);
+    
+    // Sort and re-render
+    const sortedSummary = this.sortManager.sortFDSummary(summaryArray, sortBy);
+    
+    // Update pagination and re-render
+    this.tableRenderer.fdSummaryPagination.reset();
+    const paginationData = this.tableRenderer.fdSummaryPagination.paginate(sortedSummary);
+    
+    tbody.innerHTML = '';
+    paginationData.pageData.forEach((summary) => {
+      tbody.innerHTML += this.tableRenderer._buildFDSummaryRow(summary);
+    });
+
+    PaginationManager.updatePaginationUI(
+      paginationData,
+      'fd_summary_pagination_info',
+      'fd_summary_pagination_buttons',
+      'goToFDSummaryPage',
+      'summaries'
+    );
   }
 
   async handleRefresh() {
