@@ -172,17 +172,18 @@ def retry_on_transient_error(
                     
                     # Don't retry on permanent errors (4xx HTTP errors)
                     if isinstance(e, APIError) and e.status_code and 400 <= e.status_code < 500:
-                        logger.warning(f"{func.__name__} failed with permanent error (HTTP {e.status_code})")
+                        logger.warning("%s failed with permanent error (HTTP %d)", func.__name__, e.status_code)
                         raise
                     
                     if attempt < max_retries:
                         logger.warning(
-                            f"{func.__name__} failed (attempt {attempt + 1}/{max_retries + 1}): {e} - retrying in {current_delay}s..."
+                            "%s failed (attempt %d/%d): %s - retrying in %ss...",
+                            func.__name__, attempt + 1, max_retries + 1, e, current_delay
                         )
                         time.sleep(current_delay)
                         current_delay *= backoff
                     else:
-                        logger.error(f"{func.__name__} failed after {max_retries + 1} attempts")
+                        logger.error("%s failed after %d attempts", func.__name__, max_retries + 1)
                         raise
             
             # Should not reach here, but just in case
@@ -231,7 +232,7 @@ def handle_errors(
                     instance = args[0]  # Assume first arg is self
                     cached_value = getattr(instance, cache_attr, None)
                     if cached_value is not None:
-                        logger.info(f"Returning cached value for {func.__name__}")
+                        logger.info("Returning cached value for %s", func.__name__)
                         return cached_value
                 
                 return default_return

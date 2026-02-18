@@ -28,7 +28,4 @@ class BaseDataService:
         Returns:
             Merged list of all items
         """
-        merged = []
-        for items in all_items:
-            merged.extend(items)
-        return merged
+        return [item for items in all_items for item in items]

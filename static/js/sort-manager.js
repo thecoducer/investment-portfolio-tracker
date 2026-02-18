@@ -70,19 +70,26 @@ class SortManager {
     }
 
     const sorted = [...holdings];
+
+    // Cache metrics to avoid recalculating per comparison
+    const metricsCache = new WeakMap();
+    const getMetrics = (h) => {
+      if (!metricsCache.has(h)) metricsCache.set(h, Calculator.calculateStockMetrics(h));
+      return metricsCache.get(h);
+    };
     
     // Map sort criteria to comparator functions
     const comparators = {
-      'pl_pct_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).plPct, true),
-      'pl_pct_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).plPct, false),
-      'pl_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).pl, true),
-      'pl_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).pl, false),
-      'invested_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).invested, true),
-      'invested_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).invested, false),
-      'current_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).current, true),
-      'current_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).current, false),
-      'day_change_desc': this._numericComparator(h => Calculator.calculateStockMetrics(h).dayChange, true),
-      'day_change_asc': this._numericComparator(h => Calculator.calculateStockMetrics(h).dayChange, false),
+      'pl_pct_desc': this._numericComparator(h => getMetrics(h).plPct, true),
+      'pl_pct_asc': this._numericComparator(h => getMetrics(h).plPct, false),
+      'pl_desc': this._numericComparator(h => getMetrics(h).pl, true),
+      'pl_asc': this._numericComparator(h => getMetrics(h).pl, false),
+      'invested_desc': this._numericComparator(h => getMetrics(h).invested, true),
+      'invested_asc': this._numericComparator(h => getMetrics(h).invested, false),
+      'current_desc': this._numericComparator(h => getMetrics(h).current, true),
+      'current_asc': this._numericComparator(h => getMetrics(h).current, false),
+      'day_change_desc': this._numericComparator(h => getMetrics(h).dayChange, true),
+      'day_change_asc': this._numericComparator(h => getMetrics(h).dayChange, false),
       'symbol_asc': this._stringComparator(h => h.tradingsymbol, false),
       'symbol_desc': this._stringComparator(h => h.tradingsymbol, true)
     };
@@ -104,16 +111,23 @@ class SortManager {
 
     const sorted = [...mfHoldings];
 
+    // Cache metrics to avoid recalculating per comparison
+    const metricsCache = new WeakMap();
+    const getMetrics = (h) => {
+      if (!metricsCache.has(h)) metricsCache.set(h, Calculator.calculateMFMetrics(h));
+      return metricsCache.get(h);
+    };
+
     // Map sort criteria to comparator functions
     const comparators = {
-      'pl_pct_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).plPct, true),
-      'pl_pct_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).plPct, false),
-      'pl_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).pl, true),
-      'pl_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).pl, false),
-      'invested_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).invested, true),
-      'invested_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).invested, false),
-      'current_desc': this._numericComparator(h => Calculator.calculateMFMetrics(h).current, true),
-      'current_asc': this._numericComparator(h => Calculator.calculateMFMetrics(h).current, false),
+      'pl_pct_desc': this._numericComparator(h => getMetrics(h).plPct, true),
+      'pl_pct_asc': this._numericComparator(h => getMetrics(h).plPct, false),
+      'pl_desc': this._numericComparator(h => getMetrics(h).pl, true),
+      'pl_asc': this._numericComparator(h => getMetrics(h).pl, false),
+      'invested_desc': this._numericComparator(h => getMetrics(h).invested, true),
+      'invested_asc': this._numericComparator(h => getMetrics(h).invested, false),
+      'current_desc': this._numericComparator(h => getMetrics(h).current, true),
+      'current_asc': this._numericComparator(h => getMetrics(h).current, false),
       'name_asc': this._stringComparator(h => h.fund || h.tradingsymbol, false),
       'name_desc': this._stringComparator(h => h.fund || h.tradingsymbol, true)
     };

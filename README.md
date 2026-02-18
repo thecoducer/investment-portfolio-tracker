@@ -5,61 +5,117 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-A Flask-based web application for tracking mutual fund and stock holdings from Zerodha brokerage accounts with real-time updates and physical gold tracking via Google Sheets.
+A Flask-based dashboard for tracking your complete investment portfolio — stocks, mutual funds, SIPs, physical gold, and fixed deposits — with real-time updates from Zerodha and Google Sheets.
 
 ## Features
 
-- Multi-account support with encrypted session caching
-- Real-time updates via Server-Sent Events (SSE)
-- Auto-refresh during market hours (9:00–16:30 IST) with optional 24/7 mode
-- Interactive dashboard with dark/light theme and privacy mode
-- Active SIPs tracking with smart date formatting
-- **Physical Gold tracking** via Google Sheets integration
-- Search and filter capabilities
-- Nifty 50 live prices page
-- Live IBJA gold price fetching for P/L calculations
+- **Multi-account Zerodha support** with encrypted session caching
+- **Real-time updates** via Server-Sent Events (SSE)
+- **Auto-refresh** during market hours (9:00–16:30 IST) with optional 24/7 mode
+- **Stocks & Mutual Funds** — holdings, P/L, day change, grouped by symbol across accounts
+- **Active SIPs** tracking with monthly total and smart date formatting
+- **Physical Gold** tracking via Google Sheets with live IBJA price P/L
+- **Fixed Deposits** tracking via Google Sheets with compound interest calculations
+- **FD Summary** grouped by bank and account with high-value highlighting
+- **Nifty 50** live prices page with NSE data
+- **Interactive UI** — dark/light theme, privacy mode, compact number format (Lakhs/Crores), search, sort, pagination
+- **Allocation percentages** across asset classes in summary cards
 
 ## Prerequisites
 
 1. **Python 3.9+**
-2. **Zerodha KiteConnect API credentials** from [Kite Connect](https://developers.kite.trade/)
-   - API Key and Secret
-   - Redirect URL: `http://127.0.0.1:5000/callback`
-3. **(Optional) Google Sheets API Service Account** for physical gold tracking
-   - Service account JSON credentials
-   - Google Sheets API enabled in Google Cloud Console
+2. **Zerodha KiteConnect API credentials** — see [Zerodha Setup](#zerodha-kiteconnect-setup) below
+3. **(Optional) Google Sheets API** — for physical gold and/or fixed deposits tracking. See [Google Sheets Setup](#google-sheets-setup-optional)
 
 ## Quick Start
 
-1. **Configure API credentials:**
-   ```bash
-   cp config.json.example config.json
-   # Edit config.json with your Zerodha API key and secret
-   ```
+```bash
+# 1. Clone and configure
+cp config.json.example config.json
+# Edit config.json with your Zerodha API credentials (see setup guide below)
 
-2. **Run:**
-   ```bash
-   ./start.sh
-   ```
+# 2. Run
+./start.sh
 
-3. **Access:** `http://127.0.0.1:8000/holdings`
+# 3. Open dashboard
+# http://127.0.0.1:8000/holdings
+```
+
+The `start.sh` script automatically creates a virtual environment, installs dependencies, validates your config, and starts the server.
+
+---
+
+## Zerodha KiteConnect Setup
+
+### 1. Create a Kite Connect App
+
+1. Go to [Kite Connect Developer Console](https://developers.kite.trade/)
+2. Sign in with your Zerodha credentials
+3. Click **Create new app** (or use an existing one)
+4. Fill in the app details:
+   - **App Name**: Any name (e.g., `Portfolio Tracker`)
+   - **Redirect URL**: `http://127.0.0.1:5000/callback`
+   - **Postback URL**: Leave blank
+   - **Description**: Optional
+5. Click **Create**
+
+### 2. Get Your API Credentials
+
+After creating the app, you'll see:
+- **API Key** — a string like `abcdef1234567890`
+- **API Secret** — click "Show API secret" to reveal it
+
+### 3. Configure `config.json`
+
+```bash
+cp config.json.example config.json
+```
+
+Edit `config.json` with your credentials:
+
+```json
+{
+  "accounts": [
+    {
+      "name": "MyAccount",
+      "api_key": "your_api_key_here",
+      "api_secret": "your_api_secret_here"
+    }
+  ]
+}
+```
+
+For **multiple Zerodha accounts**, add more entries to the `accounts` array. Each account needs its own Kite Connect app with its own API key and secret.
+
+### 4. Authentication Flow
+
+1. Run `./start.sh` — the dashboard opens in your browser
+2. Click **Refresh** (or **Login** if session is expired)
+3. A Zerodha login page opens — enter your credentials and complete 2FA
+4. The tab auto-closes and data starts loading
+5. Subsequent refreshes are automatic (no login needed until the session expires)
+
+> **Note:** Sessions are encrypted and cached locally. You only need to log in again when the Kite session expires (typically daily).
+
+---
 
 ## Configuration
 
-Edit `config.json`:
+Full `config.json` reference:
 
 ```json
 {
   "accounts": [
     {
       "name": "Account1",
-      "api_key": "your_api_key",
-      "api_secret": "your_api_secret"
+      "api_key": "your_kite_api_key_here",
+      "api_secret": "your_kite_api_secret_here"
     }
   ],
   "server": {
     "callback_host": "127.0.0.1",
     "callback_port": 5000,
+    "callback_path": "/callback",
     "ui_host": "127.0.0.1",
     "ui_port": 8000
   },
@@ -69,161 +125,256 @@ Edit `config.json`:
   },
   "features": {
     "auto_refresh_outside_market_hours": false,
-    "physical_gold_enabled": true
-  },
-  "google_sheets": {
-    "credentials_file": "google-credentials.json",
-    "spreadsheet_id": "your_spreadsheet_id_here",
-    "range": "Sheet1!A:K"
+    "fetch_physical_gold_from_google_sheets": {
+      "enabled": false,
+      "credentials_file": "path/to/service-account-credentials.json",
+      "spreadsheet_id": "your_google_sheets_spreadsheet_id",
+      "range_name": "Gold!A:K"
+    },
+    "fetch_fixed_deposits_from_google_sheets": {
+      "enabled": false,
+      "credentials_file": "path/to/service-account-credentials.json",
+      "spreadsheet_id": "your_google_sheets_spreadsheet_id",
+      "range_name": "FixedDeposits!A:J"
+    }
   }
 }
 ```
 
-**Important:** Ensure your Kite app's redirect URL matches `http://127.0.0.1:5000/callback`
+| Key | Default | Description |
+|-----|---------|-------------|
+| `callback_host` / `callback_port` | `127.0.0.1:5000` | OAuth callback server (must match Kite app redirect URL) |
+| `ui_host` / `ui_port` | `127.0.0.1:8000` | Dashboard web server |
+| `request_token_timeout_seconds` | `180` | How long to wait for OAuth login |
+| `auto_refresh_interval_seconds` | `60` | Seconds between auto-refreshes |
+| `auto_refresh_outside_market_hours` | `false` | Set `true` to refresh 24/7 |
 
-## Google Sheets Setup (Optional - For Physical Gold Tracking)
+> **Important:** Your Kite app's redirect URL must exactly match `http://{callback_host}:{callback_port}{callback_path}` (default: `http://127.0.0.1:5000/callback`).
 
-If you want to track physical gold holdings, follow these steps to set up Google Sheets API access:
+---
 
-### 1. Create a Google Cloud Project
+## Google Sheets Setup (Optional)
+
+Physical Gold and Fixed Deposits tracking both use Google Sheets as the data source. They share the same Google Cloud setup but can use different spreadsheets.
+
+### Step 1: Create a Google Cloud Project
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
+2. Create a new project (or select an existing one)
 3. Enable the **Google Sheets API**:
-   - Navigate to "APIs & Services" → "Library"
-   - Search for "Google Sheets API"
-   - Click "Enable"
+   - Navigate to **APIs & Services** → **Library**
+   - Search for **Google Sheets API** → Click **Enable**
 
-### 2. Create a Service Account
+### Step 2: Create a Service Account
 
-1. Go to "APIs & Services" → "Credentials"
-2. Click "Create Credentials" → "Service Account"
-3. Fill in the service account details:
-   - **Name**: `portfolio-tracker` (or any name)
-   - **Description**: Service account for portfolio tracker
-4. Click "Create and Continue"
-5. Skip the optional permissions (click "Continue" → "Done")
+1. Go to **APIs & Services** → **Credentials**
+2. Click **Create Credentials** → **Service Account**
+3. Enter a name (e.g., `portfolio-tracker`) → Click **Create and Continue**
+4. Skip optional permissions → Click **Done**
 
-### 3. Generate Service Account Key
+### Step 3: Download the Credentials Key
 
-1. Click on the created service account
-2. Go to the "Keys" tab
-3. Click "Add Key" → "Create new key"
-4. Choose **JSON** format
-5. Click "Create" - this downloads the credentials JSON file
-6. Rename the file to `google-credentials.json` and place it in your project root directory
+1. Click on the service account you just created
+2. Go to the **Keys** tab
+3. Click **Add Key** → **Create new key** → Choose **JSON** → Click **Create**
+4. Save the downloaded file to your project directory (e.g., `google-credentials.json`)
 
-### 4. Create and Configure Google Sheet
+### Step 4: Share Your Spreadsheet
 
-1. Create a new Google Sheet or use an existing one
-2. **Share the sheet** with the service account email:
-   - Open your Google Sheet
-   - Click "Share" button
-   - Add the service account email (found in the JSON file, looks like `portfolio-tracker@project-name.iam.gserviceaccount.com`)
-   - Give it **Viewer** permissions (read-only is sufficient)
-3. Copy the **Spreadsheet ID** from the URL:
-   - URL format: `https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit`
-   - Copy the ID and add it to your `config.json`
+1. Open your Google Sheet
+2. Click **Share**
+3. Add the service account email (found in the JSON file as `client_email`, looks like `portfolio-tracker@project-name.iam.gserviceaccount.com`)
+4. Set permission to **Viewer** (read-only is sufficient)
+5. Copy the **Spreadsheet ID** from the URL: `https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/edit`
 
-### 5. Google Sheet Structure
+### Step 5: Install Dependencies
 
-Your Google Sheet must have the following columns in order (from Column A to F):
-
-| Column | Header | Description | Example |
-|--------|--------|-------------|---------||
-| A | Date | Purchase date | 2024-01-15 |
-| B | Type | Type of gold item | Coin, Bar, Jewellery |
-| C | Retail Outlet | Store/dealer name | Tanishq, Malabar Gold |
-| D | Purity | Gold purity | 999, 916, 22K, 24K |
-| E | Weight in gms | Weight in grams | 10.5 |
-| F | IBJA PM rate per 1 gm | IBJA rate when bought | 6543.21 |
-
-**Important Notes:**
-- The first row must contain headers (they can be any text)
-- Data starts from row 2
-- **Jewellery type items are automatically excluded** from P/L calculations
-- Leave empty rows as they are (they'll be skipped)
-- Numbers can include currency symbols (₹) and commas - they'll be parsed automatically
-
-**Example Sheet Data:**
-
-```
-Date       | Type | Retail Outlet | Purity | Weight | IBJA Rate
------------|------|---------------|--------|--------|----------
-2024-01-15 | Coin | Tanishq       | 999    | 10.5   | 6543.21
-2024-03-20 | Bar  | Malabar Gold  | 916    | 8.0    | 6012.00
-```
-
-### 6. Install Google Sheets Dependencies
+These are included in `requirements.txt` and installed automatically by `start.sh`. If installing manually:
 
 ```bash
 pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 ```
 
-### 7. Enable Physical Gold Tracking
+---
 
-Update your `config.json`:
+## Physical Gold Sheet Template
+
+Create a sheet (e.g., named `Gold`) with the following structure. The first row is the header; data starts from row 2.
+
+| Column | Header | Description | Example |
+|--------|--------|-------------|---------|
+| A | Date | Purchase date | `2024-01-15` |
+| B | Type | Item type | `Coin`, `Bar`, `Jewellery` |
+| C | Retail Outlet | Store/dealer name | `Tanishq`, `Malabar Gold` |
+| D | Purity | Gold purity | `999`, `916`, `750` |
+| E | Weight in gms | Weight in grams | `10.5` |
+| F | IBJA PM rate per 1 gm | IBJA rate at time of purchase | `6543.21` |
+
+**Example data:**
+
+```
+| Date       | Type | Retail Outlet | Purity | Weight in gms | IBJA PM rate per 1 gm |
+|------------|------|---------------|--------|---------------|-----------------------|
+| 2024-01-15 | Coin | Tanishq       | 999    | 10.000        | 6543.21               |
+| 2024-03-20 | Bar  | Malabar Gold  | 999    | 8.000         | 6812.50               |
+| 2024-06-10 | Coin | Joyalukkas    | 916    | 5.000         | 6012.00               |
+```
+
+**Enable in `config.json`:**
 
 ```json
-{
-  "features": {
-    "physical_gold_enabled": true
-  },
-  "google_sheets": {
-    "credentials_file": "google-credentials.json",
-    "spreadsheet_id": "1a2b3c4d5e6f7g8h9i0j",
-    "range": "Sheet1!A:K"
-  }
+"fetch_physical_gold_from_google_sheets": {
+  "enabled": true,
+  "credentials_file": "google-credentials.json",
+  "spreadsheet_id": "your_spreadsheet_id",
+  "range_name": "Gold!A:F"
 }
 ```
 
-### How It Works
-
-- The application fetches gold holdings from your Google Sheet
+**How P/L is calculated:**
 - Latest IBJA gold prices are fetched from [ibjarates.com](https://ibjarates.com/)
-- P/L is calculated automatically based on:
-  - **24K (999 purity)**: Uses latest 999 IBJA PM rate
-  - **22K (916 purity)**: Uses latest 916 IBJA PM rate
-  - **Jewellery items**: Excluded from P/L calculations (displayed separately)
-- Real-time price updates during market hours
+- **999 purity**: Uses the latest IBJA 999 fine gold PM rate
+- **916 purity**: Uses the latest IBJA 916 gold PM rate
+- **Other purities**: Matched to the closest available IBJA rate
+- Prices are refreshed on first load and during scheduled hours
+
+**Notes:**
+- Empty rows are skipped automatically
+- Numbers can include `₹` symbols and commas — they are parsed automatically
+- The `range_name` should cover all your data columns (A through F minimum)
+
+---
+
+## Fixed Deposits Sheet Template
+
+Create a sheet (e.g., named `FixedDeposits`) with the following structure. The first row is the header; data starts from row 2.
+
+| Column | Header | Description | Example |
+|--------|--------|-------------|---------|
+| A | Deposited On | Original deposit date | `January 15, 2024` |
+| B | Reinvested On | Reinvestment date (if rolled over) | `January 15, 2025` |
+| C | Bank | Bank or institution name | `SBI`, `HDFC Bank` |
+| D | Year | Deposit tenure — years | `1` |
+| E | Month | Deposit tenure — months | `6` |
+| F | Day | Deposit tenure — days | `0` |
+| G | Amount | Original deposit amount | `100000` |
+| H | Reinvested Amount | Amount after reinvestment (if any) | `107000` |
+| I | Interest Rate | Annual interest rate (%) | `7.25` |
+| J | Redeemed? | Whether the FD has been redeemed | `Yes` or `No` |
+| K | Account | Account holder name | `John` |
+
+**Example data:**
+
+```
+| Deposited On      | Reinvested On     | Bank      | Year | Month | Day | Amount  | Reinvested Amt | Rate | Redeemed? | Account |
+|-------------------|-------------------|-----------|------|-------|-----|---------|----------------|------|-----------|---------|
+| January 15, 2024  |                   | SBI       | 1    | 0     | 0   | 100000  |                | 7.10 | No        | John    |
+| March 20, 2023    | March 20, 2024    | HDFC Bank | 1    | 6     | 0   | 200000  | 214500         | 7.25 | No        | John    |
+| June 1, 2023      |                   | ICICI     | 2    | 0     | 0   | 50000   |                | 6.90 | Yes       | Jane    |
+```
+
+**Enable in `config.json`:**
+
+```json
+"fetch_fixed_deposits_from_google_sheets": {
+  "enabled": true,
+  "credentials_file": "google-credentials.json",
+  "spreadsheet_id": "your_spreadsheet_id",
+  "range_name": "FixedDeposits!A:K"
+}
+```
+
+**How it works:**
+- Current value is calculated using **compound interest** (quarterly compounding) based on the deposit amount, interest rate, and elapsed time
+- **Redeemed FDs** (marked `Yes` in column J) are excluded from calculations
+- **Reinvested FDs** use the reinvested amount and date for current value calculation
+- **Maturity date** is auto-calculated from the deposit date + tenure (Year/Month/Day)
+- The **FD Summary** table groups deposits by bank and account, highlighting accounts with total current value >= 5 Lakhs
+
+**Notes:**
+- Both Physical Gold and Fixed Deposits can share the same `credentials_file` and even the same `spreadsheet_id` (just use different sheet tabs and `range_name` values)
+- Empty rows are skipped automatically
+- Numbers can include `₹` symbols and commas
+
+---
 
 ## Security
 
-- ⚠️ Never commit `config.json` or `google-credentials.json`
-- Add both files to `.gitignore`
-- Session tokens automatically encrypted using machine-specific keys
-- OAuth flow for secure authentication
-- Service account has read-only access to Google Sheets
+- Never commit `config.json` or your Google credentials JSON file
+- Both are listed in `.gitignore`
+- Session tokens are encrypted using machine-specific keys (via `cryptography.fernet`)
+- OAuth flow for secure Zerodha authentication
+- Google Sheets service account has read-only access
+
+---
 
 ## Development
 
 ### Running Tests
+
 ```bash
 ./run_tests.sh
 ```
 
-155 tests | 84% coverage
-
 ### Project Structure
+
 ```
-├── server.py              # Flask app
-├── api/                   # Backend services
-│   ├── auth.py
-│   ├── zerodha_client.py
-│   ├── nse_client.py
-│   ├── holdings.py
-│   └── sips.py
-├── utils.py              # State & session management
-├── static/js/            # Frontend modules
-└── tests/                # Test suite
+├── server.py                  # Flask app, routes, SSE, background fetch orchestration
+├── config.json.example        # Configuration template
+├── constants.py               # App-wide constants
+├── utils.py                   # SessionManager, StateManager, helpers
+├── error_handler.py           # Custom exceptions, retry/error decorators
+├── logging_config.py          # Logger setup
+├── api/
+│   ├── auth.py                # Zerodha OAuth authentication
+│   ├── zerodha_client.py      # Multi-account data fetcher
+│   ├── holdings.py            # Stock & MF holdings service
+│   ├── sips.py                # SIP service
+│   ├── nse_client.py          # NSE API client (Nifty 50)
+│   ├── google_sheets_client.py # Google Sheets client + PhysicalGold/FD services
+│   ├── ibja_gold_price.py     # IBJA gold price scraper
+│   ├── physical_gold.py       # Gold P/L enrichment
+│   ├── fixed_deposits.py      # FD compound interest calculations
+│   └── base_service.py        # Base class for data services
+├── static/
+│   ├── css/styles.css         # Stylesheet
+│   └── js/
+│       ├── app.js             # Main app controller
+│       ├── data-manager.js    # API data fetcher
+│       ├── table-renderer.js  # Table rendering (stocks, MF, SIPs, gold, FDs)
+│       ├── summary-manager.js # Summary card updates
+│       ├── sort-manager.js    # Sort logic for all tables
+│       ├── pagination.js      # Reusable pagination component
+│       ├── sse-manager.js     # SSE connection manager
+│       ├── theme-manager.js   # Dark/light theme
+│       ├── visibility-manager.js # Privacy mode
+│       ├── nifty50.js         # Nifty 50 page controller
+│       └── utils.js           # Formatter & Calculator utilities
+├── templates/
+│   ├── holdings.html          # Main portfolio dashboard
+│   ├── nifty50.html           # Nifty 50 page
+│   ├── callback_success.html  # OAuth success page
+│   └── callback_error.html    # OAuth error page
+├── tests/                     # Test suite
+├── start.sh                   # Startup script (venv + deps + run)
+└── run_tests.sh               # Test runner
 ```
+
+---
 
 ## Troubleshooting
 
-- **Token expired:** Click "Refresh Holdings"
-- **Port in use:** Change ports in `config.json`
-- **Config errors:** Run `./start.sh` to validate
+| Problem | Solution |
+|---------|----------|
+| **Session expired / Login button shown** | Click **Login** — completes Zerodha OAuth in a new tab |
+| **Port already in use** | Change `callback_port` or `ui_port` in `config.json` |
+| **Google Sheets not loading** | Check that the sheet is shared with the service account email |
+| **Gold prices not updating** | Prices are fetched on first load and at scheduled hours; click **Refresh** to force |
+| **Config validation errors** | Run `./start.sh` — it validates `config.json` before starting |
+| **Missing dependencies** | `start.sh` auto-installs from `requirements.txt`; for Google Sheets, ensure the libraries are in `requirements.txt` |
+
+---
 
 ## License
 
-MIT - For personal use.
+MIT — For personal use.

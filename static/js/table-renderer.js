@@ -31,6 +31,32 @@ class TableRenderer {
   }
 
   /**
+   * Toggle visibility of a table section based on whether it has data.
+   * @param {Object} opts - Elements to toggle
+   * @param {HTMLElement} opts.table - Table element
+   * @param {HTMLElement} opts.emptyState - Empty state message element
+   * @param {HTMLElement} [opts.controls] - Controls container element
+   * @param {HTMLElement} [opts.paginationInfo] - Pagination info element
+   * @param {HTMLElement} [opts.paginationButtons] - Pagination buttons element
+   * @param {boolean} hasData - Whether the section has data to display
+   */
+  _toggleSectionVisibility({ table, emptyState, controls, paginationInfo, paginationButtons }, hasData) {
+    if (hasData) {
+      if (table) table.style.display = 'table';
+      if (emptyState) emptyState.style.display = 'none';
+      if (controls) controls.style.display = 'flex';
+      if (paginationInfo) paginationInfo.style.display = 'block';
+      if (paginationButtons) paginationButtons.style.display = 'flex';
+    } else {
+      if (table) table.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'block';
+      if (controls) controls.style.display = 'none';
+      if (paginationInfo) paginationInfo.style.display = 'none';
+      if (paginationButtons) paginationButtons.style.display = 'none';
+    }
+  }
+
+  /**
    * Build a styled table cell with optional class.
    * @param {string} content - Cell content
    * @param {string} cssClass - Optional CSS class
@@ -128,11 +154,11 @@ class TableRenderer {
     const paginationData = this.stocksPagination.paginate(groupedArray);
     const { pageData } = paginationData;
 
-    tbody.innerHTML = '';
+    let rowsHTML = '';
     pageData.forEach((group, index) => {
       const groupId = `stock-group-${index}`;
       const metrics = this._calculateAggregatedStockMetrics(group.holdings);
-      tbody.innerHTML += this._buildStockRow(group.holdings[0], metrics, {
+      rowsHTML += this._buildStockRow(group.holdings[0], metrics, {
         symbolClass: this._getUpdateClass(isUpdating),
         qtyClass: this._getUpdateClass(isUpdating),
         avgClass: this._getUpdateClass(isUpdating),
@@ -152,31 +178,20 @@ class TableRenderer {
       if (group.holdings.length > 1) {
         group.holdings.forEach(holding => {
           const holdingMetrics = Calculator.calculateStockMetrics(holding);
-          tbody.innerHTML += this._buildStockBreakdownRow(holding, holdingMetrics, groupId);
+          rowsHTML += this._buildStockBreakdownRow(holding, holdingMetrics, groupId);
         });
       }
     });
+    tbody.innerHTML = rowsHTML;
 
     // Show/hide table and empty state
-    const table = section.querySelector('table');
-    const emptyState = document.getElementById('stocks_empty_state');
-    const paginationInfoEl = document.getElementById('stocks_pagination_info');
-    const paginationButtonsEl = document.getElementById('stocks_pagination_buttons');
-    const controlsContainer = section.querySelector('.controls-container');
-    
-    if (filteredHoldings.length === 0) {
-      table.style.display = 'none';
-      emptyState.style.display = 'block';
-      if (paginationInfoEl) paginationInfoEl.style.display = 'none';
-      if (paginationButtonsEl) paginationButtonsEl.style.display = 'none';
-      if (controlsContainer) controlsContainer.style.display = 'none';
-    } else {
-      table.style.display = 'table';
-      emptyState.style.display = 'none';
-      if (paginationInfoEl) paginationInfoEl.style.display = 'block';
-      if (paginationButtonsEl) paginationButtonsEl.style.display = 'flex';
-      if (controlsContainer) controlsContainer.style.display = 'flex';
-    }
+    this._toggleSectionVisibility({
+      table: section.querySelector('table'),
+      emptyState: document.getElementById('stocks_empty_state'),
+      controls: section.querySelector('.controls-container'),
+      paginationInfo: document.getElementById('stocks_pagination_info'),
+      paginationButtons: document.getElementById('stocks_pagination_buttons')
+    }, filteredHoldings.length > 0);
     
     // Update pagination UI
     PaginationManager.updatePaginationUI(
@@ -244,11 +259,12 @@ class TableRenderer {
     const paginationData = this.mfPagination.paginate(groupedArray);
     const { pageData } = paginationData;
 
+    let rowsHTML = '';
     pageData.forEach((group, index) => {
       const groupId = `mf-group-${index}`;
       const fundName = group.holdings[0].fund || group.holdings[0].tradingsymbol;
       const metrics = this._calculateAggregatedMFMetrics(group.holdings);
-      tbody.innerHTML += this._buildMFRow(fundName, group.holdings[0], metrics, {
+      rowsHTML += this._buildMFRow(fundName, group.holdings[0], metrics, {
         fundClass: this._getUpdateClass(isUpdating),
         qtyClass: this._getUpdateClass(isUpdating),
         avgClass: this._getUpdateClass(isUpdating),
@@ -267,31 +283,20 @@ class TableRenderer {
         group.holdings.forEach(mf => {
           const fundName = mf.fund || mf.tradingsymbol;
           const holdingMetrics = Calculator.calculateMFMetrics(mf);
-          tbody.innerHTML += this._buildMFBreakdownRow(fundName, mf, holdingMetrics, groupId);
+          rowsHTML += this._buildMFBreakdownRow(fundName, mf, holdingMetrics, groupId);
         });
       }
     });
+    tbody.innerHTML = rowsHTML;
 
     // Show/hide table and empty state
-    const table = section.querySelector('table');
-    const emptyState = document.getElementById('mf_empty_state');
-    const controlsContainer = section.querySelector('.controls-container');
-    const paginationInfoEl = document.getElementById('mf_pagination_info');
-    const paginationButtonsEl = document.getElementById('mf_pagination_buttons');
-    
-    if (filteredHoldings.length === 0) {
-      table.style.display = 'none';
-      emptyState.style.display = 'block';
-      if (controlsContainer) controlsContainer.style.display = 'none';
-      if (paginationInfoEl) paginationInfoEl.style.display = 'none';
-      if (paginationButtonsEl) paginationButtonsEl.style.display = 'none';
-    } else {
-      table.style.display = 'table';
-      emptyState.style.display = 'none';
-      if (controlsContainer) controlsContainer.style.display = 'flex';
-      if (paginationInfoEl) paginationInfoEl.style.display = 'block';
-      if (paginationButtonsEl) paginationButtonsEl.style.display = 'flex';
-    }
+    this._toggleSectionVisibility({
+      table: section.querySelector('table'),
+      emptyState: document.getElementById('mf_empty_state'),
+      controls: section.querySelector('.controls-container'),
+      paginationInfo: document.getElementById('mf_pagination_info'),
+      paginationButtons: document.getElementById('mf_pagination_buttons')
+    }, filteredHoldings.length > 0);
 
     // Update pagination UI
     PaginationManager.updatePaginationUI(
@@ -319,7 +324,7 @@ class TableRenderer {
     const isUpdating = status.portfolio_state === 'updating';
     const dataClass = this._getUpdateClass(isUpdating);
 
-    tbody.innerHTML = '';
+    let rowsHTML = '';
     let totalMonthlyAmount = 0;
     let visibleCount = 0;
 
@@ -329,7 +334,7 @@ class TableRenderer {
       if (!text.includes(this.searchQuery)) return;
 
       visibleCount++;
-      tbody.innerHTML += this._buildSIPRow(fundName, sip, dataClass);
+      rowsHTML += this._buildSIPRow(fundName, sip, dataClass);
       
       // Calculate total monthly amount for active SIPs
       if (sip.status === 'ACTIVE' && sip.instalment_amount) {
@@ -346,6 +351,9 @@ class TableRenderer {
         }
       }
     });
+
+    rowsHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);
+    tbody.innerHTML = rowsHTML;
     
     // Show/hide table and empty state
     const table = section.querySelector('table');
@@ -358,9 +366,6 @@ class TableRenderer {
       table.style.display = 'table';
       emptyState.style.display = 'none';
     }
-    
-    // Add total row at the end of the table
-    tbody.innerHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);
   }
 
   _buildSIPTotalRow(totalAmount, dataClass) {
@@ -679,26 +684,20 @@ class TableRenderer {
 
     tbody.innerHTML = '';
 
-    const table = section ? section.querySelector('table') : null;
-    const emptyState = document.getElementById('physical_gold_empty_state');
-    const controlsContainer = section ? section.querySelector('.controls-container') : null;
-    const paginationInfo = document.getElementById('physical_gold_pagination_info');
-    const paginationButtons = document.getElementById('physical_gold_pagination_buttons');
+    const sectionElements = {
+      table: section ? section.querySelector('table') : null,
+      emptyState: document.getElementById('physical_gold_empty_state'),
+      controls: section ? section.querySelector('.controls-container') : null,
+      paginationInfo: document.getElementById('physical_gold_pagination_info'),
+      paginationButtons: document.getElementById('physical_gold_pagination_buttons')
+    };
 
     if (!holdings || holdings.length === 0) {
-      if (table) table.style.display = 'none';
-      if (emptyState) emptyState.style.display = 'block';
-      if (controlsContainer) controlsContainer.style.display = 'none';
-      if (paginationInfo) paginationInfo.style.display = 'none';
-      if (paginationButtons) paginationButtons.style.display = 'none';
+      this._toggleSectionVisibility(sectionElements, false);
       return { invested: 0 };
     }
 
-    if (table) table.style.display = 'table';
-    if (emptyState) emptyState.style.display = 'none';
-    if (controlsContainer) controlsContainer.style.display = 'flex';
-    if (paginationInfo) paginationInfo.style.display = 'block';
-    if (paginationButtons) paginationButtons.style.display = 'flex';
+    this._toggleSectionVisibility(sectionElements, true);
 
     let totalPhysicalGoldInvested = 0;
     let totalPhysicalGoldCurrent = 0;
@@ -716,9 +715,11 @@ class TableRenderer {
     const paginationData = this.physicalGoldPagination.paginate(holdings);
     const { pageData } = paginationData;
 
+    let rowsHTML = '';
     pageData.forEach((holding) => {
-      tbody.innerHTML += this._buildPhysicalGoldRow(holding);
+      rowsHTML += this._buildPhysicalGoldRow(holding);
     });
+    tbody.innerHTML = rowsHTML;
 
     this._renderPhysicalGoldPagination(paginationData);
     
@@ -803,26 +804,20 @@ class TableRenderer {
 
     tbody.innerHTML = '';
 
-    const table = section ? section.querySelector('table') : null;
-    const emptyState = document.getElementById('fixed_deposits_empty_state');
-    const controlsContainer = section ? section.querySelector('.controls-container') : null;
-    const paginationInfo = document.getElementById('fixed_deposits_pagination_info');
-    const paginationButtons = document.getElementById('fixed_deposits_pagination_buttons');
+    const sectionElements = {
+      table: section ? section.querySelector('table') : null,
+      emptyState: document.getElementById('fixed_deposits_empty_state'),
+      controls: section ? section.querySelector('.controls-container') : null,
+      paginationInfo: document.getElementById('fixed_deposits_pagination_info'),
+      paginationButtons: document.getElementById('fixed_deposits_pagination_buttons')
+    };
 
     if (!deposits || deposits.length === 0) {
-      if (table) table.style.display = 'none';
-      if (emptyState) emptyState.style.display = 'block';
-      if (controlsContainer) controlsContainer.style.display = 'none';
-      if (paginationInfo) paginationInfo.style.display = 'none';
-      if (paginationButtons) paginationButtons.style.display = 'none';
+      this._toggleSectionVisibility(sectionElements, false);
       return { invested: 0, maturity: 0, returns: 0, returnsPct: 0 };
     }
 
-    if (table) table.style.display = 'table';
-    if (emptyState) emptyState.style.display = 'none';
-    if (controlsContainer) controlsContainer.style.display = 'flex';
-    if (paginationInfo) paginationInfo.style.display = 'block';
-    if (paginationButtons) paginationButtons.style.display = 'flex';
+    this._toggleSectionVisibility(sectionElements, true);
 
     // Calculate totals
     let totalInvested = 0;
@@ -844,10 +839,11 @@ class TableRenderer {
     const paginationData = this.fixedDepositsPagination.paginate(groupedArray);
     const { pageData } = paginationData;
 
+    let rowsHTML = '';
     pageData.forEach((group, index) => {
       const groupId = `fd-group-${index}`;
       const metrics = this._calculateAggregatedFixedDepositMetrics(group.holdings);
-      tbody.innerHTML += this._buildFixedDepositRow(group.holdings[0], metrics, {
+      rowsHTML += this._buildFixedDepositRow(group.holdings[0], metrics, {
         groupId: groupId,
         hasMultipleAccounts: group.holdings.length > 1,
         isGroupRow: true
@@ -857,10 +853,11 @@ class TableRenderer {
       if (group.holdings.length > 1) {
         group.holdings.forEach(deposit => {
           const depositMetrics = this._calculateFixedDepositMetrics(deposit);
-          tbody.innerHTML += this._buildFixedDepositBreakdownRow(deposit, depositMetrics, groupId);
+          rowsHTML += this._buildFixedDepositBreakdownRow(deposit, depositMetrics, groupId);
         });
       }
     });
+    tbody.innerHTML = rowsHTML;
 
     this._renderFixedDepositsPagination(paginationData);
     
@@ -1028,18 +1025,16 @@ class TableRenderer {
 
     tbody.innerHTML = '';
 
-    const table = section ? section.querySelector('table') : null;
-    const emptyState = document.getElementById('fd_summary_empty_state');
-    const controlsContainer = section ? section.querySelector('.controls-container') : null;
-    const paginationInfo = document.getElementById('fd_summary_pagination_info');
-    const paginationButtons = document.getElementById('fd_summary_pagination_buttons');
+    const sectionElements = {
+      table: section ? section.querySelector('table') : null,
+      emptyState: document.getElementById('fd_summary_empty_state'),
+      controls: section ? section.querySelector('.controls-container') : null,
+      paginationInfo: document.getElementById('fd_summary_pagination_info'),
+      paginationButtons: document.getElementById('fd_summary_pagination_buttons')
+    };
 
     if (!summaryArray || summaryArray.length === 0) {
-      if (table) table.style.display = 'none';
-      if (emptyState) emptyState.style.display = 'block';
-      if (controlsContainer) controlsContainer.style.display = 'none';
-      if (paginationInfo) paginationInfo.style.display = 'none';
-      if (paginationButtons) paginationButtons.style.display = 'none';
+      this._toggleSectionVisibility(sectionElements, false);
       return;
     }
 
@@ -1047,15 +1042,13 @@ class TableRenderer {
     const paginationData = this.fdSummaryPagination.paginate(summaryArray);
     const { pageData } = paginationData;
 
+    let rowsHTML = '';
     pageData.forEach((summary) => {
-      tbody.innerHTML += this._buildFDSummaryRow(summary);
+      rowsHTML += this._buildFDSummaryRow(summary);
     });
+    tbody.innerHTML = rowsHTML;
 
-    if (table) table.style.display = 'table';
-    if (emptyState) emptyState.style.display = 'none';
-    if (controlsContainer) controlsContainer.style.display = 'flex';
-    if (paginationInfo) paginationInfo.style.display = 'block';
-    if (paginationButtons) paginationButtons.style.display = 'flex';
+    this._toggleSectionVisibility(sectionElements, true);
 
     PaginationManager.updatePaginationUI(
       paginationData,

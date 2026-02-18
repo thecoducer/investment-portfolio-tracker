@@ -281,11 +281,16 @@ class PortfolioApp {
     }
   }
 
-  handleSearch() {
-    const searchQuery = document.getElementById('search').value;
-    this.tableRenderer.setSearchQuery(searchQuery);
-
-    const status = this.lastStatus || {};
+  /**
+   * Sort all data, render all tables, and update summary cards.
+   * Centralizes the repeated sort→render→summarize pattern.
+   * @param {Object} status - Current status object
+   * @param {Object} [opts] - Options
+   * @param {boolean} [opts.renderSIPs=false] - Whether to also render the SIPs table
+   * @param {boolean} [opts.isUpdating=false] - Whether data is currently updating
+   * @param {Array|null} [opts.fdSummaryData=null] - If provided, render FD summary table with this data
+   */
+  _renderAllAndUpdateSummaries(status, { renderSIPs = false, isUpdating = false, fdSummaryData = null } = {}) {
     const sortedHoldings = this.sortManager.sortStocks(
       this.dataManager.getHoldings(),
       this.sortManager.getStocksSortOrder()
@@ -305,13 +310,25 @@ class PortfolioApp {
 
     const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
     const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
-    this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
+    if (renderSIPs) {
+      this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
+    }
     const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
     const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
-    
+
+    if (fdSummaryData && fdSummaryData.length > 0) {
+      this.tableRenderer.renderFDSummaryTable(fdSummaryData);
+    }
+
     const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
-    
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
+
+    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, isUpdating);
+  }
+
+  handleSearch() {
+    const searchQuery = document.getElementById('search').value;
+    this.tableRenderer.setSearchQuery(searchQuery);
+    this._renderAllAndUpdateSummaries(this.lastStatus || {}, { renderSIPs: true });
   }
 
   async updateData() {
@@ -332,39 +349,11 @@ class PortfolioApp {
 
       this.tableRenderer.setSearchQuery(searchQuery);
 
-      const sortedHoldings = this.sortManager.sortStocks(
-        this.dataManager.getHoldings(),
-        this.sortManager.getStocksSortOrder()
-      );
-      const sortedMFHoldings = this.sortManager.sortMF(
-        this.dataManager.getMFHoldings(),
-        this.sortManager.getMFSortOrder()
-      );
-      const sortedPhysicalGold = this.sortManager.sortPhysicalGold(
-        this.dataManager.getPhysicalGold(),
-        this.sortManager.getPhysicalGoldSortOrder()
-      );
-      const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
-        this.dataManager.getFixedDeposits(),
-        this.sortManager.getFixedDepositsSortOrder()
-      );
-
-      const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
-      const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
-      this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
-      const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
-      const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
-      
-      // Render FD summary with server-provided data
-      const fdSummaryData = this.dataManager.getFDSummary();
-      if (fdSummaryData && fdSummaryData.length > 0) {
-        this.tableRenderer.renderFDSummaryTable(fdSummaryData);
-      }
-
-      const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
-
-      const isUpdating = this._isStatusUpdating(status);
-      this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, isUpdating);
+      this._renderAllAndUpdateSummaries(status, {
+        renderSIPs: true,
+        isUpdating: this._isStatusUpdating(status),
+        fdSummaryData: this.dataManager.getFDSummary()
+      });
     } catch (error) {
       console.error('Error updating data:', error);
     }
@@ -372,92 +361,17 @@ class PortfolioApp {
 
   handleStocksSort(sortBy) {
     this.sortManager.setStocksSortOrder(sortBy);
-    const status = this.lastStatus || {};
-    const sortedHoldings = this.sortManager.sortStocks(
-      this.dataManager.getHoldings(),
-      this.sortManager.getStocksSortOrder()
-    );
-    const sortedMFHoldings = this.sortManager.sortMF(
-      this.dataManager.getMFHoldings(),
-      this.sortManager.getMFSortOrder()
-    );
-    const sortedPhysicalGold = this.sortManager.sortPhysicalGold(
-      this.dataManager.getPhysicalGold(),
-      this.sortManager.getPhysicalGoldSortOrder()
-    );
-    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
-      this.dataManager.getFixedDeposits(),
-      this.sortManager.getFixedDepositsSortOrder()
-    );
-    
-    const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
-    const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
-    const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
-    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
-    
-    const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
-    
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
+    this._renderAllAndUpdateSummaries(this.lastStatus || {});
   }
 
   handleMFSort(sortBy) {
     this.sortManager.setMFSortOrder(sortBy);
-    const status = this.lastStatus || {};
-    const sortedMFHoldings = this.sortManager.sortMF(
-      this.dataManager.getMFHoldings(),
-      this.sortManager.getMFSortOrder()
-    );
-    const sortedHoldings = this.sortManager.sortStocks(
-      this.dataManager.getHoldings(),
-      this.sortManager.getStocksSortOrder()
-    );
-    const sortedPhysicalGold = this.sortManager.sortPhysicalGold(
-      this.dataManager.getPhysicalGold(),
-      this.sortManager.getPhysicalGoldSortOrder()
-    );
-    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
-      this.dataManager.getFixedDeposits(),
-      this.sortManager.getFixedDepositsSortOrder()
-    );
-    
-    const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
-    const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
-    const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
-    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
-    
-    const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
-    
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
+    this._renderAllAndUpdateSummaries(this.lastStatus || {});
   }
 
   handlePhysicalGoldSort(sortBy) {
     this.sortManager.setPhysicalGoldSortOrder(sortBy);
-    const status = this.lastStatus || {};
-    const sortedHoldings = this.sortManager.sortStocks(
-      this.dataManager.getHoldings(),
-      this.sortManager.getStocksSortOrder()
-    );
-    const sortedMFHoldings = this.sortManager.sortMF(
-      this.dataManager.getMFHoldings(),
-      this.sortManager.getMFSortOrder()
-    );
-    const sortedPhysicalGold = this.sortManager.sortPhysicalGold(
-      this.dataManager.getPhysicalGold(),
-      this.sortManager.getPhysicalGoldSortOrder()
-    );
-    const sortedFixedDeposits = this.sortManager.sortFixedDeposits(
-      this.dataManager.getFixedDeposits(),
-      this.sortManager.getFixedDepositsSortOrder()
-    );
-    
-    const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
-    const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
-    const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
-    const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
-    
-    const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
-    
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, false);
+    this._renderAllAndUpdateSummaries(this.lastStatus || {});
   }
 
   handleFixedDepositsSort(sortBy) {
@@ -484,13 +398,14 @@ class PortfolioApp {
     const sortedSummary = this.sortManager.sortFDSummary(summaryArray, sortBy);
     
     // Update pagination and re-render
-    this.tableRenderer.fdSummaryPagination.reset();
+    this.tableRenderer.fdSummaryPagination.goToPage(1);
     const paginationData = this.tableRenderer.fdSummaryPagination.paginate(sortedSummary);
     
-    tbody.innerHTML = '';
+    let rowsHTML = '';
     paginationData.pageData.forEach((summary) => {
-      tbody.innerHTML += this.tableRenderer._buildFDSummaryRow(summary);
+      rowsHTML += this.tableRenderer._buildFDSummaryRow(summary);
     });
+    tbody.innerHTML = rowsHTML;
 
     PaginationManager.updatePaginationUI(
       paginationData,

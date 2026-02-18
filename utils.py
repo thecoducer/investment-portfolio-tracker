@@ -7,6 +7,7 @@ import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List
+from base64 import urlsafe_b64encode
 from cryptography.fernet import Fernet
 import platform
 from zoneinfo import ZoneInfo
@@ -36,7 +37,6 @@ class SessionManager:
         """Generate a cipher using machine-specific data for encryption key."""
         machine_id = platform.node() + platform.machine()
         key_material = hashlib.sha256(machine_id.encode()).digest()
-        from base64 import urlsafe_b64encode
         key = urlsafe_b64encode(key_material)
         return Fernet(key)
     

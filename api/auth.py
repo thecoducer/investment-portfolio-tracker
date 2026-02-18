@@ -4,7 +4,7 @@ Authentication and session management for Zerodha KiteConnect.
 import os
 import webbrowser
 import threading
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any
 
 from kiteconnect import KiteConnect
 from requests.exceptions import ReadTimeout, ConnectionError

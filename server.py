@@ -13,6 +13,7 @@ Usage:
 import os
 import threading
 import time
+from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 import json
 import webbrowser
@@ -50,8 +51,6 @@ from constants import (
 # CONFIGURATION
 # --------------------------
 
-from dataclasses import dataclass
-
 @dataclass
 class AppConfig:
     """Application configuration loaded from config.json."""
@@ -66,6 +65,7 @@ class AppConfig:
     auto_refresh_interval: int
     auto_refresh_outside_market_hours: bool
     session_cache_file: str
+    features: dict
     
     @classmethod
     def from_file(cls, config_path: str) -> 'AppConfig':
@@ -94,6 +94,7 @@ class AppConfig:
             auto_refresh_interval=timeouts.get("auto_refresh_interval_seconds", DEFAULT_AUTO_REFRESH_INTERVAL),
             auto_refresh_outside_market_hours=features.get("auto_refresh_outside_market_hours", False),
             session_cache_file=os.path.join(base_dir, SESSION_CACHE_FILENAME),
+            features=features,
         )
 
 
@@ -191,13 +192,16 @@ class SSEClientManager:
     
     def broadcast(self, message: str) -> None:
         """Broadcast a message to all connected SSE clients."""
+        failed_clients = []
         with self.lock:
             for client_queue in self.clients[:]:
                 try:
                     client_queue.put_nowait(message)
                 except Exception:
                     logger.exception("Failed to send SSE message to client, removing")
-                    self.remove_client(client_queue)
+                    failed_clients.append(client_queue)
+        for client_queue in failed_clients:
+            self.remove_client(client_queue)
 
 
 # --------------------------
@@ -233,8 +237,7 @@ def _initialize_google_sheets_services() -> None:
         logger.info("Google Sheets services unavailable: libraries not installed")
         return
     
-    config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
-    features = config.get("features", {})
+    features = app_config.features
     
     # Service configurations: (feature_key, service_name, service_class, global_var_name)
     service_configs = [
@@ -483,8 +486,7 @@ def refresh_route():
 @app_ui.route("/holdings", methods=["GET"])
 def holdings_page():
     """Serve the main holdings page with feature flags."""
-    config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
-    features = config.get("features", {})
+    features = app_config.features
     
     physical_gold_enabled = features.get(
         "fetch_physical_gold_from_google_sheets", {}
@@ -595,8 +597,7 @@ def fetch_physical_gold_data(force_gold_price_fetch: bool = False) -> None:
     error_occurred = False
     
     try:
-        config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
-        google_sheets_config = config.get("features", {}).get("fetch_physical_gold_from_google_sheets", {})
+        google_sheets_config = app_config.features.get("fetch_physical_gold_from_google_sheets", {})
         
         spreadsheet_id = google_sheets_config.get("spreadsheet_id")
         range_name = google_sheets_config.get("range_name", "Sheet1!A:K")
@@ -629,7 +630,7 @@ def fetch_physical_gold_data(force_gold_price_fetch: bool = False) -> None:
                 # Don't fail physical gold fetch if gold prices fail - use cached prices
         else:
             scheduled_times = ", ".join([f"{h}:00" for h in GOLD_PRICE_FETCH_HOURS])
-            logger.info(f"Skipping gold price fetch - using cached prices (next scheduled: {scheduled_times} IST)")
+            logger.info("Skipping gold price fetch - using cached prices (next scheduled: %s IST)", scheduled_times)
         
     except Exception as e:
         logger.exception("Error fetching Physical Gold data: %s", e)
@@ -659,8 +660,7 @@ def fetch_fixed_deposits_data() -> None:
     error_occurred = False
     
     try:
-        config = load_config(os.path.join(os.path.dirname(__file__), CONFIG_FILENAME))
-        fixed_deposits_config = config.get("features", {}).get("fetch_fixed_deposits_from_google_sheets", {})
+        fixed_deposits_config = app_config.features.get("fetch_fixed_deposits_from_google_sheets", {})
         
         spreadsheet_id = fixed_deposits_config.get("spreadsheet_id")
         range_name = fixed_deposits_config.get("range_name", "FixedDeposits!A2:K")
