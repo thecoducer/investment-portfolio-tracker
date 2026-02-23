@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Investment Portfolio Tracker Server
-Fetches holdings from Zerodha KiteConnect API and displays a dashboard.
 
 Usage:
     1. Set up environment: pip install -r requirements.txt
@@ -30,7 +29,6 @@ from api.google_sheets_client import GoogleSheetsClient, PhysicalGoldService, Fi
 from api.ibja_gold_price import get_gold_price_service
 from api.physical_gold import enrich_holdings_with_prices
 from api.fixed_deposits import calculate_current_value
-from error_handler import ErrorAggregator, ErrorHandler
 from constants import (
     HTTP_ACCEPTED,
     HTTP_CONFLICT,
@@ -137,7 +135,7 @@ app_ui = _create_flask_app("ui_server", enable_static=True)
 @dataclass
 class PortfolioCache:
     """Container for all cached portfolio data."""
-    holdings: List[Dict[str, Any]] = None
+    stocks: List[Dict[str, Any]] = None
     mf_holdings: List[Dict[str, Any]] = None
     sips: List[Dict[str, Any]] = None
     nifty50: List[Dict[str, Any]] = None
@@ -149,7 +147,7 @@ class PortfolioCache:
     
     def __post_init__(self):
         # Initialize all list fields to empty lists if None
-        self.holdings = self.holdings or []
+        self.stocks = self.stocks or []
         self.mf_holdings = self.mf_holdings or []
         self.sips = self.sips or []
         self.nifty50 = self.nifty50 or []
@@ -425,10 +423,10 @@ def _compute_fd_summary(deposits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return list(groups.values())
 
 
-@app_ui.route("/holdings_data", methods=["GET"])
-def holdings_data():
+@app_ui.route("/stocks_data", methods=["GET"])
+def stocks_data():
     """Return stock holdings as JSON."""
-    return _create_json_response_no_cache(cache.holdings, sort_key="tradingsymbol")
+    return _create_json_response_no_cache(cache.stocks, sort_key="tradingsymbol")
 
 
 @app_ui.route("/mf_holdings_data", methods=["GET"])
@@ -472,7 +470,7 @@ def fd_summary_data():
 
 @app_ui.route("/refresh", methods=["POST"])
 def refresh_route():
-    """Trigger a refresh of holdings data."""
+    """Trigger a refresh of stocks data."""
     if fetch_in_progress.is_set():
         return make_response(jsonify({"error": "Fetch already in progress"}), HTTP_CONFLICT)
 
@@ -483,21 +481,21 @@ def refresh_route():
     return make_response(jsonify({"status": "started", "needs_login": needs_login}), HTTP_ACCEPTED)
 
 
-@app_ui.route("/holdings", methods=["GET"])
-def holdings_page():
-    """Serve the main holdings page with feature flags."""
+@app_ui.route("/", methods=["GET"])
+def portfolio_page():
+    """Serve the main portfolio page with feature flags."""
     features = app_config.features
-    
+
     physical_gold_enabled = features.get(
         "fetch_physical_gold_from_google_sheets", {}
     ).get("enabled", False)
-    
+
     fixed_deposits_enabled = features.get(
         "fetch_fixed_deposits_from_google_sheets", {}
     ).get("enabled", False)
-    
+
     return render_template(
-        "holdings.html",
+        "portfolio.html",
         physical_gold_enabled=physical_gold_enabled,
         fixed_deposits_enabled=fixed_deposits_enabled
     )
@@ -513,7 +511,7 @@ def nifty50_page():
 # DATA FETCHING
 # --------------------------
 def fetch_portfolio_data(force_login: bool = False) -> None:
-    """Fetch holdings and SIPs for all configured accounts.
+    """Fetch holding and SIPs for all configured accounts.
     
     This function:
     - Fetches stock holdings, mutual fund holdings, and SIPs from all accounts.
@@ -533,7 +531,7 @@ def fetch_portfolio_data(force_login: bool = False) -> None:
             zerodha_client.fetch_all_accounts_data(app_config.accounts, force_login)
         
         # Update cache with fetched data
-        cache.holdings = merged_stocks
+        cache.stocks = merged_stocks
         cache.mf_holdings = merged_mfs
         cache.sips = merged_sips
         
@@ -925,7 +923,7 @@ def main() -> None:
         logger.info("Starting callback server at %s", app_config.redirect_url)
         start_server(app_callback, app_config.callback_host, app_config.callback_port)
         
-        dashboard_url = f"http://{app_config.ui_host}:{app_config.ui_port}/holdings"
+        dashboard_url = f"http://{app_config.ui_host}:{app_config.ui_port}/"
         logger.info("Starting UI server at %s", dashboard_url)
         start_server(app_ui, app_config.ui_host, app_config.ui_port)
         

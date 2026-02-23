@@ -82,13 +82,13 @@ class TestUIServerRoutes(unittest.TestCase):
             self.assertIn('session_validity', data)
             self.assertEqual(response.headers.get('Cache-Control'), 'no-cache, no-store, must-revalidate')
     
-    def test_holdings_data_endpoint(self):
-        """Test /holdings_data endpoint"""
-        with patch.object(__import__('server', fromlist=['cache']).cache, 'holdings', [
+    def test_stocks_data_endpoint(self):
+        """Test /stocks_data endpoint after renaming"""
+        with patch.object(__import__('server', fromlist=['cache']).cache, 'stocks', [
             {"tradingsymbol": "INFY", "quantity": 10},
             {"tradingsymbol": "TCS", "quantity": 5}
         ]):
-            response = self.client.get('/holdings_data')
+            response = self.client.get('/stocks_data')
             
             self.assertEqual(response.status_code, 200)
             data = json.loads(response.data)
@@ -124,9 +124,9 @@ class TestUIServerRoutes(unittest.TestCase):
             # Check sorted by status (active comes before inactive alphabetically)
             self.assertEqual(data[0]["status"], "active")
     
-    def test_holdings_page(self):
-        """Test /holdings page renders"""
-        response = self.client.get('/holdings')
+    def test_portfolio_page(self):
+        """Test root page renders"""
+        response = self.client.get('/')
         
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'html', response.data.lower())

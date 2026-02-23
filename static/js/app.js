@@ -207,7 +207,7 @@ class PortfolioApp {
 
     this._updateRefreshButton(isUpdating || waitingForLogin, this.needsLogin);
 
-    const hasData = this.dataManager.getHoldings().length > 0 ||
+    const hasData = this.dataManager.getStocks().length > 0 ||
                     this.dataManager.getMFHoldings().length > 0 ||
                     this.dataManager.getSIPs().length > 0;
 
@@ -250,7 +250,7 @@ class PortfolioApp {
 
     if (hasData) {
       const sortedHoldings = this.sortManager.sortStocks(
-        this.dataManager.getHoldings(),
+        this.dataManager.getStocks(),
         this.sortManager.getStocksSortOrder()
       );
       const sortedMFHoldings = this.sortManager.sortMF(
@@ -292,7 +292,7 @@ class PortfolioApp {
    */
   _renderAllAndUpdateSummaries(status, { renderSIPs = false, isUpdating = false, fdSummaryData = null } = {}) {
     const sortedHoldings = this.sortManager.sortStocks(
-      this.dataManager.getHoldings(),
+      this.dataManager.getStocks(),
       this.sortManager.getStocksSortOrder()
     );
     const sortedMFHoldings = this.sortManager.sortMF(
@@ -333,14 +333,14 @@ class PortfolioApp {
 
   async updateData() {
     try {
-      const { holdings, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status } = await this.dataManager.fetchAllData();
+      const { stocks, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status } = await this.dataManager.fetchAllData();
 
       this._hideLoadingIndicators();
 
       const searchQuery = document.getElementById('search').value;
       const forceUpdate = searchQuery !== '';
       
-      this.dataManager.updateHoldings(holdings, forceUpdate);
+      this.dataManager.updateStocks(stocks, forceUpdate);
       this.dataManager.updateMFHoldings(mfHoldings, forceUpdate);
       this.dataManager.updateSIPs(sips, forceUpdate);
       this.dataManager.updatePhysicalGold(physicalGold, forceUpdate);

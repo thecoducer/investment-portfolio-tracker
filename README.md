@@ -38,7 +38,7 @@ cp config.json.example config.json
 ./start.sh
 
 # 3. Open dashboard
-# http://127.0.0.1:8000/holdings
+# http://127.0.0.1:8000/
 ```
 
 The `start.sh` script automatically creates a virtual environment, installs dependencies, validates your config, and starts the server.

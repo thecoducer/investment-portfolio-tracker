@@ -2,7 +2,7 @@
 
 class DataManager {
   constructor() {
-    this.latestHoldings = [];
+    this.latestStocks = [];
     this.latestMFHoldings = [];
     this.latestSIPs = [];
     this.latestPhysicalGold = [];
@@ -21,8 +21,8 @@ class DataManager {
     return await response.json();
   }
 
-  async fetchHoldings() {
-    return this._fetchEndpoint('/holdings_data');
+  async fetchStocks() {
+    return this._fetchEndpoint('/stocks_data');
   }
 
   async fetchMFHoldings() {
@@ -50,8 +50,8 @@ class DataManager {
   }
 
   async fetchAllData() {
-    const [holdings, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status] = await Promise.all([
-      this.fetchHoldings(),
+    const [stocks, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status] = await Promise.all([
+      this.fetchStocks(),
       this.fetchMFHoldings(),
       this.fetchSIPs(),
       this.fetchPhysicalGold(),
@@ -59,7 +59,7 @@ class DataManager {
       this.fetchFDSummary(),
       this.fetchStatus()
     ]);
-    return { holdings, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status };
+    return { stocks, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status };
   }
 
   _updateData(data, currentData, lastJSON, forceUpdate) {
@@ -70,10 +70,10 @@ class DataManager {
     return { updated: false, newData: currentData, newJSON: lastJSON };
   }
 
-  updateHoldings(holdings, forceUpdate = false) {
-    const result = this._updateData(holdings, this.latestHoldings, this.lastRenderedJSON, forceUpdate);
+  updateStocks(stocks, forceUpdate = false) {
+    const result = this._updateData(stocks, this.latestStocks, this.lastRenderedJSON, forceUpdate);
     if (result.updated) {
-      this.latestHoldings = result.newData;
+      this.latestStocks = result.newData;
       this.lastRenderedJSON = result.newJSON;
     }
     return result.updated;
@@ -97,8 +97,8 @@ class DataManager {
     return result.updated;
   }
 
-  getHoldings() {
-    return this.latestHoldings;
+  getStocks() {
+    return this.latestStocks;
   }
 
   getMFHoldings() {
