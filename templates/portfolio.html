@@ -77,6 +77,16 @@
     </div>
 </div>
 
+<div class="card" id="etf_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="etf_allocation_pct"></span>ETFs</h3>
+    <div class="card-metrics">
+        <div class="summary-item"><span class="summary-label">Invested</span><span class="summary-value" id="etf_total_invested">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">Current</span><span class="summary-value" id="etf_current_value">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L</span><span class="summary-value" id="etf_total_pl">0.00</span></div>
+        <div class="summary-item"><span class="summary-label">P/L %</span><span class="summary-value" id="etf_total_pl_pct">0.00%</span></div>
+    </div>
+</div>
+
 <div class="card" id="mf_summary">
     <h3 class="card-title"><span class="allocation-pct" id="mf_allocation_pct"></span>Mutual Funds</h3>
     <div class="card-metrics">
@@ -165,6 +175,53 @@
 <div class="empty-state-message" id="stocks_empty_state" style="display:none;">No stocks data available</div>
 <div class="pagination-info" id="stocks_pagination_info"></div>
 <div class="pagination-buttons" id="stocks_pagination_buttons"></div>
+</div>
+
+<div class="section-wrapper" id="etf-section">
+<div class="section-header">
+<h2>ETFs</h2>
+<div class="controls-container">
+<div class="sort-controls">
+<span class="sort-icon">⇅</span>
+<select id="etf_sort" onchange="window.sortETFTable(this.value)">
+<option value="default">Default Order</option>
+<option value="pl_pct_desc">🔥 P/L % (High to Low)</option>
+<option value="pl_pct_asc">❄️ P/L % (Low to High)</option>
+<option value="pl_desc">💰 P/L Amount (High to Low)</option>
+<option value="pl_asc">💸 P/L Amount (Low to High)</option>
+<option value="invested_desc">📈 Invested (High to Low)</option>
+<option value="invested_asc">📉 Invested (Low to High)</option>
+<option value="current_desc">💵 Current (High to Low)</option>
+<option value="current_asc">💴 Current (Low to High)</option>
+<option value="day_change_desc">📊 Day's Change (High to Low)</option>
+<option value="day_change_asc">📉 Day's Change (Low to High)</option>
+<option value="symbol_asc">🔤 Symbol (A-Z)</option>
+<option value="symbol_desc">🔠 Symbol (Z-A)</option>
+</select>
+</div>
+<div class="pagination-controls">
+<label for="etf_page_size">Show:</label>
+<select id="etf_page_size" onchange="window.changeETFPageSize(this.value)">
+<option value="10">10</option>
+<option value="25" selected>25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table aria-label="ETF Holdings table">
+<thead>
+<tr>
+<th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Invested</th><th>Current</th><th>LTP</th><th>P/L</th><th>Day's Change</th><th>EX</th><th>Account</th>
+</tr>
+</thead>
+<tbody id="etf_tbody">
+</tbody>
+</table>
+<div class="empty-state-message" id="etf_empty_state" style="display:none;">No ETF data available</div>
+<div class="pagination-info" id="etf_pagination_info"></div>
+<div class="pagination-buttons" id="etf_pagination_buttons"></div>
 </div>
 
 <div class="section-wrapper" id="mf-section">

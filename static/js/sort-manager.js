@@ -5,6 +5,7 @@ import { Calculator } from './utils.js';
 class SortManager {
   constructor() {
     this.stocksSortOrder = 'default';
+    this.etfSortOrder = 'default';
     this.mfSortOrder = 'default';
     this.physicalGoldSortOrder = 'default';
     this.fixedDepositsSortOrder = 'default';
@@ -99,6 +100,16 @@ class SortManager {
   }
 
   /**
+   * Sort ETFs array based on selected criteria (same logic as stocks)
+   * @param {Array} holdings - ETF holdings array
+   * @param {string} sortBy - Sort criteria
+   * @returns {Array} Sorted array
+   */
+  sortETFs(holdings, sortBy = 'default') {
+    return this.sortStocks(holdings, sortBy);
+  }
+
+  /**
    * Sort mutual funds array based on selected criteria
    * @param {Array} mfHoldings - MF holdings array
    * @param {string} sortBy - Sort criteria
@@ -140,12 +151,20 @@ class SortManager {
     this.stocksSortOrder = sortBy;
   }
 
+  setETFSortOrder(sortBy) {
+    this.etfSortOrder = sortBy;
+  }
+
   setMFSortOrder(sortBy) {
     this.mfSortOrder = sortBy;
   }
 
   getStocksSortOrder() {
     return this.stocksSortOrder;
+  }
+
+  getETFSortOrder() {
+    return this.etfSortOrder;
   }
 
   getMFSortOrder() {

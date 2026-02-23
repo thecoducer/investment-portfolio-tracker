@@ -311,6 +311,7 @@ class Calculator {
 // Constants
 const GOLD_PREFIXES = ['SGB', 'GOLD'];
 const SILVER_PREFIXES = ['SILVR', 'SILVER'];
+const ETF_SUFFIXES = ['BEES', 'ETF'];
 
 /**
  * Check if a symbol represents a gold instrument
@@ -330,4 +331,17 @@ function isSilverInstrument(symbol) {
   return SILVER_PREFIXES.some(prefix => symbol.startsWith(prefix));
 }
 
-export { Formatter, Calculator, isGoldInstrument, isSilverInstrument };
+/**
+ * Check if a symbol represents an ETF instrument.
+ * Uses two signals: symbol suffix (BEES, ETF) and ISIN prefix (INF for ETFs vs INE for equities).
+ * @param {string} symbol - Trading symbol to check
+ * @param {string} [isin] - Optional ISIN number (INF = ETF/MF, INE = equity)
+ * @returns {boolean} - True if symbol is an ETF (e.g., NIFTYBEES, GOLDBEES, LIQUIDETF)
+ */
+function isETFInstrument(symbol, isin) {
+  if (ETF_SUFFIXES.some(suffix => symbol.endsWith(suffix))) return true;
+  if (isin && isin.startsWith('INF')) return true;
+  return false;
+}
+
+export { Formatter, Calculator, isGoldInstrument, isSilverInstrument, isETFInstrument };

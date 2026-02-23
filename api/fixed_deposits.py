@@ -136,5 +136,10 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
                 raise DataError(f"Invalid principal amount ({principal}) for fixed deposit at {bank_name}")
             elif annual_rate <= 0:
                 raise DataError(f"Invalid interest rate ({annual_rate}) for fixed deposit at {bank_name}")
-        
+
+    # Sort by maturity date in ascending order
+    enriched_deposits.sort(
+        key=lambda d: datetime.strptime(d['maturity_date'], "%B %d, %Y") if d.get('maturity_date') else datetime.max
+    )
+
     return enriched_deposits

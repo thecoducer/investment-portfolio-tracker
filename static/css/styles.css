@@ -420,7 +420,7 @@ body.dark-theme .theme-toggle:hover {
 
 .card {
   background: #fff;
-  padding: 16px 20px;
+  padding: 10px 20px;
   border-radius: 12px;
   box-shadow: 0 2px 12px rgba(93, 78, 66, 0.06);
   display: flex;
@@ -428,7 +428,7 @@ body.dark-theme .theme-toggle:hover {
   gap: 20px;
   border: 1px solid rgba(109, 94, 82, 0.1);
   transition: all 0.2s ease;
-  min-height: 60px;
+  min-height: 44px;
   position: relative;
   overflow: hidden;
 }
@@ -467,7 +467,7 @@ body.dark-theme .theme-toggle:hover {
 
 .card-title {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -481,7 +481,7 @@ body.dark-theme .theme-toggle:hover {
 
 .allocation-pct {
   display: inline-block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   padding: 2px 6px;
   margin-right: 8px;
@@ -501,7 +501,7 @@ body.dark-theme .theme-toggle:hover {
 }
 
 .summary-label {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   color: #7a6857;
   font-family: 'Raleway', sans-serif;
@@ -509,7 +509,7 @@ body.dark-theme .theme-toggle:hover {
 }
 
 .summary-value {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   color: #2d2621;
   font-family: 'Karla', sans-serif;
@@ -563,6 +563,19 @@ body.dark-theme .theme-toggle:hover {
 #stocks_summary {
   background: #ffffff;
   border-left: 4px solid #8c68c8;
+}
+
+#etf_summary {
+  background: #ffffff;
+  border-left: 4px solid #d94d8f;
+}
+
+#etf_summary .card-title {
+  text-transform: none;
+}
+
+#etf-section h2 {
+  text-transform: none;
 }
 
 #mf_summary {
@@ -1134,6 +1147,12 @@ body.dark-theme #stocks_summary .summary-value {
   color: #f8f4ed;
 }
 
+body.dark-theme #etf_summary {
+  background: linear-gradient(135deg, #201518 0%, #181013 100%);
+  border-left-color: #e56aaa;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4), 0 0 40px rgba(229, 106, 170, 0.05);
+}
+
 body.dark-theme #mf_summary {
   background: linear-gradient(135deg, #181d22 0%, #121518 100%);
   border-left-color: #5fb0f5;
@@ -1372,6 +1391,8 @@ body.privacy-mode #mf_total_pl,
 body.privacy-mode #mf_total_pl_pct,
 body.privacy-mode #total_pl,
 body.privacy-mode #total_pl_pct,
+body.privacy-mode #etf_total_pl,
+body.privacy-mode #etf_total_pl_pct,
 body.privacy-mode #gold_total_pl,
 body.privacy-mode #gold_total_pl_pct,
 body.privacy-mode #silver_total_pl,

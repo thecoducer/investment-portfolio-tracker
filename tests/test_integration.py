@@ -552,7 +552,7 @@ class TestSortUIIntegration(unittest.TestCase):
     def test_html_has_sort_dropdowns(self):
         """Test that HTML template has sort dropdown elements"""
         import os
-        html_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'holdings.html')
+        html_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'portfolio.html')
         
         if os.path.exists(html_path):
             with open(html_path, 'r') as f:

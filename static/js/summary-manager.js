@@ -10,6 +10,12 @@ const ELEMENT_IDS = {
     PL: 'total_pl',
     PL_PCT: 'total_pl_pct'
   },
+  ETF: {
+    INVESTED: 'etf_total_invested',
+    CURRENT: 'etf_current_value',
+    PL: 'etf_total_pl',
+    PL_PCT: 'etf_total_pl_pct'
+  },
   GOLD: {
     INVESTED: 'gold_total_invested',
     CURRENT: 'gold_current_value',
@@ -46,28 +52,31 @@ class SummaryManager {
   /**
    * Update all summary cards with provided totals
    * @param {Object} stockTotals - { invested, current, pl, plPct }
+   * @param {Object} etfTotals - { invested, current, pl, plPct } (excludes Gold/Silver ETFs)
    * @param {Object} goldTotals - { invested, current, pl, plPct }
    * @param {Object} silverTotals - { invested, current, pl, plPct }
    * @param {Object} mfTotals - { invested, current, pl, plPct }
    * @param {Object} fdTotals - { invested, maturity, returns, returnsPct }
    * @param {boolean} isUpdating - Whether refresh/update is in progress
    */
-  updateAllSummaries(stockTotals, goldTotals, silverTotals, mfTotals, fdTotals, isUpdating = false) {
+  updateAllSummaries(stockTotals, etfTotals, goldTotals, silverTotals, mfTotals, fdTotals, isUpdating = false) {
     // Provide default values if undefined
     const stock = stockTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
+    const etf = etfTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const gold = goldTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const silver = silverTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const mf = mfTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const fd = fdTotals || { invested: 0, maturity: 0, returns: 0, returnsPct: 0 };
 
     // Calculate combined totals (FD maturity counts as "current")
-    const combinedInvested = stock.invested + gold.invested + silver.invested + mf.invested + fd.invested;
-    const combinedCurrent = stock.current + gold.current + silver.current + mf.current + fd.maturity;
+    const combinedInvested = stock.invested + etf.invested + gold.invested + silver.invested + mf.invested + fd.invested;
+    const combinedCurrent = stock.current + etf.current + gold.current + silver.current + mf.current + fd.maturity;
     const combinedPL = combinedCurrent - combinedInvested;
     const combinedPLPct = combinedInvested ? (combinedPL / combinedInvested * 100) : 0;
 
     // Calculate allocation percentages
     const stockAllocation = combinedInvested ? (stock.invested / combinedInvested * 100) : 0;
+    const etfAllocation = combinedInvested ? (etf.invested / combinedInvested * 100) : 0;
     const goldAllocation = combinedInvested ? (gold.invested / combinedInvested * 100) : 0;
     const silverAllocation = combinedInvested ? (silver.invested / combinedInvested * 100) : 0;
     const mfAllocation = combinedInvested ? (mf.invested / combinedInvested * 100) : 0;
@@ -75,6 +84,7 @@ class SummaryManager {
 
     // Update allocation percentages
     this._updateAllocationPercentage('stocks_allocation_pct', stockAllocation);
+    this._updateAllocationPercentage('etf_allocation_pct', etfAllocation);
     this._updateAllocationPercentage('gold_allocation_pct', goldAllocation);
     this._updateAllocationPercentage('silver_allocation_pct', silverAllocation);
     this._updateAllocationPercentage('mf_allocation_pct', mfAllocation);
@@ -82,6 +92,7 @@ class SummaryManager {
 
     // Update all cards
     this._updateStockCard(stock);
+    this._updateETFCard(etf);
     this._updateGoldCard(gold);
     this._updateSilverCard(silver);
     this._updateMFCard(mf);
@@ -108,6 +119,8 @@ class SummaryManager {
         let color = '#8b7765'; // default brown
         if (elementId === 'stocks_allocation_pct') {
           color = '#7c5cdb'; // purple
+        } else if (elementId === 'etf_allocation_pct') {
+          color = '#d94d8f'; // magenta
         } else if (elementId === 'mf_allocation_pct') {
           color = '#5ca0db'; // blue
         } else if (elementId === 'gold_allocation_pct') {
@@ -128,6 +141,16 @@ class SummaryManager {
       ELEMENT_IDS.STOCK.CURRENT,
       ELEMENT_IDS.STOCK.PL,
       ELEMENT_IDS.STOCK.PL_PCT,
+      totals
+    );
+  }
+
+  _updateETFCard(totals) {
+    this._updateCard(
+      ELEMENT_IDS.ETF.INVESTED,
+      ELEMENT_IDS.ETF.CURRENT,
+      ELEMENT_IDS.ETF.PL,
+      ELEMENT_IDS.ETF.PL_PCT,
       totals
     );
   }

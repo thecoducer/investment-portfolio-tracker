@@ -57,6 +57,7 @@ class PortfolioApp {
 
   _renderEmptyStates() {
     this.tableRenderer.renderStocksTable([], { portfolio_state: 'idle' });
+    this.tableRenderer.renderETFTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderMFTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderSIPsTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderPhysicalGoldTable([]);
@@ -72,15 +73,36 @@ class PortfolioApp {
   }
 
   /**
-   * Calculate combined gold totals (ETFs + Physical Gold)
-   * @param {Object} goldETFTotals - Gold ETF totals from stocks
+   * Calculate combined gold totals (Gold from stocks + Gold ETFs + Physical Gold)
+   * @param {Object} goldStockTotals - Gold non-ETF totals from stocks (e.g., SGBs)
+   * @param {Object} goldETFTotals - Gold ETF totals from ETF table
    * @param {Object} physicalGoldTotals - Physical gold totals
    * @returns {Object} Combined totals with invested, current, pl, plPct
    */
-  _calculateCombinedGoldTotals(goldETFTotals, physicalGoldTotals) {
-    const totalInvested = goldETFTotals.invested + physicalGoldTotals.invested;
-    const totalCurrent = goldETFTotals.current + physicalGoldTotals.current;
-    const totalPL = goldETFTotals.pl + physicalGoldTotals.pl;
+  _calculateCombinedGoldTotals(goldStockTotals, goldETFTotals, physicalGoldTotals) {
+    const totalInvested = goldStockTotals.invested + goldETFTotals.invested + physicalGoldTotals.invested;
+    const totalCurrent = goldStockTotals.current + goldETFTotals.current + physicalGoldTotals.current;
+    const totalPL = goldStockTotals.pl + goldETFTotals.pl + physicalGoldTotals.pl;
+    const totalPLPct = totalInvested ? (totalPL / totalInvested * 100) : 0;
+    
+    return {
+      invested: totalInvested,
+      current: totalCurrent,
+      pl: totalPL,
+      plPct: totalPLPct
+    };
+  }
+
+  /**
+   * Calculate combined silver totals (Silver from stocks + Silver ETFs)
+   * @param {Object} silverStockTotals - Silver non-ETF totals from stocks
+   * @param {Object} silverETFTotals - Silver ETF totals from ETF table
+   * @returns {Object} Combined totals with invested, current, pl, plPct
+   */
+  _calculateCombinedSilverTotals(silverStockTotals, silverETFTotals) {
+    const totalInvested = silverStockTotals.invested + silverETFTotals.invested;
+    const totalCurrent = silverStockTotals.current + silverETFTotals.current;
+    const totalPL = totalCurrent - totalInvested;
     const totalPLPct = totalInvested ? (totalPL / totalInvested * 100) : 0;
     
     return {
@@ -114,6 +136,7 @@ class PortfolioApp {
     };
     window.triggerRefresh = () => this.handleRefresh();
     window.sortStocksTable = (sortBy) => this.handleStocksSort(sortBy);
+    window.sortETFTable = (sortBy) => this.handleETFSort(sortBy);
     window.sortMFTable = (sortBy) => this.handleMFSort(sortBy);
     window.sortPhysicalGoldTable = (sortBy) => this.handlePhysicalGoldSort(sortBy);
     window.sortFixedDepositsTable = (sortBy) => this.handleFixedDepositsSort(sortBy);
@@ -123,6 +146,14 @@ class PortfolioApp {
     };
     window.goToStocksPage = (page) => {
       this.tableRenderer.goToStocksPage(page);
+      this.updateData();
+    };
+    window.changeETFPageSize = (size) => {
+      this.tableRenderer.changeETFPageSize(parseInt(size));
+      this.updateData();
+    };
+    window.goToETFPage = (page) => {
+      this.tableRenderer.goToETFPage(page);
       this.updateData();
     };
     window.changeMFPageSize = (size) => {
@@ -248,10 +279,16 @@ class PortfolioApp {
     );
     const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
 
+    const zeroTotals = { invested: 0, current: 0, pl: 0, plPct: 0 };
+
     if (hasData) {
       const sortedHoldings = this.sortManager.sortStocks(
         this.dataManager.getStocks(),
         this.sortManager.getStocksSortOrder()
+      );
+      const sortedETFHoldings = this.sortManager.sortETFs(
+        this.dataManager.getStocks(),
+        this.sortManager.getETFSortOrder()
       );
       const sortedMFHoldings = this.sortManager.sortMF(
         this.dataManager.getMFHoldings(),
@@ -259,22 +296,26 @@ class PortfolioApp {
       );
 
       const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
+      const { etfTotals, goldETFTotals, silverETFTotals } = this.tableRenderer.renderETFTable(sortedETFHoldings, status);
       const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
       
-      const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
+      const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, goldETFTotals, physicalGoldTotals);
+      const combinedSilverTotals = this._calculateCombinedSilverTotals(silverTotals, silverETFTotals);
       
-      this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, isUpdating);
+      this.summaryManager.updateAllSummaries(stockTotals, etfTotals, combinedGoldTotals, combinedSilverTotals, mfTotals, fdTotals, isUpdating);
     } else {
       const combinedGoldTotals = this._calculateCombinedGoldTotals(
-        { invested: 0, current: 0, pl: 0, plPct: 0 },
+        zeroTotals,
+        zeroTotals,
         physicalGoldTotals
       );
       this.summaryManager.updateAllSummaries(
-        { invested: 0, current: 0, pl: 0, plPct: 0 },
+        zeroTotals,
+        zeroTotals,
         combinedGoldTotals,
-        { invested: 0, current: 0, pl: 0, plPct: 0 },
-        { invested: 0, current: 0, pl: 0, plPct: 0 },
+        zeroTotals,
+        zeroTotals,
         fdTotals,
         isUpdating
       );
@@ -295,6 +336,10 @@ class PortfolioApp {
       this.dataManager.getStocks(),
       this.sortManager.getStocksSortOrder()
     );
+    const sortedETFHoldings = this.sortManager.sortETFs(
+      this.dataManager.getStocks(),
+      this.sortManager.getETFSortOrder()
+    );
     const sortedMFHoldings = this.sortManager.sortMF(
       this.dataManager.getMFHoldings(),
       this.sortManager.getMFSortOrder()
@@ -309,6 +354,7 @@ class PortfolioApp {
     );
 
     const { stockTotals, goldTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
+    const { etfTotals, goldETFTotals, silverETFTotals } = this.tableRenderer.renderETFTable(sortedETFHoldings, status);
     const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
     if (renderSIPs) {
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
@@ -320,9 +366,10 @@ class PortfolioApp {
       this.tableRenderer.renderFDSummaryTable(fdSummaryData);
     }
 
-    const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, physicalGoldTotals);
+    const combinedGoldTotals = this._calculateCombinedGoldTotals(goldTotals, goldETFTotals, physicalGoldTotals);
+    const combinedSilverTotals = this._calculateCombinedSilverTotals(silverTotals, silverETFTotals);
 
-    this.summaryManager.updateAllSummaries(stockTotals, combinedGoldTotals, silverTotals, mfTotals, fdTotals, isUpdating);
+    this.summaryManager.updateAllSummaries(stockTotals, etfTotals, combinedGoldTotals, combinedSilverTotals, mfTotals, fdTotals, isUpdating);
   }
 
   handleSearch() {
@@ -361,6 +408,11 @@ class PortfolioApp {
 
   handleStocksSort(sortBy) {
     this.sortManager.setStocksSortOrder(sortBy);
+    this._renderAllAndUpdateSummaries(this.lastStatus || {});
+  }
+
+  handleETFSort(sortBy) {
+    this.sortManager.setETFSortOrder(sortBy);
     this._renderAllAndUpdateSummaries(this.lastStatus || {});
   }
 

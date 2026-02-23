@@ -1,12 +1,13 @@
 /* Portfolio Tracker - Table Rendering Module */
 
-import { Formatter, Calculator, isGoldInstrument, isSilverInstrument } from './utils.js';
+import { Formatter, Calculator, isGoldInstrument, isSilverInstrument, isETFInstrument } from './utils.js';
 import PaginationManager from './pagination.js';
 
 class TableRenderer {
   constructor() {
     this.searchQuery = '';
     this.stocksPagination = new PaginationManager(10, 1);
+    this.etfPagination = new PaginationManager(10, 1);
     this.mfPagination = new PaginationManager(10, 1);
     this.physicalGoldPagination = new PaginationManager(10, 1);
     this.fixedDepositsPagination = new PaginationManager(10, 1);
@@ -120,14 +121,20 @@ class TableRenderer {
     let filteredHoldings = [];
 
     // Filter and calculate totals (Gold and Silver shown in table but not in Stocks summary)
+    // ETFs are excluded entirely from this table
     holdings.forEach(holding => {
       const symbol = holding.tradingsymbol || '';
+      const isin = holding.isin || '';
       const text = (symbol + holding.account).toLowerCase();
       const isGold = isGoldInstrument(symbol);
       const isSilver = isSilverInstrument(symbol);
+      const isETF = isETFInstrument(symbol, isin);
+      
+      // Skip ETFs - they go to the ETF table
+      if (isETF) return;
       
       if (text.includes(this.searchQuery)) {
-        filteredHoldings.push(holding);  // Add all holdings to display
+        filteredHoldings.push(holding);  // Add non-ETF holdings to display
         const metrics = Calculator.calculateStockMetrics(holding);
         
         if (isGold) {
@@ -665,6 +672,145 @@ class TableRenderer {
     this.stocksPagination.goToPage(page);
   }
 
+  /**
+   * Render ETF holdings table (separate from stocks).
+   * Gold/Silver ETFs are shown in the table but their totals go to Gold/Silver cards, not ETF card.
+   * @param {Array} holdings - All holdings (stocks + ETFs combined from Zerodha)
+   * @param {Object} status - Current status object
+   * @returns {Object} { etfTotals, goldETFTotals, silverETFTotals }
+   */
+  renderETFTable(holdings, status) {
+    const tbody = document.getElementById('etf_tbody');
+    const section = document.getElementById('etf-section');
+    const isUpdating = status.portfolio_state === 'updating';
+
+    let etfInvested = 0;
+    let etfCurrent = 0;
+    let goldETFInvested = 0;
+    let goldETFCurrent = 0;
+    let silverETFInvested = 0;
+    let silverETFCurrent = 0;
+    let filteredHoldings = [];
+
+    // Filter only ETF holdings
+    holdings.forEach(holding => {
+      const symbol = holding.tradingsymbol || '';
+      const isin = holding.isin || '';
+      const isETF = isETFInstrument(symbol, isin);
+
+      if (!isETF) return;
+
+      const text = (symbol + holding.account).toLowerCase();
+      if (!text.includes(this.searchQuery)) return;
+
+      const isGold = isGoldInstrument(symbol);
+      const isSilver = isSilverInstrument(symbol);
+
+      filteredHoldings.push(holding);
+      const metrics = Calculator.calculateStockMetrics(holding);
+
+      if (isGold) {
+        goldETFInvested += metrics.invested;
+        goldETFCurrent += metrics.current;
+      } else if (isSilver) {
+        silverETFInvested += metrics.invested;
+        silverETFCurrent += metrics.current;
+      } else {
+        etfInvested += metrics.invested;
+        etfCurrent += metrics.current;
+      }
+    });
+
+    // Group ETFs by symbol
+    const groupedHoldings = this._groupStocksBySymbol(filteredHoldings);
+    const groupedArray = Object.values(groupedHoldings);
+
+    // Use pagination manager on grouped holdings
+    const paginationData = this.etfPagination.paginate(groupedArray);
+    const { pageData } = paginationData;
+
+    let rowsHTML = '';
+    pageData.forEach((group, index) => {
+      const groupId = `etf-group-${index}`;
+      const metrics = this._calculateAggregatedStockMetrics(group.holdings);
+      rowsHTML += this._buildStockRow(group.holdings[0], metrics, {
+        symbolClass: this._getUpdateClass(isUpdating),
+        qtyClass: this._getUpdateClass(isUpdating),
+        avgClass: this._getUpdateClass(isUpdating),
+        investedClass: this._getUpdateClass(isUpdating),
+        ltpClass: this._getUpdateClass(isUpdating),
+        plClass: this._getUpdateClass(isUpdating),
+        dayChangeClass: this._getUpdateClass(isUpdating),
+        currentClass: this._getUpdateClass(isUpdating),
+        exchangeClass: this._getUpdateClass(isUpdating),
+        accountClass: this._getUpdateClass(isUpdating),
+        groupId: groupId,
+        hasMultipleAccounts: group.holdings.length > 1,
+        isGroupRow: true
+      });
+
+      if (group.holdings.length > 1) {
+        group.holdings.forEach(holding => {
+          const holdingMetrics = Calculator.calculateStockMetrics(holding);
+          rowsHTML += this._buildStockBreakdownRow(holding, holdingMetrics, groupId);
+        });
+      }
+    });
+    tbody.innerHTML = rowsHTML;
+
+    // Show/hide table and empty state
+    this._toggleSectionVisibility({
+      table: section.querySelector('table'),
+      emptyState: document.getElementById('etf_empty_state'),
+      controls: section.querySelector('.controls-container'),
+      paginationInfo: document.getElementById('etf_pagination_info'),
+      paginationButtons: document.getElementById('etf_pagination_buttons')
+    }, filteredHoldings.length > 0);
+
+    // Update pagination UI
+    PaginationManager.updatePaginationUI(
+      paginationData,
+      'etf_pagination_info',
+      'etf_pagination_buttons',
+      'goToETFPage',
+      'etfs'
+    );
+
+    // Restore expanded state
+    this._restoreExpandedState();
+
+    const etfTotals = {
+      invested: etfInvested,
+      current: etfCurrent,
+      pl: etfCurrent - etfInvested,
+      plPct: etfInvested ? ((etfCurrent - etfInvested) / etfInvested * 100) : 0
+    };
+
+    const goldETFTotals = {
+      invested: goldETFInvested,
+      current: goldETFCurrent,
+      pl: goldETFCurrent - goldETFInvested,
+      plPct: goldETFInvested ? ((goldETFCurrent - goldETFInvested) / goldETFInvested * 100) : 0
+    };
+
+    const silverETFTotals = {
+      invested: silverETFInvested,
+      current: silverETFCurrent,
+      pl: silverETFCurrent - silverETFInvested,
+      plPct: silverETFInvested ? ((silverETFCurrent - silverETFInvested) / silverETFInvested * 100) : 0
+    };
+
+    return { etfTotals, goldETFTotals, silverETFTotals };
+  }
+
+  changeETFPageSize(size) {
+    this.etfPagination.changePageSize(size);
+  }
+
+  goToETFPage(page) {
+    this.etfPagination.goToPage(page);
+  }
+
   changeMFPageSize(size) {
     this.mfPagination.changePageSize(size);
   }
@@ -1108,7 +1254,7 @@ class TableRenderer {
     const returnsPctText = Formatter.formatPercentage(returnsPct);
 
     return `<tr>
-      <td>${bank}</td>
+      <td style="text-transform:uppercase">${bank}</td>
       <td>${account}</td>
       <td>${Formatter.formatCurrency(totalDeposited)}</td>
       <td><span style="color:${currentValueColor};font-weight:${currentValueFontWeight}">${Formatter.formatCurrency(totalCurrentValue)}</span></td>

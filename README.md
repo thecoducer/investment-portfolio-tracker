@@ -351,7 +351,7 @@ Create a sheet (e.g., named `FixedDeposits`) with the following structure. The f
 │       ├── nifty50.js         # Nifty 50 page controller
 │       └── utils.js           # Formatter & Calculator utilities
 ├── templates/
-│   ├── holdings.html          # Main portfolio dashboard
+│   ├── portfolio.html         # Main portfolio dashboard
 │   ├── nifty50.html           # Nifty 50 page
 │   ├── callback_success.html  # OAuth success page
 │   └── callback_error.html    # OAuth error page
