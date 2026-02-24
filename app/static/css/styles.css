@@ -796,6 +796,152 @@ body.dark-theme .theme-toggle:hover {
   border-top: 3px solid #f5b822;
 }
 
+/* subtitle text appended to gold card title */
+#gold_summary .gold-subtitle {
+  font-size: 0.85em;
+  opacity: 0.8;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+/* toggle control inside gold card (icon button) */
+#gold_summary .gold-breakdown-toggle {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle {
+  background: none;
+  border: none;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  padding: 2px;
+  color: #333;
+  position: relative;
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle:hover {
+  color: #000;
+}
+
+/* graphic bars for toggle - default: three horizontal lines */
+#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar,
+#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::before,
+#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::after {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  position: absolute;
+  left: 0;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar {
+  top: 50%;
+  transform: translateY(-50%);
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::before {
+  content: '';
+  top: -6px;
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::after {
+  content: '';
+  top: 6px;
+}
+/* active state: rotate bars into vertical stack for histogram look */
+#gold_summary .gold-breakdown-toggle .icon-toggle.active .icon-bar {
+  transform: translateY(-50%) rotate(90deg);
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle.active .icon-bar::before {
+  transform: rotate(90deg);
+}
+#gold_summary .gold-breakdown-toggle .icon-toggle.active .icon-bar::after {
+  transform: rotate(90deg);
+}
+
+/* breakdown metrics layout - hidden by default */
+#gold_summary .gold-breakdown-metrics {
+  display: none;
+  padding: 8px 12px;
+}
+#gold_summary.breakdown-mode .category-metrics {
+  display: none;
+}
+#gold_summary.breakdown-mode .gold-breakdown-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+#gold_summary .breakdown-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left; /* left align all values in this column */
+}
+#gold_summary .breakdown-label {
+  font-weight: 600;
+  font-size: 0.85em;
+  font-family: 'Raleway', sans-serif;
+}
+/* individual alignment rules removed; column settings handle it */
+#gold_summary .breakdown-current {
+  /* no explicit alignment, inherits left */
+}
+#gold_summary .breakdown-invested {
+}
+#gold_summary .breakdown-pl {
+}
+
+/* styling similar to category metrics but smaller so values remain readable */
+#gold_summary .breakdown-current {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2d2621;
+  font-family: 'Karla', sans-serif;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+#gold_summary .breakdown-invested {
+  font-size: 11px;
+  color: #9c8e7e;
+  font-family: 'Karla', sans-serif;
+}
+#gold_summary .breakdown-pl {
+  font-size: 11px;
+  border-top: 1px solid rgba(212,175,115,0.08);
+  padding-top: 1px;
+}
+#gold_summary .breakdown-pl .category-pct {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+/* dark theme overrides for breakdown values */
+body.dark-theme #gold_summary .breakdown-current {
+  color: #f8f4ed;
+}
+body.dark-theme #gold_summary .breakdown-invested {
+  color: #8b7d6f;
+}
+body.dark-theme #gold_summary .breakdown-pl {
+  border-top-color: rgba(212,175,115,0.08);
+}
+
+/* ---------- privacy mode blurring ---------- */
+body.privacy-mode table#stocksTable td:first-child,
+body.privacy-mode table#etfTable td:first-child,
+body.privacy-mode table#mfTable td:first-child,
+body.privacy-mode table#physicalGoldTable td:first-child,
+body.privacy-mode table[aria-label="SIPs table"] td:first-child {
+  filter: blur(4px);
+}
+
+/* blur ETF/Physical values inside gold card when privacy enabled */
+body.privacy-mode #gold_summary .breakdown-column {
+  filter: blur(4px);
+}
+
 #silver_summary {
   border-top: 3px solid #8d8d8d;
 }

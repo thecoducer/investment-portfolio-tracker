@@ -124,13 +124,43 @@
 </div>
 
 <div class="card card--category" id="gold_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="gold_allocation_pct"></span>Gold</h3>
+    <h3 class="card-title">
+        <span class="allocation-pct" id="gold_allocation_pct"></span>
+        Gold <span class="gold-subtitle">(ETFs + Physical)</span>
+    </h3>
+    <!-- small icon toggle for ETF/physical breakdown -->
+    <div class="gold-breakdown-toggle">
+        <button id="gold_breakdown_toggle" class="icon-toggle" title="Toggle ETF/Physical view">
+            <span class="icon-bar"></span>
+        </button>
+    </div>
     <div class="category-metrics">
         <div class="category-current" id="gold_current_value">0.00</div>
         <div class="category-invested" id="gold_total_invested">0.00</div>
         <div class="category-pl">
             <span id="gold_total_pl">0.00</span>
             <span class="category-pct" id="gold_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+    <!-- breakdown metrics shown when toggle enabled; two-column layout -->
+    <div class="gold-breakdown-metrics" id="gold_breakdown_metrics">
+        <div class="breakdown-column" id="gold_etf_column">
+            <div class="breakdown-label">ETF</div>
+            <div class="breakdown-current" id="gold_etf_current_value">0.00</div>
+            <div class="breakdown-invested" id="gold_etf_total_invested">0.00</div>
+            <div class="breakdown-pl">
+                <span id="gold_etf_total_pl">0.00</span>
+                <span class="category-pct" id="gold_etf_total_pl_pct">0.00%</span>
+            </div>
+        </div>
+        <div class="breakdown-column" id="gold_physical_column">
+            <div class="breakdown-label">Physical</div>
+            <div class="breakdown-current" id="gold_physical_current_value">0.00</div>
+            <div class="breakdown-invested" id="gold_physical_total_invested">0.00</div>
+            <div class="breakdown-pl">
+                <span id="gold_physical_total_pl">0.00</span>
+                <span class="category-pct" id="gold_physical_total_pl_pct">0.00%</span>
+            </div>
         </div>
     </div>
 </div>

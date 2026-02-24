@@ -22,6 +22,18 @@ const ELEMENT_IDS = {
     PL: 'gold_total_pl',
     PL_PCT: 'gold_total_pl_pct'
   },
+  GOLD_ETF: {
+    INVESTED: 'gold_etf_total_invested',
+    CURRENT: 'gold_etf_current_value',
+    PL: 'gold_etf_total_pl',
+    PL_PCT: 'gold_etf_total_pl_pct'
+  },
+  GOLD_PHYSICAL: {
+    INVESTED: 'gold_physical_total_invested',
+    CURRENT: 'gold_physical_current_value',
+    PL: 'gold_physical_total_pl',
+    PL_PCT: 'gold_physical_total_pl_pct'
+  },
   SILVER: {
     INVESTED: 'silver_total_invested',
     CURRENT: 'silver_current_value',
@@ -49,17 +61,30 @@ const ELEMENT_IDS = {
 };
 
 class SummaryManager {
+  constructor() {
+    // track whether breakdown mode is active
+    this.showGoldBreakdown = false;
+    // store last totals so toggle can re-render without new data fetch
+    this._lastCombinedGold = { invested: 0, current: 0, pl: 0, plPct: 0 };
+    this._lastGoldBreakdown = {
+      etf: { invested: 0, current: 0, pl: 0, plPct: 0 },
+      physical: { invested: 0, current: 0, pl: 0, plPct: 0 }
+    };
+  }
+
   /**
    * Update all summary cards with provided totals
    * @param {Object} stockTotals - { invested, current, pl, plPct }
    * @param {Object} etfTotals - { invested, current, pl, plPct } (excludes Gold/Silver ETFs)
-   * @param {Object} goldTotals - { invested, current, pl, plPct }
+   * @param {Object} goldTotals - { invested, current, pl, plPct } (combined stock/ETF/physical)
    * @param {Object} silverTotals - { invested, current, pl, plPct }
    * @param {Object} mfTotals - { invested, current, pl, plPct }
    * @param {Object} fdTotals - { invested, maturity, returns, returnsPct }
    * @param {boolean} isUpdating - Whether refresh/update is in progress
+   * @param {Object|null} goldETFTotals - (optional) ETF portion of gold
+   * @param {Object|null} physicalGoldTotals - (optional) physical gold portion
    */
-  updateAllSummaries(stockTotals, etfTotals, goldTotals, silverTotals, mfTotals, fdTotals, isUpdating = false) {
+  updateAllSummaries(stockTotals, etfTotals, goldTotals, silverTotals, mfTotals, fdTotals, isUpdating = false, goldETFTotals = null, physicalGoldTotals = null) {
     // Provide default values if undefined
     const stock = stockTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
     const etf = etfTotals || { invested: 0, current: 0, pl: 0, plPct: 0 };
@@ -90,10 +115,17 @@ class SummaryManager {
     this._updateAllocationPercentage('mf_allocation_pct', mfAllocation);
     this._updateAllocationPercentage('fd_allocation_pct', fdAllocation);
 
-    // Update all cards
+    // remember totals so toggle can re-render later
+    this._lastCombinedGold = gold;
+    this._lastGoldBreakdown = {
+      etf: goldETFTotals || { invested:0, current:0, pl:0, plPct:0 },
+      physical: physicalGoldTotals || { invested:0, current:0, pl:0, plPct:0 }
+    };
+
+    // Update all cards (non-gold cards unchanged)
     this._updateStockCard(stock);
     this._updateETFCard(etf);
-    this._updateGoldCard(gold);
+    this._refreshGoldCard();
     this._updateSilverCard(silver);
     this._updateMFCard(mf);
     this._updateFDCard(fd);
@@ -163,6 +195,45 @@ class SummaryManager {
       ELEMENT_IDS.GOLD.PL_PCT,
       totals
     );
+  }
+
+  _updateGoldBreakdown(etfTotals, physicalTotals) {
+    // update individual ETF and physical rows
+    this._updateCard(
+      ELEMENT_IDS.GOLD_ETF.INVESTED,
+      ELEMENT_IDS.GOLD_ETF.CURRENT,
+      ELEMENT_IDS.GOLD_ETF.PL,
+      ELEMENT_IDS.GOLD_ETF.PL_PCT,
+      etfTotals
+    );
+    this._updateCard(
+      ELEMENT_IDS.GOLD_PHYSICAL.INVESTED,
+      ELEMENT_IDS.GOLD_PHYSICAL.CURRENT,
+      ELEMENT_IDS.GOLD_PHYSICAL.PL,
+      ELEMENT_IDS.GOLD_PHYSICAL.PL_PCT,
+      physicalTotals
+    );
+  }
+
+  _refreshGoldCard() {
+    if (this.showGoldBreakdown) {
+      this._updateGoldBreakdown(this._lastGoldBreakdown.etf, this._lastGoldBreakdown.physical);
+    } else {
+      this._updateGoldCard(this._lastCombinedGold);
+    }
+  }
+
+  /**
+   * Toggle whether the gold card shows separate ETF / physical values.
+   * @param {boolean} enable
+   */
+  setGoldBreakdownMode(enable) {
+    this.showGoldBreakdown = !!enable;
+    const card = document.getElementById('gold_summary');
+    if (card) {
+      card.classList.toggle('breakdown-mode', this.showGoldBreakdown);
+    }
+    this._refreshGoldCard();
   }
 
   _updateSilverCard(totals) {

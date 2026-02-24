@@ -15,6 +15,8 @@ A Flask-based dashboard for tracking your complete investment portfolio — stoc
 - **Stocks & Mutual Funds** — holdings, P/L, day change, grouped by symbol across accounts
 - **SIPs** tracking with monthly total and smart date formatting
 - **Physical Gold** tracking via Google Sheets with live IBJA price P/L
+
+*Summary view enhancements:* the gold summary card now shows “(ETFs + Physical)” to clarify the components and includes a small CSS‑styled toggle icon (no emojis) that switches between ETF and physical gold P/L, invested and current values.
 - **Fixed Deposits** tracking via Google Sheets with compound interest calculations
 - **FD Summary** grouped by bank and account with high-value highlighting
 - **Nifty 50** live prices page with NSE data

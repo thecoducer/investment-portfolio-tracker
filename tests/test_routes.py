@@ -130,6 +130,13 @@ class TestUIServerRoutes(unittest.TestCase):
         response = self.client.get('/')
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'html', response.data.lower())
+        # ensure gold card displays subtitle and toggle control
+        self.assertIn(b'(ETFs + Physical)', response.data)
+        self.assertIn(b'id="gold_breakdown_toggle"', response.data)
+        # ensure toggle contains structural span for CSS graphic
+        self.assertIn(b'class="icon-bar"', response.data)
+        # toggle should no longer be an emoji
+        self.assertNotIn(b'\xf0\x9f\x94\x80', response.data)  # not 🔀 or 📊 etc
 
     def test_nifty50_page(self):
         """Test /nifty50 page renders."""

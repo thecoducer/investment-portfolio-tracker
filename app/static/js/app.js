@@ -138,6 +138,15 @@ class PortfolioApp {
       this.handleSearch();
     };
     window.triggerRefresh = () => this.handleRefresh();
+    // gold breakdown toggle (icon button)
+    const goldToggle = document.getElementById('gold_breakdown_toggle');
+    if (goldToggle) {
+      goldToggle.addEventListener('click', () => {
+        const newMode = !this.summaryManager.showGoldBreakdown;
+        this.summaryManager.setGoldBreakdownMode(newMode);
+        goldToggle.classList.toggle('active', newMode);
+      });
+    }
     // Sort handlers
     window.sortStocksTable = (sortBy) => this._handleSort('Stocks', sortBy);
     window.sortETFTable = (sortBy) => this._handleSort('ETF', sortBy);
@@ -412,7 +421,17 @@ class PortfolioApp {
       const combinedGoldTotals = this._combineTotals(goldTotals, goldETFTotals, physicalGoldTotals);
       const combinedSilverTotals = this._combineTotals(silverTotals, silverETFTotals);
       
-      this.summaryManager.updateAllSummaries(stockTotals, etfTotals, combinedGoldTotals, combinedSilverTotals, mfTotals, fdTotals, isUpdating);
+      this.summaryManager.updateAllSummaries(
+        stockTotals,
+        etfTotals,
+        combinedGoldTotals,
+        combinedSilverTotals,
+        mfTotals,
+        fdTotals,
+        isUpdating,
+        goldETFTotals,
+        physicalGoldTotals
+      );
     } else {
       const combinedGoldTotals = this._combineTotals(
         zeroTotals,
@@ -426,7 +445,9 @@ class PortfolioApp {
         zeroTotals,
         zeroTotals,
         fdTotals,
-        isUpdating
+        isUpdating,
+        { invested:0, current:0, pl:0, plPct:0 },
+        physicalGoldTotals
       );
     }
   }
@@ -478,7 +499,17 @@ class PortfolioApp {
     const combinedGoldTotals = this._combineTotals(goldTotals, goldETFTotals, physicalGoldTotals);
     const combinedSilverTotals = this._combineTotals(silverTotals, silverETFTotals);
 
-    this.summaryManager.updateAllSummaries(stockTotals, etfTotals, combinedGoldTotals, combinedSilverTotals, mfTotals, fdTotals, isUpdating);
+    this.summaryManager.updateAllSummaries(
+      stockTotals,
+      etfTotals,
+      combinedGoldTotals,
+      combinedSilverTotals,
+      mfTotals,
+      fdTotals,
+      isUpdating,
+      goldETFTotals,
+      physicalGoldTotals
+    );
   }
 
   handleSearch() {
