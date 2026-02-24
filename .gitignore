@@ -1,9 +1,8 @@
 # Portfolio Tracker - Ignore cached tokens and environment files
-.session_cache.json
+config/.session_cache.json
 .env
 .env.local
-config.json
-duplicate_config.json
+config/config.json
 __pycache__/
 *.pyc
 .DS_Store
@@ -17,7 +16,7 @@ run_server/
 *.db
 *.sqlite
 *.sqlite3
-google-credentials.json
+config/google-credentials.json
 
 # Test coverage
 .coverage

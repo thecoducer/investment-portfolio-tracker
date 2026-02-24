@@ -2,10 +2,11 @@
 Unit tests for API client modules (NSE and Zerodha)
 """
 import unittest
-from unittest.mock import Mock, MagicMock, patch, call
-import requests
-from api.nse_client import NSEAPIClient
-from api.zerodha_client import ZerodhaAPIClient
+from unittest.mock import Mock, patch
+
+from app.api.nse_client import NSEAPIClient
+from app.api.zerodha_client import ZerodhaAPIClient
+from app.constants import NSE_BASE_URL, NSE_REQUEST_DELAY, NSE_REQUEST_TIMEOUT
 
 
 class TestNSEAPIClient(unittest.TestCase):
@@ -17,12 +18,12 @@ class TestNSEAPIClient(unittest.TestCase):
     
     def test_init(self):
         """Test NSEAPIClient initialization"""
-        self.assertEqual(self.nse_client.base_url, 'https://www.nseindia.com')
+        self.assertEqual(self.nse_client.base_url, NSE_BASE_URL)
         self.assertIn('User-Agent', self.nse_client.headers)
-        self.assertEqual(self.nse_client.timeout, 10)
-        self.assertEqual(self.nse_client.request_delay, 0.2)
+        self.assertEqual(self.nse_client.timeout, NSE_REQUEST_TIMEOUT)
+        self.assertEqual(self.nse_client.request_delay, NSE_REQUEST_DELAY)
     
-    @patch('api.nse_client.requests.Session')
+    @patch('app.api.nse_client.requests.Session')
     def test_create_session_success(self, mock_session_class):
         """Test successful session creation"""
         mock_session = Mock()
@@ -38,7 +39,7 @@ class TestNSEAPIClient(unittest.TestCase):
             timeout=self.nse_client.timeout
         )
     
-    @patch('api.nse_client.requests.Session')
+    @patch('app.api.nse_client.requests.Session')
     def test_create_session_failure(self, mock_session_class):
         """Test session creation with error"""
         mock_session_class.return_value.get.side_effect = Exception("Network error")

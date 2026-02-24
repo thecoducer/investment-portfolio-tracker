@@ -3,8 +3,9 @@ Tests for gold price fetching service.
 """
 
 import unittest
-from unittest.mock import patch, Mock
-from api.ibja_gold_price import GoldPriceService, get_gold_price_service
+from unittest.mock import Mock, patch
+
+from app.api.ibja_gold_price import GoldPriceService, get_gold_price_service
 
 
 class TestGoldPriceService(unittest.TestCase):
@@ -14,7 +15,7 @@ class TestGoldPriceService(unittest.TestCase):
         """Set up test fixtures."""
         self.service = GoldPriceService()
     
-    @patch('api.ibja_gold_price.requests.get')
+    @patch('app.api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_success(self, mock_get):
         """Test successful fetching of gold prices."""
         # Mock HTML response with span elements matching actual IBJA structure
@@ -45,7 +46,7 @@ class TestGoldPriceService(unittest.TestCase):
         self.assertEqual(prices['916']['am'], 117752.0)
         self.assertEqual(prices['916']['pm'], 117752.0)
     
-    @patch('api.ibja_gold_price.requests.get')
+    @patch('app.api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_no_tables(self, mock_get):
         """Test handling of page with no tables."""
         mock_response = Mock()
@@ -57,7 +58,7 @@ class TestGoldPriceService(unittest.TestCase):
         
         self.assertIsNone(prices)
     
-    @patch('api.ibja_gold_price.requests.get')
+    @patch('app.api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_network_error(self, mock_get):
         """Test handling of network errors."""
         mock_get.side_effect = Exception("Network error")
@@ -66,7 +67,7 @@ class TestGoldPriceService(unittest.TestCase):
         
         self.assertIsNone(prices)
     
-    @patch('api.ibja_gold_price.requests.get')
+    @patch('app.api.ibja_gold_price.requests.get')
     def test_fetch_gold_prices_invalid_data(self, mock_get):
         """Test handling of invalid price data."""
         mock_response = Mock()

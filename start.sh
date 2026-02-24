@@ -37,68 +37,36 @@ print_error() {
 
 # Check if config.json exists and is properly configured
 print_info "Checking configuration..."
-if [ ! -f "config.json" ]; then
-    print_error "config.json not found!"
+if [ ! -f "config/config.json" ]; then
+    print_error "config/config.json not found!"
     echo ""
     echo "Please create a config.json file with your account details."
-    echo "Example structure:"
-    echo '{'
-    echo '  "accounts": ['
-    echo '    {'
-    echo '      "name": "Account1",'
-    echo '      "api_key": "your_kite_api_key",'
-    echo '      "api_secret": "your_kite_api_secret"'
-    echo '    }'
-    echo '  ],'
-    echo '  "server": { "host": "0.0.0.0", "port": 5000 }'
-    echo '}'
+    echo "See config/config.json.example for the required structure."
     exit 1
 fi
 
-# Validate config.json structure
+# Validate config.json structure using the application's own validation
 if ! python3 -c "
 import json
 import sys
 
 try:
-    with open('config.json', 'r') as f:
+    with open('config/config.json', 'r') as f:
         config = json.load(f)
-    
-    # Check for required fields
-    if 'accounts' not in config:
-        print('ERROR: config.json missing \"accounts\" field')
+
+    if 'accounts' not in config or not isinstance(config['accounts'], list) or len(config['accounts']) == 0:
+        print('ERROR: config.json must have at least one account in \"accounts\"')
         sys.exit(1)
-    
-    if not isinstance(config['accounts'], list) or len(config['accounts']) == 0:
-        print('ERROR: config.json must have at least one account configured')
-        sys.exit(1)
-    
-    # Validate each account
+
     for idx, account in enumerate(config['accounts']):
-        if 'name' not in account:
-            print(f'ERROR: Account {idx} missing \"name\" field')
-            sys.exit(1)
-        if 'api_key' not in account:
-            print(f'ERROR: Account {idx} missing \"api_key\" field')
-            sys.exit(1)
-        if 'api_secret' not in account:
-            print(f'ERROR: Account {idx} missing \"api_secret\" field')
-            sys.exit(1)
-        
-        # Check if API key and secret are configured
-        api_key = account.get('api_key', '')
-        api_secret = account.get('api_secret', '')
-        
-        if not api_key or api_key == 'YOUR_API_KEY_HERE':
-            print(f'ERROR: Account \"{account[\"name\"]}\" has invalid api_key. Please configure your actual API key.')
-            sys.exit(1)
-        
-        if not api_secret or api_secret == 'YOUR_API_SECRET_HERE':
-            print(f'ERROR: Account \"{account[\"name\"]}\" has invalid api_secret. Please configure your actual API secret.')
-            sys.exit(1)
-    
+        for field in ('name', 'api_key', 'api_secret'):
+            val = account.get(field, '')
+            if not val or val in ('YOUR_API_KEY_HERE', 'YOUR_API_SECRET_HERE', 'your_kite_api_key_here', 'your_kite_api_secret_here'):
+                print(f'ERROR: Account {idx} has invalid or missing \"{field}\". Please configure it.')
+                sys.exit(1)
+
     print('Configuration validation passed')
-    
+
 except json.JSONDecodeError as e:
     print(f'ERROR: config.json is not valid JSON: {e}')
     sys.exit(1)
@@ -206,16 +174,12 @@ python -m pip install -r requirements.txt --quiet || {
 }
 print_success "Requirements installed"
 
-# Check if server.py exists
-if [ ! -f "server.py" ]; then
-    print_error "server.py not found!"
+# Check if main.py exists
+if [ ! -f "main.py" ]; then
+    print_error "main.py not found!"
     deactivate
     exit 1
 fi
-
-# Get server configuration
-SERVER_HOST=$(python3 -c "import json; config = json.load(open('config.json')); print(config.get('server', {}).get('host', '0.0.0.0'))" 2>/dev/null || echo "0.0.0.0")
-SERVER_PORT=$(python3 -c "import json; config = json.load(open('config.json')); print(config.get('server', {}).get('port', 5000))" 2>/dev/null || echo "5000")
 
 echo ""
 print_success "All checks passed! Starting server..."
@@ -224,7 +188,7 @@ echo -e "${YELLOW}Press Ctrl+C to stop the server${NC}"
 echo ""
 
 # Start the server
-python3 server.py
+python3 main.py
 
 # Deactivate virtual environment on exit
 deactivate

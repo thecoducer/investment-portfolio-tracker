@@ -2,11 +2,11 @@
 Unit tests for API services
 """
 import unittest
-from unittest.mock import Mock, MagicMock, patch, PropertyMock
-from datetime import datetime
+from unittest.mock import Mock, patch
 
-from api.holdings import HoldingsService
-from api.auth import AuthenticationManager
+from app.api.auth import AuthenticationManager
+from app.api.holdings import HoldingsService
+from app.constants import DEFAULT_REQUEST_TOKEN_TIMEOUT
 
 
 class MockKiteConnect:
@@ -153,7 +153,7 @@ class TestHoldingsService(unittest.TestCase):
         self.assertEqual(len(merged_stocks), 0)
         self.assertEqual(len(merged_mfs), 0)
     
-    @patch('api.holdings.HoldingsService._add_nav_dates')
+    @patch('app.api.holdings.HoldingsService._add_nav_dates')
     def test_fetch_holdings(self, mock_add_nav_dates):
         """Test fetching holdings from KiteConnect"""
         mock_kite = MockKiteConnect(api_key="test_api_key")
@@ -232,7 +232,7 @@ class TestAuthenticationManager(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.session_manager = Mock()
-        self.auth_manager = AuthenticationManager(self.session_manager, request_token_timeout=180)
+        self.auth_manager = AuthenticationManager(self.session_manager, request_token_timeout=DEFAULT_REQUEST_TOKEN_TIMEOUT)
     
     def test_set_and_get_request_token(self):
         """Test setting and getting request token"""
@@ -310,7 +310,7 @@ class TestAuthenticationManager(unittest.TestCase):
         
         # Mock both _wait_for_request_token and webbrowser.open
         with patch.object(self.auth_manager, '_wait_for_request_token') as mock_wait, \
-             patch('api.auth.webbrowser.open') as mock_browser:
+             patch('app.api.auth.webbrowser.open') as mock_browser:
             mock_wait.return_value = "test_request_token"
             
             access_token = self.auth_manager._perform_full_login(
@@ -377,7 +377,7 @@ class TestAuthenticationManager(unittest.TestCase):
         
         self.assertFalse(result)
     
-    @patch('api.auth.KiteConnect')
+    @patch('app.api.auth.KiteConnect')
     def test_authenticate_with_cached_token(self, mock_kite_class):
         """Test authenticate using cached token"""
         mock_kite = MockKiteConnect(api_key="test_api_key")
@@ -397,7 +397,7 @@ class TestAuthenticationManager(unittest.TestCase):
         self.assertIsNotNone(kite)
         self.assertEqual(kite._access_token, "cached_token")
     
-    @patch('api.auth.KiteConnect')
+    @patch('app.api.auth.KiteConnect')
     def test_authenticate_with_force_login(self, mock_kite_class):
         """Test authenticate with force_login=True"""
         mock_kite = MockKiteConnect(api_key="test_api_key")
@@ -424,7 +424,7 @@ class TestSIPService(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures"""
-        from api.sips import SIPService
+        from app.api.sips import SIPService
         self.service = SIPService()
     
     def test_fetch_sips(self):

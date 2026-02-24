@@ -1,14 +1,13 @@
 """
 Integration tests for the portfolio tracker
 """
-import unittest
 import json
-import tempfile
 import os
-from unittest.mock import patch, Mock
+import tempfile
+import unittest
 
-from api.holdings import HoldingsService
-from utils import SessionManager, StateManager
+from app.api.holdings import HoldingsService
+from app.utils import SessionManager, StateManager
 
 
 class MockKiteConnect:
@@ -549,39 +548,36 @@ class TestSortFunctionality(unittest.TestCase):
 class TestSortUIIntegration(unittest.TestCase):
     """Test sort UI elements integration"""
     
-    def test_html_has_sort_dropdowns(self):
-        """Test that HTML template has sort dropdown elements"""
+    def test_html_has_sortable_headers(self):
+        """Test that HTML template has sortable table headers"""
         import os
-        html_path = os.path.join(os.path.dirname(__file__), '..', 'templates', 'portfolio.html')
+        html_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'templates', 'portfolio.html')
         
         if os.path.exists(html_path):
             with open(html_path, 'r') as f:
                 html_content = f.read()
             
-            # Check for sort controls
-            self.assertIn('stocks_sort', html_content, "Should have stocks sort dropdown")
-            self.assertIn('mf_sort', html_content, "Should have MF sort dropdown")
-            self.assertIn('sortStocksTable', html_content, "Should have stocks sort handler")
-            self.assertIn('sortMFTable', html_content, "Should have MF sort handler")
+            self.assertIn('stocksTable', html_content, "Should have stocks table id")
+            self.assertIn('data-sort-asc', html_content, "Should define ascending sort keys on headers")
+            self.assertIn('data-sort-desc', html_content, "Should define descending sort keys on headers")
     
     def test_sort_manager_js_exists(self):
         """Test that sort-manager.js file exists"""
         import os
-        js_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'js', 'sort-manager.js')
+        js_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'js', 'sort-manager.js')
         
         self.assertTrue(os.path.exists(js_path), "sort-manager.js should exist")
     
     def test_css_has_sort_styles(self):
-        """Test that CSS has sort control styles"""
+        """Test that CSS has sortable header styles"""
         import os
-        css_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'css', 'styles.css')
+        css_path = os.path.join(os.path.dirname(__file__), '..', 'app', 'static', 'css', 'styles.css')
         
         if os.path.exists(css_path):
             with open(css_path, 'r') as f:
                 css_content = f.read()
             
-            # Check for sort-related styles
-            self.assertIn('.sort-controls', css_content, "Should have sort-controls styles")
+            self.assertIn('th.sortable-header', css_content, "Should have sortable header styles")
             self.assertIn('.section-header', css_content, "Should have section-header styles")
 
 

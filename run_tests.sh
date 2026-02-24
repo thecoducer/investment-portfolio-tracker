@@ -264,7 +264,7 @@ if python -m pytest --version &> /dev/null; then
     TEST_CMD="python -m pytest $TEST_PATTERN"
     
     if [ "$RUN_COVERAGE" = true ]; then
-        TEST_CMD="$TEST_CMD --cov=. --cov-report=term-missing"
+        TEST_CMD="$TEST_CMD --cov=app --cov-report=term-missing"
         
         if [ "$HTML_REPORT" = true ]; then
             TEST_CMD="$TEST_CMD --cov-report=html"

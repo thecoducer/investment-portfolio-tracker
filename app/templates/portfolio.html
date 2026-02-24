@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/styles.css">
+<link rel="preload" href="/static/js/app.js" as="script">
+</head>
+<body>
+<div class="container">
+<header>
+<div class="nav-menu" id="navMenu">
+<button class="nav-menu-btn" onclick="toggleNavMenu(event)">
+<span class="hamburger-icon">
+<span></span>
+<span></span>
+<span></span>
+</span>
+</button>
+<div class="nav-menu-content">
+<a href="/" class="nav-menu-item active">
+<span class="menu-icon">📊</span>Portfolio
+</a>
+<a href="/nifty50" class="nav-menu-item">
+<span class="menu-icon">📈</span>Nifty 50
+</a>
+</div>
+</div>
+<div id="header_left">
+<div class="index-tickers" id="indexTickers">
+    <div class="index-ticker" id="niftyTicker" title="NIFTY 50">
+        <span class="index-name">NIFTY 50</span>
+        <div class="index-bottom-row">
+            <span class="index-value" id="niftyValue">--</span>
+            <span class="index-change neutral" id="niftyChange"></span>
+        </div>
+    </div>
+    <div class="index-divider"></div>
+    <div class="index-ticker" id="sensexTicker" title="SENSEX">
+        <span class="index-name">SENSEX</span>
+        <div class="index-bottom-row">
+            <span class="index-value" id="sensexValue">--</span>
+            <span class="index-change neutral" id="sensexChange"></span>
+        </div>
+    </div>
+</div>
+</div>
+<div id="status_tag" class="">
+<span class="status-dot"></span>
+<span id="status_text"></span>
+</div>
+<div class="controls">
+<button class="btn" id="refresh_btn" onclick="triggerRefresh()">
+    <span id="refresh_btn_text">Refresh</span>
+</button>
+<div class="toggle-group">
+<button class="theme-toggle" id="compact_toggle_btn" onclick="toggleCompactFormat()" title="Toggle number format">
+    <span id="compact_toggle_icon">🔢</span>
+</button>
+<button class="theme-toggle" id="privacy_toggle_btn" onclick="togglePrivacy()" title="Toggle privacy mode">
+    <span id="privacy_toggle_icon">👁️</span>
+</button>
+<button class="theme-toggle" id="theme_toggle_btn" onclick="toggleTheme()" title="Toggle theme">
+    <span id="theme_toggle_icon">🌙</span>
+</button>
+</div>
+</div>
+</header>
+
+<div class="portfolio-overview" id="combined_summary">
+    <div class="overview-label">Total Net Worth</div>
+    <div class="overview-metrics">
+        <div class="overview-primary">
+            <span class="overview-current" id="combined_current_value">0.00</span>
+            <span class="overview-invested" id="combined_total_invested">0.00</span>
+        </div>
+        <div class="overview-pl-group">
+            <span class="overview-pl" id="combined_total_pl">0.00</span>
+            <span class="overview-pct" id="combined_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+
+<div class="summary-cards" id="data-container-summary">
+
+<div class="card card--category" id="stocks_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="stocks_allocation_pct"></span>Stocks</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="current_value">0.00</div>
+        <div class="category-invested" id="total_invested">0.00</div>
+        <div class="category-pl">
+            <span id="total_pl">0.00</span>
+            <span class="category-pct" id="total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+
+<div class="card card--category" id="etf_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="etf_allocation_pct"></span>ETFs</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="etf_current_value">0.00</div>
+        <div class="category-invested" id="etf_total_invested">0.00</div>
+        <div class="category-pl">
+            <span id="etf_total_pl">0.00</span>
+            <span class="category-pct" id="etf_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+
+<div class="card card--category" id="mf_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="mf_allocation_pct"></span>Mutual Funds</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="mf_current_value">0.00</div>
+        <div class="category-invested" id="mf_total_invested">0.00</div>
+        <div class="category-pl">
+            <span id="mf_total_pl">0.00</span>
+            <span class="category-pct" id="mf_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+
+<div class="card card--category" id="gold_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="gold_allocation_pct"></span>Gold</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="gold_current_value">0.00</div>
+        <div class="category-invested" id="gold_total_invested">0.00</div>
+        <div class="category-pl">
+            <span id="gold_total_pl">0.00</span>
+            <span class="category-pct" id="gold_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+
+<div class="card card--category" id="silver_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="silver_allocation_pct"></span>Silver</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="silver_current_value">0.00</div>
+        <div class="category-invested" id="silver_total_invested">0.00</div>
+        <div class="category-pl">
+            <span id="silver_total_pl">0.00</span>
+            <span class="category-pct" id="silver_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+
+{% if fixed_deposits_enabled %}
+<div class="card card--category" id="fd_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="fd_allocation_pct"></span>Fixed Deposits</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="fd_maturity_value">0.00</div>
+        <div class="category-invested" id="fd_total_invested">0.00</div>
+        <div class="category-pl">
+            <span id="fd_total_pl">0.00</span>
+            <span class="category-pct" id="fd_total_pl_pct">0.00%</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+</div>
+
+<div id="data-container-sections">
+<div class="section-wrapper" id="stocks-section">
+<div class="section-header">
+<h2>Stocks</h2>
+<div class="controls-container">
+<div class="pagination-controls">
+<label for="stocks_page_size">Show:</label>
+<select id="stocks_page_size" onchange="window.changeStocksPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="stocksTable" aria-label="Holdings table">
+<thead>
+<tr>
+<th data-sort-asc="symbol_asc" data-sort-desc="symbol_desc" data-sort-default="asc">Symbol</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="ltp_asc" data-sort-desc="ltp_desc">LTP</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc">P/L</th><th data-sort-asc="day_change_asc" data-sort-desc="day_change_desc">Day's Change</th><th data-sort-asc="exchange_asc" data-sort-desc="exchange_desc" data-sort-default="asc">EX</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="tbody">
+</tbody>
+</table>
+<div class="empty-state-message" id="stocks_empty_state" style="display:none;">No stocks data available</div>
+<div class="pagination-info" id="stocks_pagination_info"></div>
+<div class="pagination-buttons" id="stocks_pagination_buttons"></div>
+</div>
+
+<div class="section-wrapper" id="etf-section">
+<div class="section-header">
+<h2>ETFs</h2>
+<div class="controls-container">
+<div class="pagination-controls">
+<label for="etf_page_size">Show:</label>
+<select id="etf_page_size" onchange="window.changeETFPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="etfTable" aria-label="ETF Holdings table">
+<thead>
+<tr>
+<th data-sort-asc="symbol_asc" data-sort-desc="symbol_desc" data-sort-default="asc">Symbol</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="ltp_asc" data-sort-desc="ltp_desc">LTP</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc">P/L</th><th data-sort-asc="day_change_asc" data-sort-desc="day_change_desc">Day's Change</th><th data-sort-asc="exchange_asc" data-sort-desc="exchange_desc" data-sort-default="asc">EX</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="etf_tbody">
+</tbody>
+</table>
+<div class="empty-state-message" id="etf_empty_state" style="display:none;">No ETF data available</div>
+<div class="pagination-info" id="etf_pagination_info"></div>
+<div class="pagination-buttons" id="etf_pagination_buttons"></div>
+</div>
+
+<div class="section-wrapper" id="mf-section">
+<div class="section-header">
+<h2>Mutual Funds</h2>
+<div class="controls-container">
+<div class="pagination-controls">
+<label for="mf_page_size">Show:</label>
+<select id="mf_page_size" onchange="window.changeMFPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="mfTable" aria-label="MF Holdings table">
+<thead>
+<tr>
+<th data-sort-asc="name_asc" data-sort-desc="name_desc" data-sort-default="asc">Fund</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="nav_asc" data-sort-desc="nav_desc">NAV</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc">P/L</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="mf_tbody">
+</tbody>
+</table>
+<div class="empty-state-message" id="mf_empty_state" style="display:none;">No mutual funds data available</div>
+<div class="pagination-info" id="mf_pagination_info"></div>
+<div class="pagination-buttons" id="mf_pagination_buttons"></div>
+</div>
+
+<!-- Physical Gold Section -->
+{% if physical_gold_enabled %}
+<div class="section-wrapper" id="physical-gold-section">
+<div class="section-header">
+<h2>Physical Gold</h2>
+<div class="controls-container">
+<div class="pagination-controls">
+<label for="physical_gold_page_size">Show:</label>
+<select id="physical_gold_page_size" onchange="window.changePhysicalGoldPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+<table id="physicalGoldTable" aria-label="Physical Gold table">
+<thead>
+<tr>
+<th data-sort-asc="date_asc" data-sort-desc="date_desc">Bought On</th>
+<th data-sort-asc="type_asc" data-sort-desc="type_desc" data-sort-default="asc">Type</th>
+<th data-sort-asc="outlet_asc" data-sort-desc="outlet_desc" data-sort-default="asc">Retail Outlet</th>
+<th data-sort-asc="purity_asc" data-sort-desc="purity_desc" data-sort-default="asc">Purity</th>
+<th data-sort-asc="weight_asc" data-sort-desc="weight_desc">Weight (gms)</th>
+<th data-sort-asc="bought_rate_asc" data-sort-desc="bought_rate_desc">Bought IBJA Rate/gm</th>
+<th data-sort-asc="latest_rate_asc" data-sort-desc="latest_rate_desc">Latest IBJA Rate/gm</th>
+<th data-sort-asc="pl_asc" data-sort-desc="pl_desc">P/L</th>
+</tr>
+</thead>
+<tbody id="physical_gold_table_body">
+</tbody>
+</table>
+<div class="empty-state-message" id="physical_gold_empty_state" style="display:none;">No physical gold holdings available</div>
+<div class="pagination-info" id="physical_gold_pagination_info"></div>
+<div class="pagination-buttons" id="physical_gold_pagination_buttons"></div>
+</div>
+{% endif %}
+
+<!-- Fixed Deposits Section with Tabs -->
+{% if fixed_deposits_enabled %}
+<div class="section-wrapper" id="fixed-deposits-section">
+<div class="section-header">
+<h2>Fixed Deposits</h2>
+<div class="controls-container fd-header-controls">
+<div class="pagination-controls active" id="fixed_deposits_header_control">
+<label for="fixed_deposits_page_size">Show:</label>
+<select id="fixed_deposits_page_size" onchange="window.changeFixedDepositsPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+<div class="pagination-controls" id="fd_summary_header_control">
+<label for="fd_summary_page_size">Show:</label>
+<select id="fd_summary_page_size" onchange="window.changeFDSummaryPageSize(this.value)">
+<option value="10" selected>10</option>
+<option value="25">25</option>
+<option value="50">50</option>
+<option value="100">All</option>
+</select>
+</div>
+</div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="fd-tabs">
+<button class="fd-tab active" data-tab="maturity" onclick="window.switchFDTab('maturity')">
+By Maturity
+</button>
+<button class="fd-tab" data-tab="bank" onclick="window.switchFDTab('bank')">
+By Bank
+</button>
+</div>
+
+<!-- Tab Content: By Maturity (Detailed View) -->
+<div class="fd-tab-content active" id="fd-tab-maturity">
+<table id="fixedDepositsTable" aria-label="Fixed Deposits table">
+<thead>
+<tr>
+<th data-sort-asc="date_asc" data-sort-desc="date_desc">Deposited On</th>
+<th data-sort-asc="reinvested_date_asc" data-sort-desc="reinvested_date_desc">Reinvested On</th>
+<th data-sort-asc="bank_asc" data-sort-desc="bank_desc" data-sort-default="asc">Bank</th>
+<th data-sort-asc="amount_asc" data-sort-desc="amount_desc">Original Amt</th>
+<th data-sort-asc="reinvested_amount_asc" data-sort-desc="reinvested_amount_desc">Reinvested Amt</th>
+<th data-sort-asc="roi_asc" data-sort-desc="roi_desc">ROI</th>
+<th data-sort-asc="maturity_asc" data-sort-desc="maturity_desc">Maturity Date</th>
+<th data-sort-asc="current_asc" data-sort-desc="current_desc">Current Value</th>
+<th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="fixed_deposits_table_body">
+</tbody>
+</table>
+<div class="empty-state-message" id="fixed_deposits_empty_state" style="display:none;">No fixed deposits available</div>
+<div class="pagination-info" id="fixed_deposits_pagination_info"></div>
+<div class="pagination-buttons" id="fixed_deposits_pagination_buttons"></div>
+</div>
+
+<!-- Tab Content: By Bank (Summary View) -->
+<div class="fd-tab-content" id="fd-tab-bank">
+<table id="fdSummaryTable" aria-label="Fixed Deposits Summary table">
+<thead>
+<tr>
+<th data-sort-asc="bank_asc" data-sort-desc="bank_desc" data-sort-default="asc">Bank</th>
+<th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+<th data-sort-asc="deposited_asc" data-sort-desc="deposited_desc">Total Deposited</th>
+<th data-sort-asc="current_asc" data-sort-desc="current_desc">Total Current Value</th>
+<th data-sort-asc="returns_asc" data-sort-desc="returns_desc">Total Returns</th>
+</tr>
+</thead>
+<tbody id="fd_summary_table_body">
+</tbody>
+</table>
+<div class="pagination-info" id="fd_summary_pagination_info"></div>
+<div class="pagination-buttons" id="fd_summary_pagination_buttons"></div>
+</div>
+
+</div>
+{% endif %}
+
+<div class="section-wrapper" id="sips-section">
+<div class="section-header">
+<h2>SIPs</h2>
+</div>
+<table aria-label="SIPs table">
+<thead>
+<tr>
+<th>Fund</th><th>Amount</th><th>Frequency</th><th>Installments</th><th>Status</th><th>Next Due</th><th>Account</th>
+</tr>
+</thead>
+<tbody id="sips_tbody">
+</tbody>
+</table>
+<div class="empty-state-message" id="sips_empty_state" style="display:none;">No SIPs available</div>
+</div>
+
+</div>
+
+<div class="footer-note">
+<details>
+<summary>How to read this dashboard</summary>
+<ul>
+<li><strong>Stocks</strong> card shows only equity holdings — ETFs are tracked separately.</li>
+<li><strong>ETFs</strong> card covers all ETF holdings including gold and silver ETFs.</li>
+<li><strong>Gold</strong> card combines gold ETFs (from ETF table) + physical gold holdings into one total.</li>
+<li><strong>Silver</strong> card shows silver ETFs from the ETF table.</li>
+<li><strong>Mutual Funds</strong> card tracks all MF holdings independently.</li>
+<li><strong>Fixed Deposits</strong> card shows total deposited vs current value across all FDs.</li>
+<li><strong>Total Net Worth</strong> is the sum of all categories above.</li>
+<li>Allocation percentages on each card are relative to the total portfolio value.</li>
+</ul>
+</details>
+</div>
+</div>
+
+<script>
+// Navigation menu toggle
+function toggleNavMenu(event) {
+  event.stopPropagation();
+  const menu = document.getElementById('navMenu');
+  menu.classList.toggle('active');
+}
+
+// Close menu when clicking outside
+document.addEventListener('click', function(event) {
+  const menu = document.getElementById('navMenu');
+  if (menu && !menu.contains(event.target)) {
+    menu.classList.remove('active');
+  }
+});
+</script>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

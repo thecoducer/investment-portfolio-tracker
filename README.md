@@ -13,7 +13,7 @@ A Flask-based dashboard for tracking your complete investment portfolio — stoc
 - **Real-time updates** via Server-Sent Events (SSE)
 - **Auto-refresh** during market hours (9:00–16:30 IST) with optional 24/7 mode
 - **Stocks & Mutual Funds** — holdings, P/L, day change, grouped by symbol across accounts
-- **Active SIPs** tracking with monthly total and smart date formatting
+- **SIPs** tracking with monthly total and smart date formatting
 - **Physical Gold** tracking via Google Sheets with live IBJA price P/L
 - **Fixed Deposits** tracking via Google Sheets with compound interest calculations
 - **FD Summary** grouped by bank and account with high-value highlighting
@@ -31,8 +31,8 @@ A Flask-based dashboard for tracking your complete investment portfolio — stoc
 
 ```bash
 # 1. Clone and configure
-cp config.json.example config.json
-# Edit config.json with your Zerodha API credentials (see setup guide below)
+cp config/config.json.example config/config.json
+# Edit config/config.json with your Zerodha API credentials (see setup guide below)
 
 # 2. Run
 ./start.sh
@@ -68,10 +68,10 @@ After creating the app, you'll see:
 ### 3. Configure `config.json`
 
 ```bash
-cp config.json.example config.json
+cp config/config.json.example config/config.json
 ```
 
-Edit `config.json` with your credentials:
+Edit `config/config.json` with your credentials:
 
 ```json
 {
@@ -101,7 +101,7 @@ For **multiple Zerodha accounts**, add more entries to the `accounts` array. Eac
 
 ## Configuration
 
-Full `config.json` reference:
+Full `config/config.json` reference:
 
 ```json
 {
@@ -177,7 +177,7 @@ Physical Gold and Fixed Deposits tracking both use Google Sheets as the data sou
 1. Click on the service account you just created
 2. Go to the **Keys** tab
 3. Click **Add Key** → **Create new key** → Choose **JSON** → Click **Create**
-4. Save the downloaded file to your project directory (e.g., `google-credentials.json`)
+4. Save the downloaded file to your project's config directory (e.g., `config/google-credentials.json`)
 
 ### Step 4: Share Your Spreadsheet
 
@@ -220,7 +220,7 @@ Create a sheet (e.g., named `Gold`) with the following structure. The first row 
 | 2024-06-10 | Coin | Joyalukkas    | 916    | 5.000         | 6012.00               |
 ```
 
-**Enable in `config.json`:**
+**Enable in `config/config.json`:**
 
 ```json
 "fetch_physical_gold_from_google_sheets": {
@@ -273,7 +273,7 @@ Create a sheet (e.g., named `FixedDeposits`) with the following structure. The f
 | June 1, 2023      |                   | ICICI     | 2    | 0     | 0   | 50000   |                | 6.90 | Yes       | Jane    |
 ```
 
-**Enable in `config.json`:**
+**Enable in `config/config.json`:**
 
 ```json
 "fetch_fixed_deposits_from_google_sheets": {
@@ -300,7 +300,7 @@ Create a sheet (e.g., named `FixedDeposits`) with the following structure. The f
 
 ## Security
 
-- Never commit `config.json` or your Google credentials JSON file
+- Never commit `config/config.json` or your Google credentials JSON file
 - Both are listed in `.gitignore`
 - Session tokens are encrypted using machine-specific keys (via `cryptography.fernet`)
 - OAuth flow for secure Zerodha authentication
@@ -319,45 +319,59 @@ Create a sheet (e.g., named `FixedDeposits`) with the following structure. The f
 ### Project Structure
 
 ```
-├── server.py                  # Flask app, routes, SSE, background fetch orchestration
-├── config.json.example        # Configuration template
-├── constants.py               # App-wide constants
-├── utils.py                   # SessionManager, StateManager, helpers
-├── error_handler.py           # Custom exceptions, retry/error decorators
-├── logging_config.py          # Logger setup
-├── api/
-│   ├── auth.py                # Zerodha OAuth authentication
-│   ├── zerodha_client.py      # Multi-account data fetcher
-│   ├── holdings.py            # Stock & MF holdings service
-│   ├── sips.py                # SIP service
-│   ├── nse_client.py          # NSE API client (Nifty 50)
-│   ├── google_sheets_client.py # Google Sheets client + PhysicalGold/FD services
-│   ├── ibja_gold_price.py     # IBJA gold price scraper
-│   ├── physical_gold.py       # Gold P/L enrichment
-│   ├── fixed_deposits.py      # FD compound interest calculations
-│   └── base_service.py        # Base class for data services
-├── static/
-│   ├── css/styles.css         # Stylesheet
-│   └── js/
-│       ├── app.js             # Main app controller
-│       ├── data-manager.js    # API data fetcher
-│       ├── table-renderer.js  # Table rendering (stocks, MF, SIPs, gold, FDs)
-│       ├── summary-manager.js # Summary card updates
-│       ├── sort-manager.js    # Sort logic for all tables
-│       ├── pagination.js      # Reusable pagination component
-│       ├── sse-manager.js     # SSE connection manager
-│       ├── theme-manager.js   # Dark/light theme
-│       ├── visibility-manager.js # Privacy mode
-│       ├── nifty50.js         # Nifty 50 page controller
-│       └── utils.js           # Formatter & Calculator utilities
-├── templates/
-│   ├── portfolio.html         # Main portfolio dashboard
-│   ├── nifty50.html           # Nifty 50 page
-│   ├── callback_success.html  # OAuth success page
-│   └── callback_error.html    # OAuth error page
-├── tests/                     # Test suite
-├── start.sh                   # Startup script (venv + deps + run)
-└── run_tests.sh               # Test runner
+├── main.py                        # Entry point
+├── requirements.txt               # Python dependencies
+├── pytest.ini                     # Pytest configuration
+├── config/
+│   ├── config.json.example        # Configuration template
+│   ├── config.json                # Your local config (git-ignored)
+│   └── google-credentials.json    # Google service account key (git-ignored)
+├── start.sh                       # Startup script (venv + deps + run)
+├── run_tests.sh                   # Test runner
+├── app/                           # Main application package
+│   ├── server.py                  # Flask app, SSE, background fetch orchestration
+│   ├── routes.py                  # Flask route definitions
+│   ├── services.py                # Portfolio data aggregation services
+│   ├── fetchers.py                # Data fetching orchestration
+│   ├── config.py                  # Configuration loading & validation
+│   ├── constants.py               # App-wide constants
+│   ├── cache.py                   # In-memory cache with TTL
+│   ├── utils.py                   # SessionManager, StateManager, helpers
+│   ├── error_handler.py           # Custom exceptions, retry/error decorators
+│   ├── logging_config.py          # Logger setup
+│   ├── sse.py                     # Server-Sent Events manager
+│   ├── api/
+│   │   ├── auth.py                # Zerodha OAuth authentication
+│   │   ├── zerodha_client.py      # Multi-account data fetcher
+│   │   ├── holdings.py            # Stock & MF holdings service
+│   │   ├── sips.py                # SIP service
+│   │   ├── nse_client.py          # NSE API client (Nifty 50)
+│   │   ├── google_sheets_client.py # Google Sheets client
+│   │   ├── ibja_gold_price.py     # IBJA gold price scraper
+│   │   ├── physical_gold.py       # Gold P/L enrichment
+│   │   ├── fixed_deposits.py      # FD compound interest calculations
+│   │   └── base_service.py        # Base class for data services
+│   ├── static/
+│   │   ├── css/styles.css         # Stylesheet
+│   │   └── js/
+│   │       ├── app.js             # Main app controller
+│   │       ├── data-manager.js    # API data fetcher
+│   │       ├── table-renderer.js  # Table rendering (stocks, MF, SIPs, gold, FDs)
+│   │       ├── summary-manager.js # Summary card updates
+│   │       ├── sort-manager.js    # Sort logic for all tables
+│   │       ├── pagination.js      # Reusable pagination component
+│   │       ├── sse-manager.js     # SSE connection manager
+│   │       ├── theme-manager.js   # Dark/light theme
+│   │       ├── visibility-manager.js # Privacy mode
+│   │       ├── nifty50.js         # Nifty 50 page controller
+│   │       └── utils.js           # Formatter & Calculator utilities
+│   └── templates/
+│       ├── portfolio.html         # Main portfolio dashboard
+│       ├── nifty50.html           # Nifty 50 page
+│       ├── callback_success.html  # OAuth success page
+│       └── callback_error.html    # OAuth error page
+├── tests/                         # Test suite
+└── docs/                          # Documentation
 ```
 
 ---
@@ -367,10 +381,10 @@ Create a sheet (e.g., named `FixedDeposits`) with the following structure. The f
 | Problem | Solution |
 |---------|----------|
 | **Session expired / Login button shown** | Click **Login** — completes Zerodha OAuth in a new tab |
-| **Port already in use** | Change `callback_port` or `ui_port` in `config.json` |
+| **Port already in use** | Change `callback_port` or `ui_port` in `config/config.json` |
 | **Google Sheets not loading** | Check that the sheet is shared with the service account email |
 | **Gold prices not updating** | Prices are fetched on first load and at scheduled hours; click **Refresh** to force |
-| **Config validation errors** | Run `./start.sh` — it validates `config.json` before starting |
+| **Config validation errors** | Run `./start.sh` — it validates `config/config.json` before starting |
 | **Missing dependencies** | `start.sh` auto-installs from `requirements.txt`; for Google Sheets, ensure the libraries are in `requirements.txt` |
 
 ---

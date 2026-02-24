@@ -1,23 +1,17 @@
 """
 Unit tests for utility functions
 """
-import unittest
-import os
 import json
+import os
 import tempfile
+import unittest
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from utils import (
-    SessionManager,
-    StateManager,
-    load_config,
-    validate_accounts,
-    format_timestamp,
-    is_market_open_ist
-)
-from constants import STATE_UPDATING, STATE_UPDATED, STATE_ERROR
+from app.constants import STATE_ERROR, STATE_UPDATED, STATE_UPDATING
+from app.utils import (SessionManager, StateManager, format_timestamp,
+                       is_market_open_ist, load_config, validate_accounts)
 
 
 class TestSessionManager(unittest.TestCase):
@@ -278,7 +272,7 @@ class TestFormatTimestamp(unittest.TestCase):
 class TestMarketHours(unittest.TestCase):
     """Test market hours checking"""
     
-    @patch('utils.datetime')
+    @patch('app.utils.datetime')
     def test_market_open_weekday_during_hours(self, mock_datetime):
         """Test market open on weekday during trading hours"""
         # Mock a Wednesday at 10:00 AM IST
@@ -289,7 +283,7 @@ class TestMarketHours(unittest.TestCase):
         result = is_market_open_ist()
         self.assertTrue(result)
     
-    @patch('utils.datetime')
+    @patch('app.utils.datetime')
     def test_market_closed_before_hours(self, mock_datetime):
         """Test market closed before trading hours"""
         ist = ZoneInfo('Asia/Kolkata')
@@ -299,7 +293,7 @@ class TestMarketHours(unittest.TestCase):
         result = is_market_open_ist()
         self.assertFalse(result)
     
-    @patch('utils.datetime')
+    @patch('app.utils.datetime')
     def test_market_closed_after_hours(self, mock_datetime):
         """Test market closed after trading hours"""
         ist = ZoneInfo('Asia/Kolkata')
@@ -309,7 +303,7 @@ class TestMarketHours(unittest.TestCase):
         result = is_market_open_ist()
         self.assertFalse(result)
     
-    @patch('utils.datetime')
+    @patch('app.utils.datetime')
     def test_market_closed_weekend_saturday(self, mock_datetime):
         """Test market closed on Saturday"""
         ist = ZoneInfo('Asia/Kolkata')
@@ -319,7 +313,7 @@ class TestMarketHours(unittest.TestCase):
         result = is_market_open_ist()
         self.assertFalse(result)
     
-    @patch('utils.datetime')
+    @patch('app.utils.datetime')
     def test_market_closed_weekend_sunday(self, mock_datetime):
         """Test market closed on Sunday"""
         ist = ZoneInfo('Asia/Kolkata')
@@ -451,7 +445,7 @@ class TestSessionManagerEdgeCases(unittest.TestCase):
     def test_get_validity_multiple_accounts(self):
         """Test get_validity with multiple accounts"""
         from datetime import datetime, timedelta, timezone
-        
+
         # Add some accounts
         self.session_manager.set_token("Account1", "token1")
         self.session_manager.set_token("Account2", "token2")
