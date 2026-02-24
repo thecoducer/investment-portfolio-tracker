@@ -784,10 +784,6 @@ body.dark-theme .theme-toggle:hover {
   text-transform: none;
 }
 
-#etf-section h2 {
-  text-transform: none;
-}
-
 #mf_summary {
   border-top: 3px solid #53a0e8;
 }
@@ -797,11 +793,13 @@ body.dark-theme .theme-toggle:hover {
 }
 
 /* subtitle text appended to gold card title */
-#gold_summary .gold-subtitle {
+.card-title .card-subtitle {
   font-size: 0.85em;
   opacity: 0.8;
   margin-left: 4px;
   font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0.2px;
 }
 
 /* toggle control inside gold card (icon button) */
@@ -811,53 +809,60 @@ body.dark-theme .theme-toggle:hover {
   right: 12px;
 }
 #gold_summary .gold-breakdown-toggle .icon-toggle {
-  background: none;
-  border: none;
-  width: 24px;
-  height: 24px;
+  border: 1px solid rgba(109, 94, 82, 0.22);
+  background: rgba(109, 94, 82, 0.08);
+  width: 28px;
+  height: 16px;
+  border-radius: 999px;
   cursor: pointer;
-  padding: 2px;
-  color: #333;
+  padding: 0;
+  color: #6b6158;
   position: relative;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 #gold_summary .gold-breakdown-toggle .icon-toggle:hover {
-  color: #000;
+  background: rgba(109, 94, 82, 0.12);
+  border-color: rgba(109, 94, 82, 0.3);
 }
 
-/* graphic bars for toggle - default: three horizontal lines */
-#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar,
-#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::before,
-#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::after {
-  display: block;
-  width: 100%;
-  height: 2px;
+/* subtle knob */
+#gold_summary .gold-breakdown-toggle .icon-toggle::after {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   background: currentColor;
-  border-radius: 1px;
   position: absolute;
-  left: 0;
-  transition: transform 0.2s ease, opacity 0.2s ease;
-}
-#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar {
   top: 50%;
+  left: 2px;
   transform: translateY(-50%);
+  transition: transform 0.2s ease;
 }
-#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::before {
-  content: '';
-  top: -6px;
+
+/* active state */
+#gold_summary .gold-breakdown-toggle .icon-toggle.active {
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.35);
+  color: #0f9a68;
 }
-#gold_summary .gold-breakdown-toggle .icon-toggle .icon-bar::after {
-  content: '';
-  top: 6px;
+#gold_summary .gold-breakdown-toggle .icon-toggle.active::after {
+  transform: translate(12px, -50%);
 }
-/* active state: rotate bars into vertical stack for histogram look */
-#gold_summary .gold-breakdown-toggle .icon-toggle.active .icon-bar {
-  transform: translateY(-50%) rotate(90deg);
+
+/* dark theme support */
+body.dark-theme #gold_summary .gold-breakdown-toggle .icon-toggle {
+  border-color: rgba(248, 244, 237, 0.26);
+  background: rgba(248, 244, 237, 0.08);
+  color: #b9afa4;
 }
-#gold_summary .gold-breakdown-toggle .icon-toggle.active .icon-bar::before {
-  transform: rotate(90deg);
+body.dark-theme #gold_summary .gold-breakdown-toggle .icon-toggle:hover {
+  background: rgba(248, 244, 237, 0.14);
+  border-color: rgba(248, 244, 237, 0.38);
 }
-#gold_summary .gold-breakdown-toggle .icon-toggle.active .icon-bar::after {
-  transform: rotate(90deg);
+body.dark-theme #gold_summary .gold-breakdown-toggle .icon-toggle.active {
+  background: rgba(65, 196, 140, 0.16);
+  border-color: rgba(65, 196, 140, 0.44);
+  color: #41c48c;
 }
 
 /* breakdown metrics layout - hidden by default */
@@ -942,6 +947,14 @@ body.privacy-mode #gold_summary .breakdown-column {
   filter: blur(4px);
 }
 
+/* hide P/L gain-loss color coding in gold ETF/Physical breakdown during privacy mode */
+body.privacy-mode #gold_summary .gold-breakdown-metrics .breakdown-pl span {
+  color: #8b7d6f !important;
+}
+body.dark-theme.privacy-mode #gold_summary .gold-breakdown-metrics .breakdown-pl span {
+  color: #b9afa4 !important;
+}
+
 #silver_summary {
   border-top: 3px solid #8d8d8d;
 }
@@ -1012,22 +1025,42 @@ body.privacy-mode #gold_summary .breakdown-column {
 
 .section-wrapper h2 {
   margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #2d2621;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-family: 'Raleway', sans-serif;
+  display: inline-block;
+  position: relative;
+  padding: 0 2px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2f2924;
+  text-transform: none;
+  letter-spacing: 0.03em;
+  font-family: 'Poppins', sans-serif;
+  line-height: 1.1;
+  background: linear-gradient(130deg, #1f1a16 0%, #4a3f37 45%, #7a6857 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.section-wrapper h2::after {
+  content: none;
 }
 
 .section-header h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #2d2621;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-family: 'Raleway', sans-serif;
+}
+
+@media (max-width: 900px) {
+  .section-wrapper h2 {
+    font-size: 18px;
+    letter-spacing: 0.025em;
+  }
+}
+
+@media (max-width: 600px) {
+  .section-wrapper h2 {
+    font-size: 16px;
+    letter-spacing: 0.02em;
+  }
 }
 
 /* Fixed Deposits Tabs */
@@ -1874,6 +1907,14 @@ body.dark-theme .sip-total-value {
 
 body.dark-theme .section-wrapper h2 {
   color: #d4ccc0;
+  background: linear-gradient(130deg, #fff8ef 0%, #e5ddd5 45%, #c4af94 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.dark-theme .section-wrapper h2::after {
+  content: none;
 }
 
 body.dark-theme .fd-tab {
@@ -1954,6 +1995,12 @@ body.privacy-mode .overview-pct {
 
 /* Blur Account column (10th) in Stocks table */
 body.privacy-mode #stocks-section tbody tr td:nth-child(10) {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* Blur Account column (10th) in ETFs table */
+body.privacy-mode #etf-section tbody tr td:nth-child(10) {
   filter: blur(6px);
   user-select: none;
 }

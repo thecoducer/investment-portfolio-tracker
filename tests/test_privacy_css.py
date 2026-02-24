@@ -16,6 +16,8 @@ class TestPrivacyCss(unittest.TestCase):
             'body.privacy-mode table#physicalGoldTable td:first-child',
             'body.privacy-mode table[aria-label="SIPs table"] td:first-child',
             '#gold_summary .breakdown-column',
+            'body.privacy-mode #etf-section tbody tr td:nth-child(10)',
+            'body.privacy-mode #gold_summary .gold-breakdown-metrics .breakdown-pl span',
         ]
         for sel in expected:
             self.assertIn(sel, self.css, f"CSS should contain privacy blur selector '{sel}'")

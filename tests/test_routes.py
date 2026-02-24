@@ -132,9 +132,11 @@ class TestUIServerRoutes(unittest.TestCase):
         self.assertIn(b'html', response.data.lower())
         # ensure gold card displays subtitle and toggle control
         self.assertIn(b'(ETFs + Physical)', response.data)
+        # ensure silver card includes ETFs subtitle
+        self.assertIn(b'Silver <span class="card-subtitle">(ETFs)</span>', response.data)
         self.assertIn(b'id="gold_breakdown_toggle"', response.data)
-        # ensure toggle contains structural span for CSS graphic
-        self.assertIn(b'class="icon-bar"', response.data)
+        # ensure toggle still uses icon-toggle class for CSS-rendered control
+        self.assertIn(b'class="icon-toggle"', response.data)
         # toggle should no longer be an emoji
         self.assertNotIn(b'\xf0\x9f\x94\x80', response.data)  # not 🔀 or 📊 etc
 
