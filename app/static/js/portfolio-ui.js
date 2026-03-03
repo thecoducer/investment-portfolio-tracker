@@ -39,7 +39,6 @@ function openSettingsDrawer() {
   drawer.classList.add('open');
   backdrop.classList.add('open');
   document.body.style.overflow = 'hidden';
-  initDrawerThemeSwitcher();
   loadDrawerAccounts();
 }
 
@@ -56,43 +55,6 @@ function closeSettingsDrawer() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeSettingsDrawer();
 });
-
-// ─── Drawer Theme Switcher ────────────────────────────────────
-
-function initDrawerThemeSwitcher() {
-  const switcher = document.getElementById('drawerThemeSwitcher');
-  if (!switcher) return;
-  const buttons = switcher.querySelectorAll('.drawer-theme-option');
-  const current = localStorage.getItem('theme') || 'light';
-
-  function setActive(theme) {
-    buttons.forEach(b => b.classList.toggle('active', b.dataset.theme === theme));
-  }
-
-  function applyTheme(theme) {
-    document.body.classList.add('theme-transitioning');
-    if (theme === 'dark') {
-      document.body.classList.add('dark-theme');
-    } else {
-      document.body.classList.remove('dark-theme');
-    }
-    localStorage.setItem('theme', theme);
-    setActive(theme);
-    // Also update the portfolio theme icon if it exists
-    const themeIcon = document.getElementById('theme_toggle_icon');
-    if (themeIcon) themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.body.classList.remove('theme-transitioning');
-      });
-    });
-  }
-
-  setActive(current);
-  buttons.forEach(btn => {
-    btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
-  });
-}
 
 // ─── Drawer Zerodha Accounts ──────────────────────────────────
 

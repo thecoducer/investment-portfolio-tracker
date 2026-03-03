@@ -3,6 +3,7 @@
 class ThemeManager {
   constructor() {
     this.themeIcon = document.getElementById('theme_toggle_icon');
+    this.themeLabel = document.getElementById('theme_toggle_label');
   }
 
   init() {
@@ -25,10 +26,13 @@ class ThemeManager {
     
     if (theme === 'dark') {
       body.classList.add('dark-theme');
-      if (this.themeIcon) this.themeIcon.textContent = '☀️';
     } else {
       body.classList.remove('dark-theme');
-      if (this.themeIcon) this.themeIcon.textContent = '🌙';
+    }
+
+    // Update label text
+    if (this.themeLabel) {
+      this.themeLabel.textContent = theme === 'dark' ? 'Dark' : 'Light';
     }
     
     // Re-enable transitions after the browser has painted the new theme

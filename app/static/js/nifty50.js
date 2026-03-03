@@ -87,9 +87,9 @@ class Nifty50App {
     const theme = localStorage.getItem('theme') || 'light';
     document.body.classList.toggle('dark-theme', theme === 'dark');
     
-    const themeIcon = document.getElementById('theme_toggle_icon');
-    if (themeIcon) {
-      themeIcon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    const themeLabel = document.getElementById('theme_toggle_label');
+    if (themeLabel) {
+      themeLabel.textContent = theme === 'dark' ? 'Dark' : 'Light';
     }
   }
 
@@ -305,9 +305,9 @@ window.toggleTheme = function() {
   const isDark = document.body.classList.toggle('dark-theme');
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
   
-  const themeIcon = document.getElementById('theme_toggle_icon');
-  if (themeIcon) {
-    themeIcon.textContent = isDark ? '☀️' : '🌙';
+  const themeLabel = document.getElementById('theme_toggle_label');
+  if (themeLabel) {
+    themeLabel.textContent = isDark ? 'Dark' : 'Light';
   }
 };
 

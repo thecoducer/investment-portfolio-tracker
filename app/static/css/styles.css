@@ -2871,6 +2871,72 @@ body.privacy-mode #physicalGoldTable tbody tr td:nth-child(7) {
   color: #111;
 }
 
+/* ── Theme label (current state) ──────────────────────── */
+
+.theme-label {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: #aaa;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── CSS Theme Icon (sun / moon) ──────────────────────── */
+
+.theme-icon-css {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Sun icon */
+.theme-icon-sun {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 -7px 0 -3.5px currentColor,
+    0  7px 0 -3.5px currentColor,
+   -7px 0  0 -3.5px currentColor,
+    7px 0  0 -3.5px currentColor,
+   -5px -5px 0 -3.5px currentColor,
+    5px -5px 0 -3.5px currentColor,
+   -5px  5px 0 -3.5px currentColor,
+    5px  5px 0 -3.5px currentColor;
+  transition: transform .35s ease, opacity .25s ease;
+}
+
+/* Moon icon */
+.theme-icon-moon {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: transparent;
+  box-shadow: inset -4px -2px 0 0 currentColor;
+  opacity: 0;
+  transform: rotate(-45deg) scale(0.6);
+  transition: transform .35s ease, opacity .25s ease;
+}
+
+/* Dark theme: show moon, hide sun */
+body.dark-theme .theme-icon-sun {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.5);
+}
+body.dark-theme .theme-icon-moon {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
 /* Dark theme overrides */
 body.dark-theme .user-avatar-btn {
   border-color: #333;
@@ -2932,6 +2998,10 @@ body.dark-theme .user-dropdown-toggle-btn.active {
 }
 body.dark-theme .user-dropdown-toggle-btn.active .dropdown-icon {
   color: #a5b4fc;
+}
+
+body.dark-theme .theme-label {
+  color: #666;
 }
 
 /* ============================================================== */
@@ -3057,6 +3127,26 @@ body.dark-theme .user-dropdown-toggle-btn.active .dropdown-icon {
   color: #666;
   margin: 0 0 18px;
   line-height: 1.55;
+}
+
+/* ── Drawer broker sub-box ─────────────────────────────── */
+
+.drawer-broker-sub {
+  position: relative;
+}
+
+.drawer-broker-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.drawer-broker-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  letter-spacing: 0.01em;
 }
 
 /* ── Drawer setting row ────────────────────────────────── */
@@ -3319,6 +3409,10 @@ body.dark-theme .drawer-card:hover {
 }
 body.dark-theme .drawer-card-hint {
   color: #777;
+}
+
+body.dark-theme .drawer-broker-name {
+  color: #ccc;
 }
 
 body.dark-theme .drawer-setting-name { color: #e5e5e5; }
