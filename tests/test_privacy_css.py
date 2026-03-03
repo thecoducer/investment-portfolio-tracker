@@ -18,6 +18,8 @@ class TestPrivacyCss(unittest.TestCase):
             'body.privacy-mode .breakdown-segment',
             'body.privacy-mode #etf-section tbody tr td:nth-child(10)',
             'body.privacy-mode .breakdown-segment .breakdown-pl span',
+            'body.privacy-mode .card::after',
+            'body.privacy-mode .allocation-pct',
         ]
         for sel in expected:
             self.assertIn(sel, self.css, f"CSS should contain privacy blur selector '{sel}'")

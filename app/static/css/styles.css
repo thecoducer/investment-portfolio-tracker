@@ -1179,6 +1179,16 @@ body.privacy-mode .breakdown-segment {
   filter: blur(4px);
 }
 
+/* Hide allocation progress bars and percentage badges */
+body.privacy-mode .card::after {
+  opacity: 0 !important;
+}
+
+body.privacy-mode .allocation-pct {
+  filter: blur(6px);
+  user-select: none;
+}
+
 body.privacy-mode .breakdown-segment .breakdown-pl span {
   color: #888 !important;
 }
