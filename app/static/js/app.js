@@ -477,10 +477,13 @@ class PortfolioApp {
                            (!isUpdating && this._wasUpdating);
 
     if (shouldFetchData) {
-      // Keep refresh button and status tag in "updating" state until data is loaded
-      statusTag.classList.add('updating');
-      statusTag.classList.remove('updated');
-      statusText.innerText = 'updating';
+      const isRealRefresh = !isFirstSSE && !isUpdating && this._wasUpdating;
+      if (isRealRefresh) {
+        // Keep refresh button and status tag in "updating" state until data is loaded
+        statusTag.classList.add('updating');
+        statusTag.classList.remove('updated');
+        statusText.innerText = 'updating';
+      }
       this.updateData().then(() => {
         this._updateRefreshButton(false);
         // Restore final status tag state after data is rendered
