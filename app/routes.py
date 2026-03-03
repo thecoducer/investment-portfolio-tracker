@@ -9,15 +9,29 @@ from typing import Any, Dict, List, Optional
 
 from flask import (Flask, Response, jsonify, make_response, redirect,
                    render_template, request, session)
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .api.physical_gold import enrich_holdings_with_prices
 from .cache import market_cache, portfolio_cache, user_sheets_cache
-from .constants import HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL, SSE_KEEPALIVE_INTERVAL
+from .constants import (HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL,
+                         SSE_KEEPALIVE_INTERVAL, SSE_TOKEN_MAX_AGE)
 from .logging_config import logger
 from .middleware import app_only, login_required, protected_api
 from .services import (_build_status_response, ensure_user_loaded,
                        get_authenticated_accounts, get_user_accounts,
                        session_manager, sse_manager)
+from .sse import EVICT_SENTINEL, SSE_MAX_CONNECTION_AGE, SSE_QUEUE_SIZE, SSE_RETRY_MS
+
+# ---------------------------------------------------------------------------
+# Cloud Run direct URL for SSE (bypasses Firebase Hosting CDN buffering)
+# ---------------------------------------------------------------------------
+CLOUD_RUN_URL = os.environ.get("CLOUD_RUN_URL", "").rstrip("/")
+
+# ---------------------------------------------------------------------------
+# SSE token signing (allows direct Cloud Run SSE without cookies)
+# ---------------------------------------------------------------------------
+_SSE_TOKEN_SALT = "sse-auth-token"
 
 
 def _create_flask_app(name: str, enable_static: bool = False) -> Flask:
@@ -32,7 +46,109 @@ def _create_flask_app(name: str, enable_static: bool = False) -> Flask:
 
 
 app_ui = _create_flask_app("ui_server", enable_static=True)
-app_ui.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+
+# Trust proxy headers from Cloud Run / load balancers so request.url_root
+# correctly reports https:// instead of http://.
+app_ui.wsgi_app = ProxyFix(app_ui.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# Session secret — MUST be a stable value in production so sessions survive
+# container restarts.  A random fallback is used for local dev only.
+_secret = os.environ.get("FLASK_SECRET_KEY")
+if not _secret:
+    logger.warning(
+        "FLASK_SECRET_KEY not set — using a random key. "
+        "Sessions will NOT survive restarts. Set this env var in production."
+    )
+    _secret = secrets.token_hex(32)
+app_ui.secret_key = _secret
+
+# Production session cookie settings
+# IMPORTANT: Firebase Hosting strips ALL cookies except ``__session`` from both
+# incoming requests and outgoing responses.  Flask's default cookie name is
+# "session" which gets silently dropped, breaking OAuth and any session state.
+app_ui.config.update(
+    SESSION_COOKIE_NAME="__session",       # Firebase Hosting requirement
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") != "development",
+)
+
+
+# ---------------------------------------------------------------------------
+# SSE token helpers (for direct Cloud Run SSE, bypassing Firebase CDN)
+# ---------------------------------------------------------------------------
+
+def _generate_sse_token(google_id: str) -> str:
+    """Create a short-lived signed token for SSE authentication."""
+    s = URLSafeTimedSerializer(app_ui.secret_key)
+    return s.dumps({"gid": google_id}, salt=_SSE_TOKEN_SALT)
+
+
+def _validate_sse_token(token: str) -> Optional[str]:
+    """Validate an SSE token. Returns google_id or None."""
+    s = URLSafeTimedSerializer(app_ui.secret_key)
+    try:
+        data = s.loads(token, salt=_SSE_TOKEN_SALT, max_age=SSE_TOKEN_MAX_AGE)
+        return data.get("gid")
+    except (BadSignature, SignatureExpired):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Firebase Hosting detection
+# ---------------------------------------------------------------------------
+_FIREBASE_HOSTING_DOMAINS = frozenset({"metron.web.app", "metron.firebaseapp.com"})
+
+
+def _is_firebase_hosting_request() -> bool:
+    """Return True when the request was served through Firebase Hosting.
+
+    When Firebase Hosting rewrites to Cloud Run the ``Host`` header is
+    that of the Firebase domain (metron.web.app).  When the user browses
+    Cloud Run directly, the Host is the ``*.run.app`` URL — in that case
+    SSE can use the relative ``/events`` path with session cookies.
+    """
+    host = request.host.split(":")[0].lower()  # strip port
+    return host in _FIREBASE_HOSTING_DOMAINS
+
+
+def _add_cors_headers(response: Response) -> Response:
+    """Add CORS headers for direct Cloud Run SSE access from Firebase Hosting."""
+    origin = request.headers.get("Origin", "")
+    allowed = False
+
+    if origin:
+        # Always allow Firebase Hosting origins
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(origin).hostname or ""
+        except Exception:
+            host = ""
+
+        if host in _FIREBASE_HOSTING_DOMAINS:
+            allowed = True
+        # Allow any *.run.app origin (Cloud Run URL formats vary)
+        elif host.endswith(".run.app"):
+            allowed = True
+        # Dev origins
+        elif os.environ.get("FLASK_ENV") == "development" and host in ("localhost", "127.0.0.1"):
+            allowed = True
+
+    if allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Requested-With"
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Health check (Cloud Run liveness / readiness probe)
+# ---------------------------------------------------------------------------
+
+@app_ui.route("/healthz", methods=["GET"])
+def healthz():
+    """Lightweight health check for Cloud Run / load balancer probes."""
+    return jsonify({"status": "ok"}), 200
 
 
 @app_ui.before_request
@@ -62,10 +178,17 @@ def _current_user() -> Optional[Dict[str, Any]]:
 
 _user_fetch_locks: Dict[str, threading.Lock] = {}
 _user_fetch_locks_guard = threading.Lock()
+_USER_FETCH_LOCKS_MAX = 500  # prevent unbounded growth
 
 
 def _get_user_fetch_lock(google_id: str) -> threading.Lock:
     with _user_fetch_locks_guard:
+        # Evict oldest entries if the dict grows too large
+        if len(_user_fetch_locks) >= _USER_FETCH_LOCKS_MAX:
+            # Remove the first (oldest) half of entries
+            keys_to_remove = list(_user_fetch_locks.keys())[: _USER_FETCH_LOCKS_MAX // 2]
+            for k in keys_to_remove:
+                _user_fetch_locks.pop(k, None)
         return _user_fetch_locks.setdefault(google_id, threading.Lock())
 
 
@@ -110,6 +233,7 @@ def google_login():
 
     try:
         redirect_uri = request.url_root.rstrip("/") + "/auth/google/callback"
+        logger.info("OAuth redirect_uri: %s", redirect_uri)
         flow = build_oauth_flow(redirect_uri)
         authorization_url, state = flow.authorization_url(
             access_type="offline",
@@ -222,6 +346,21 @@ def auth_logout():
     return jsonify({"status": "logged_out"})
 
 
+@app_ui.route("/api/sse-token", methods=["GET"])
+@protected_api
+def sse_token():
+    """Issue a short-lived signed token for direct Cloud Run SSE access.
+
+    The token lets the browser open an EventSource directly to Cloud Run
+    (bypassing Firebase Hosting CDN, which buffers streaming responses).
+    """
+    user = _current_user()
+    token = _generate_sse_token(user["google_id"])
+    resp = jsonify({"token": token, "ttl": SSE_TOKEN_MAX_AGE})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app_ui.route("/callback", methods=["GET"])
 def zerodha_callback():
     """Handle Zerodha KiteConnect OAuth callback."""
@@ -279,34 +418,104 @@ def status():
     return response
 
 
-@app_ui.route("/events", methods=["GET"])
-@login_required
+@app_ui.route("/events", methods=["GET", "OPTIONS"])
 def events():
-    """SSE endpoint for real-time per-user status updates."""
+    """SSE endpoint for real-time per-user status updates.
+
+    Authentication:
+    - Via ``__session`` cookie (requests through Firebase Hosting), OR
+    - Via ``?token=`` query param (direct Cloud Run access — Firebase CDN
+      buffers streaming responses so the browser connects directly).
+
+    Production hardening:
+    - Connection age limit prevents zombie connections on GCloud.
+    - ``retry:`` field tells browsers the reconnect interval.
+    - Handles BrokenPipeError / ConnectionResetError gracefully.
+    - Returns 503 when client limits are exceeded.
+    - Queue size is bounded to prevent memory bloat.
+    """
+    # CORS preflight for direct Cloud Run access from Firebase domain
+    if request.method == "OPTIONS":
+        resp = Response("", status=204)
+        return _add_cors_headers(resp)
+
+    import time as _time
+
+    # --- Authenticate: session cookie OR signed token ---
+    google_id = None
     user = _current_user()
-    google_id = user.get("google_id")
+    if user:
+        google_id = user.get("google_id")
+    else:
+        token = request.args.get("token")
+        if token:
+            google_id = _validate_sse_token(token)
+
+    if not google_id:
+        resp = jsonify({"error": "Authentication required"})
+        resp.status_code = 401
+        return _add_cors_headers(resp)
 
     def event_stream():
-        client_queue = Queue(maxsize=10)
-        sse_manager.add_client(client_queue, google_id)
+        client_queue = Queue(maxsize=SSE_QUEUE_SIZE)
+        accepted = sse_manager.add_client(client_queue, google_id)
+        if not accepted:
+            # Limit exceeded — yield an error event and stop.
+            yield f"retry: {SSE_RETRY_MS}\ndata: {{\"error\": \"too_many_connections\"}}\n\n"
+            return
+
+        started = _time.monotonic()
         try:
+            # Send retry hint so browsers reconnect at a controlled interval
+            yield f"retry: {SSE_RETRY_MS}\n"
+            # Send initial state immediately
             yield f"data: {json.dumps(_build_status_response(google_id))}\n\n"
             while True:
+                # Enforce max connection age (GCloud / load balancer timeouts)
+                elapsed = _time.monotonic() - started
+                if elapsed >= SSE_MAX_CONNECTION_AGE:
+                    logger.info(
+                        "SSE connection aged out for user=%s after %ds",
+                        google_id, int(elapsed),
+                    )
+                    # Send a reconnect hint before closing
+                    yield f"data: {{\"reconnect\": true}}\n\n"
+                    break
+
                 try:
                     message = client_queue.get(timeout=SSE_KEEPALIVE_INTERVAL)
+                    if message is EVICT_SENTINEL:
+                        logger.info(
+                            "SSE connection evicted for user=%s (newer connection arrived)",
+                            google_id,
+                        )
+                        # Tell client to reconnect immediately
+                        yield f"data: {{\"reconnect\": true}}\n\n"
+                        break
                     yield f"data: {message}\n\n"
                 except Empty:
+                    # SSE keepalive comment to prevent proxy/LB idle timeouts
                     yield ": keepalive\n\n"
         except GeneratorExit:
+            # Client disconnected normally
             pass
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            # Client disconnected abnormally (common in production)
+            logger.debug("SSE client disconnected (broken pipe) user=%s", google_id)
+        except Exception:
+            logger.exception("Unexpected error in SSE stream for user=%s", google_id)
         finally:
             sse_manager.remove_client(client_queue, google_id)
 
-    return Response(event_stream(), mimetype='text/event-stream', headers={
-        'Cache-Control': 'no-cache',
-        'X-Accel-Buffering': 'no',
+    resp = Response(event_stream(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',              # HTTP/1.0 compat
+        'X-Accel-Buffering': 'no',         # nginx / reverse proxies
+        'X-Content-Type-Options': 'nosniff',
         'Connection': 'keep-alive',
+        'Referrer-Policy': 'no-referrer',  # prevent token leaking via Referer header
     })
+    return _add_cors_headers(resp)
 
 
 @app_ui.route("/stocks_data", methods=["GET"])
@@ -430,12 +639,18 @@ def portfolio_page():
         "status": _build_status_response(google_id),
     }
 
+    # Only inject SSE direct config when the page is served through Firebase
+    # Hosting (where the CDN buffers streaming responses).  When browsing
+    # Cloud Run directly, relative /events works fine with session cookies.
+    sse_base_url = CLOUD_RUN_URL if _is_firebase_hosting_request() else ""
+
     return render_template(
         "portfolio.html",
         physical_gold_enabled=True,
         fixed_deposits_enabled=True,
         user=user,
         initial_data_json=json.dumps(initial_data, default=str),
+        sse_base_url=sse_base_url,
     )
 
 

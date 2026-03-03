@@ -234,7 +234,7 @@ class TestSSE(unittest.TestCase):
         app_ui.testing = True
 
     def test_events_endpoint(self):
-        """Test /events SSE endpoint returns text/event-stream."""
+        """Test /events SSE endpoint returns text/event-stream with production headers."""
         with patch('app.services.state_manager') as mock_state, \
              patch('app.services.session_manager') as mock_session, \
              patch('app.services.format_timestamp', return_value=None), \
@@ -258,7 +258,17 @@ class TestSSE(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('text/event-stream', response.content_type)
-        self.assertEqual(response.headers.get('Cache-Control'), 'no-cache')
+        self.assertEqual(
+            response.headers.get('Cache-Control'),
+            'no-cache, no-store, must-revalidate',
+        )
+        self.assertEqual(response.headers.get('X-Accel-Buffering'), 'no')
+        self.assertEqual(response.headers.get('X-Content-Type-Options'), 'nosniff')
+
+    def test_events_unauthenticated(self):
+        """Unauthenticated request to /events returns 401."""
+        response = self.client.get('/events')
+        self.assertEqual(response.status_code, 401)
 
 
 class TestJsonResponse(unittest.TestCase):

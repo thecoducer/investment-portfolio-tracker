@@ -1,0 +1,19 @@
+# Ignore local dev files, venvs, caches, and secrets
+run_server/
+__pycache__/
+*.pyc
+.pytest_cache/
+htmlcov/
+.git/
+.env
+.gcloudignore
+tests/
+config/firebase-credentials.json
+config/google-oauth-credentials.json
+
+# Firebase (not needed in Docker image)
+firebase.json
+.firebaserc
+.firebase/
+firebase-public/
+deploy-firebase.sh

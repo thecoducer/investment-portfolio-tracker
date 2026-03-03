@@ -43,8 +43,11 @@ IBJA_GOLD_PRICE_TIMEOUT = 20
 
 # Server startup / UI timing (seconds)
 SERVER_STARTUP_DELAY = 0.5
-SSE_KEEPALIVE_INTERVAL = 30  # SSE client keepalive interval
+SSE_KEEPALIVE_INTERVAL = 25  # SSE keepalive — must be < 60s (Firebase Hosting idle timeout)
 TOKEN_WAIT_POLL_INTERVAL = 5  # interval for polling request token
+SSE_TOKEN_MAX_AGE = 60        # SSE auth token validity (seconds) — short-lived;
+                              # only needs to be valid at connection time, not
+                              # for the full SSE session duration
 
 # External service URLs
 NSE_BASE_URL = "https://www.nseindia.com"

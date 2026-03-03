@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Metron Server — Application entry point.
+Metron Server — Application entry point (development mode).
 
-Usage:
-    1. Set up environment: pip install -r requirements.txt
-    2. Configure accounts in config/config.json
-    3. Run: python main.py   (or use start.sh)
+For production deployment use:
+    gunicorn wsgi:app -c gunicorn.conf.py
+
+Development usage:
+    python main.py
 """
 
+import signal
+import sys
 import threading
 import time
 
@@ -45,24 +48,36 @@ def start_server(app: Flask, host: str, port: int) -> threading.Thread:
 
 def _start_auto_refresh_service() -> None:
     """Initialize and start the auto-refresh background service."""
-    threading.Thread(target=run_auto_refresh, daemon=True).start()
+    threading.Thread(target=run_auto_refresh, daemon=True, name="AutoRefresh").start()
+
+
+_shutdown_event = threading.Event()
+
+
+def _handle_shutdown(signum, frame):
+    """Handle SIGTERM/SIGINT for graceful shutdown."""
+    sig_name = signal.Signals(signum).name
+    logger.info("Received %s — shutting down gracefully...", sig_name)
+    _shutdown_event.set()
 
 
 def main() -> None:
-    """Initialize and start the Metron application.
+    """Initialize and start the Metron application (development mode).
 
     1. Configures logging.
-    2. Loads cached authentication sessions.
-    3. Validates account configuration.
-    4. Starts the UI Flask server.
-    5. Triggers initial data fetch.
-    6. Starts the auto-refresh service.
-    7. Keeps the application running.
+    2. Starts the UI Flask server.
+    3. Triggers initial data fetch.
+    4. Starts the auto-refresh service.
+    5. Keeps the application running until SIGTERM/SIGINT.
     """
     try:
         configure()
         logger.info("Starting Metron...")
+        logger.info("NOTE: For production, use: gunicorn wsgi:app -c gunicorn.conf.py")
 
+        # Register signal handlers
+        signal.signal(signal.SIGTERM, _handle_shutdown)
+        signal.signal(signal.SIGINT, _handle_shutdown)
 
         dashboard_url = f"http://{app_config.ui_host}:{app_config.ui_port}/"
         logger.info("Starting UI server at %s", dashboard_url)
@@ -75,8 +90,9 @@ def main() -> None:
 
         _start_auto_refresh_service()
 
-        while True:
-            time.sleep(1)
+        # Block until shutdown signal
+        _shutdown_event.wait()
+        logger.info("Shutdown complete.")
 
     except KeyboardInterrupt:
         logger.info("\nShutting down gracefully...")

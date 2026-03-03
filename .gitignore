@@ -20,6 +20,10 @@ run_server/
 *.sqlite
 *.sqlite3
 
+# Firebase
+.firebase/
+firebase-public/
+
 # Test coverage
 .coverage
 htmlcov/

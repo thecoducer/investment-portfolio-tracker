@@ -1,6 +1,16 @@
-"""Firestore user store – persists per-user profile, OAuth tokens, and sheet IDs."""
+"""Firestore user store – persists per-user profile, OAuth tokens, and sheet IDs.
 
+Credential resolution order:
+1. ``FIREBASE_CREDENTIALS`` env var — JSON string of service-account key.
+2. ``GOOGLE_APPLICATION_CREDENTIALS`` env var — path to a JSON key file
+   (set automatically on Cloud Run when a service account is attached).
+3. Local file at ``config/firebase-credentials.json`` (development fallback).
+4. Application Default Credentials (Cloud Run's built-in service identity).
+"""
+
+import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -10,10 +20,44 @@ from .logging_config import logger
 
 _firestore_client = None
 
-_CREDENTIALS_PATH = os.path.join(
+_LOCAL_CREDENTIALS_PATH = os.path.join(
     os.path.dirname(os.path.dirname(__file__)), "config", "firebase-credentials.json"
 )
 _USERS = "users"
+
+
+def _resolve_firebase_credential():
+    """Resolve Firebase credentials from env vars or local file.
+
+    Returns a ``firebase_admin.credentials.Base`` instance, or ``None``
+    to fall back to Application Default Credentials.
+    """
+    from firebase_admin import credentials as fb_credentials
+
+    # 1. JSON string in env var (ideal for Cloud Run secrets)
+    creds_json = os.environ.get("FIREBASE_CREDENTIALS")
+    if creds_json:
+        try:
+            info = json.loads(creds_json)
+            logger.info("Using Firebase credentials from FIREBASE_CREDENTIALS env var")
+            return fb_credentials.Certificate(info)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.error("Invalid FIREBASE_CREDENTIALS JSON: %s", exc)
+
+    # 2. GOOGLE_APPLICATION_CREDENTIALS points to a file
+    gac = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    if gac and os.path.exists(gac):
+        logger.info("Using Firebase credentials from GOOGLE_APPLICATION_CREDENTIALS")
+        return fb_credentials.Certificate(gac)
+
+    # 3. Local file (development)
+    if os.path.exists(_LOCAL_CREDENTIALS_PATH):
+        logger.info("Using Firebase credentials from %s", _LOCAL_CREDENTIALS_PATH)
+        return fb_credentials.Certificate(_LOCAL_CREDENTIALS_PATH)
+
+    # 4. Fall back to ADC (works on Cloud Run with an attached service account)
+    logger.info("Using Application Default Credentials for Firebase")
+    return fb_credentials.ApplicationDefault()
 
 
 def _db():
@@ -31,16 +75,9 @@ def _db():
             "firebase-admin is not installed. Run: pip install firebase-admin"
         ) from exc
 
-    if not os.path.exists(_CREDENTIALS_PATH):
-        raise FileNotFoundError(
-            f"Firebase credentials not found at {_CREDENTIALS_PATH}. "
-            "Download your service-account JSON from the Firebase Console."
-        )
-
     if not firebase_admin._apps:
-        firebase_admin.initialize_app(
-            fb_credentials.Certificate(_CREDENTIALS_PATH)
-        )
+        cred = _resolve_firebase_credential()
+        firebase_admin.initialize_app(cred)
 
     app = firebase_admin.get_app()
     _firestore_client = gc_firestore.Client(

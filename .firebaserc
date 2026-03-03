@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "extreme-outpost-480113-c6"
+  },
+  "targets": {
+    "extreme-outpost-480113-c6": {
+      "hosting": {
+        "metron": [
+          "metron"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

@@ -163,7 +163,11 @@ def _should_auto_refresh() -> tuple[bool, Optional[str]]:
 
 
 def run_auto_refresh() -> None:
-    """Periodically refresh data for all users with active SSE connections."""
+    """Periodically refresh data for all users with active SSE connections.
+
+    Portfolio fetches for each user run concurrently so one slow Zerodha
+    account doesn't block updates for other users.
+    """
     while True:
         time.sleep(app_config.auto_refresh_interval)
         should_run, reason = _should_auto_refresh()
@@ -178,12 +182,25 @@ def run_auto_refresh() -> None:
         fetch_nifty50_data()
         fetch_gold_prices()
 
+        # Fetch portfolio data for each connected user concurrently so
+        # one slow API response doesn't delay updates for other users.
+        user_threads = []
         for gid in sse_manager.connected_user_ids():
             if not portfolio_cache.is_fetch_in_progress(gid):
                 authenticated = get_authenticated_accounts(gid)
                 if authenticated:
-                    fetch_portfolio_data(gid, authenticated)
+                    t = threading.Thread(
+                        target=fetch_portfolio_data,
+                        args=(gid, authenticated),
+                        name=f"AutoRefresh-{gid[:8]}",
+                        daemon=True,
+                    )
+                    user_threads.append(t)
+                    t.start()
                 else:
                     state_manager.set_portfolio_updating(google_id=gid)
                     state_manager.set_portfolio_updated(google_id=gid)
+
+        for t in user_threads:
+            t.join()
 

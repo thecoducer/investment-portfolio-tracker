@@ -23,10 +23,41 @@ USER_SCOPES = [
 ]
 
 
-def _get_client_secrets_file() -> str:
-    """Return the path to the Google OAuth client‑secrets JSON file."""
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    return os.path.join(base_dir, "config", "google-oauth-credentials.json")
+_LOCAL_CLIENT_SECRETS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "config", "google-oauth-credentials.json",
+)
+
+
+def _get_client_config() -> dict:
+    """Resolve Google OAuth client config from env var or local file.
+
+    Resolution order:
+    1. ``GOOGLE_OAUTH_CREDENTIALS`` env var — JSON string of client secrets.
+    2. Local file at ``config/google-oauth-credentials.json``.
+    """
+    import json as _json
+
+    # 1. Env var (ideal for Cloud Run secrets)
+    env_json = os.environ.get("GOOGLE_OAUTH_CREDENTIALS")
+    if env_json:
+        try:
+            return _json.loads(env_json)
+        except _json.JSONDecodeError as exc:
+            raise ValueError(
+                f"GOOGLE_OAUTH_CREDENTIALS env var contains invalid JSON: {exc}"
+            ) from exc
+
+    # 2. Local file
+    if os.path.exists(_LOCAL_CLIENT_SECRETS):
+        with open(_LOCAL_CLIENT_SECRETS, "r") as fh:
+            return _json.load(fh)
+
+    raise FileNotFoundError(
+        "Google OAuth client secrets not found. Either set the "
+        "GOOGLE_OAUTH_CREDENTIALS env var with the JSON content, or place "
+        f"the file at {_LOCAL_CLIENT_SECRETS}."
+    )
 
 
 def build_oauth_flow(redirect_uri: str) -> Flow:
@@ -38,15 +69,10 @@ def build_oauth_flow(redirect_uri: str) -> Flow:
     Returns:
         An initialised :class:`google_auth_oauthlib.flow.Flow`.
     """
-    client_secrets = _get_client_secrets_file()
-    if not os.path.exists(client_secrets):
-        raise FileNotFoundError(
-            f"Google OAuth client‑secrets file not found at {client_secrets}. "
-            "Download it from the Google Cloud Console → APIs & Services → Credentials."
-        )
+    client_config = _get_client_config()
 
-    flow = Flow.from_client_secrets_file(
-        client_secrets,
+    flow = Flow.from_client_config(
+        client_config,
         scopes=USER_SCOPES,
         redirect_uri=redirect_uri,
     )
