@@ -3544,38 +3544,129 @@ body.dark-theme .drawer-save-status.error { color: #ef4444; }
   position: fixed;
   bottom: 24px;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(80px);
   z-index: 1000;
   pointer-events: none;
+  opacity: 0;
+  transition: none;
+}
+.login-banner.login-banner-enter {
+  animation: bannerSlideUp .5s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes bannerSlideUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(80px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 .login-banner-inner {
   pointer-events: auto;
-  background: #fff;
-  border: 1px solid rgba(99, 102, 241, .2);
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04);
-  padding: 10px 18px;
+  position: relative;
+  background: linear-gradient(135deg, #fefefe 0%, #f5f3ff 100%);
+  border: 1px solid rgba(99, 102, 241, .18);
+  border-radius: 16px;
+  box-shadow:
+    0 8px 32px rgba(99, 102, 241, .10),
+    0 2px 8px rgba(0,0,0,.04);
+  padding: 12px 18px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   font-size: 13px;
   color: #444;
+  cursor: pointer;
   white-space: nowrap;
+  overflow: hidden;
+  transition: box-shadow .25s ease, border-color .25s ease, transform .18s ease;
 }
+.login-banner-inner:hover {
+  box-shadow:
+    0 8px 32px rgba(99, 102, 241, .20),
+    0 2px 12px rgba(0,0,0,.06);
+  border-color: rgba(99, 102, 241, .35);
+  transform: translateY(-2px);
+}
+.login-banner-inner:active {
+  transform: translateY(0);
+}
+
+/* Pulsing glow ring behind the icon */
+.login-banner-pulse {
+  position: absolute;
+  left: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, .10);
+  animation: bannerPulse 2.5s ease-in-out infinite;
+}
+@keyframes bannerPulse {
+  0%, 100% { transform: scale(1); opacity: .6; }
+  50%      { transform: scale(1.5); opacity: 0; }
+}
+
 .login-banner-icon {
-  width: 18px;
-  height: 18px;
+  position: relative;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   fill: none;
   stroke: #6366f1;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+  animation: bannerSpin 3s ease-in-out infinite;
+}
+@keyframes bannerSpin {
+  0%   { transform: rotate(0deg); }
+  30%  { transform: rotate(180deg); }
+  100% { transform: rotate(180deg); }
+}
+
+.login-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  line-height: 1.35;
+}
+.login-banner-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #312e81;
+  letter-spacing: -.01em;
 }
 .login-banner-text {
-  flex: 1;
-  line-height: 1.45;
+  font-size: 12px;
+  color: #6b7280;
 }
+.login-banner-text strong {
+  color: #6366f1;
+  font-weight: 600;
+}
+
+.login-banner-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  background: rgba(99, 102, 241, .08);
+  padding: 5px 12px;
+  border-radius: 8px;
+  margin-left: 4px;
+  transition: background .2s ease, color .2s ease;
+}
+.login-banner-inner:hover .login-banner-cta {
+  background: rgba(99, 102, 241, .15);
+  color: #4f46e5;
+}
+.login-banner-cta svg {
+  transition: transform .2s ease;
+}
+.login-banner-inner:hover .login-banner-cta svg {
+  transform: translateX(2px);
+}
+
+/* Keep old class for backward compat but unused */
 .login-banner-link {
   color: #6366f1;
   font-weight: 600;
@@ -3626,19 +3717,81 @@ body.dark-theme .drawer-save-status.error { color: #ef4444; }
 /* ── Login banner / account status dark theme ──────────── */
 
 body.dark-theme .login-banner-inner {
-  background: #1a1a1a;
-  border-color: rgba(129, 140, 248, .25);
-  box-shadow: 0 4px 24px rgba(0,0,0,.3), 0 1px 4px rgba(0,0,0,.15);
+  background: linear-gradient(135deg, #1a1a2e 0%, #1e1b3a 100%);
+  border-color: rgba(129, 140, 248, .2);
+  box-shadow:
+    0 8px 32px rgba(0,0,0,.35),
+    0 2px 8px rgba(99, 102, 241, .08);
   color: #a5b4fc;
+}
+body.dark-theme .login-banner-inner:hover {
+  box-shadow:
+    0 8px 32px rgba(0,0,0,.4),
+    0 2px 12px rgba(99, 102, 241, .15);
+  border-color: rgba(129, 140, 248, .4);
+}
+body.dark-theme .login-banner-pulse {
+  background: rgba(129, 140, 248, .12);
 }
 body.dark-theme .login-banner-icon {
   stroke: #818cf8;
+}
+body.dark-theme .login-banner-title {
+  color: #c7d2fe;
+}
+body.dark-theme .login-banner-text {
+  color: #9ca3af;
+}
+body.dark-theme .login-banner-text strong {
+  color: #a5b4fc;
+}
+body.dark-theme .login-banner-cta {
+  color: #a5b4fc;
+  background: rgba(129, 140, 248, .1);
+}
+body.dark-theme .login-banner-inner:hover .login-banner-cta {
+  background: rgba(129, 140, 248, .18);
+  color: #c7d2fe;
 }
 body.dark-theme .login-banner-link {
   color: #818cf8;
 }
 body.dark-theme .login-banner-link:hover {
   color: #a5b4fc;
+}
+
+/* ── Login banner mobile ───────────────────────────────── */
+
+@media (max-width: 600px) {
+  .login-banner {
+    bottom: 16px;
+    left: 12px;
+    right: 12px;
+    transform: translateX(0) translateY(80px);
+  }
+  .login-banner.login-banner-enter {
+    animation: bannerSlideUpMobile .5s cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+  @keyframes bannerSlideUpMobile {
+    from { opacity: 0; transform: translateX(0) translateY(80px); }
+    to   { opacity: 1; transform: translateX(0) translateY(0); }
+  }
+  .login-banner-inner {
+    width: 100%;
+    border-radius: 14px;
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .login-banner-title {
+    font-size: 12px;
+  }
+  .login-banner-text {
+    font-size: 11px;
+  }
+  .login-banner-cta {
+    font-size: 11px;
+    padding: 4px 10px;
+  }
 }
 
 body.dark-theme .drawer-account-login {

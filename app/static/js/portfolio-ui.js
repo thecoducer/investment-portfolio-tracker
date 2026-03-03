@@ -56,6 +56,14 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeSettingsDrawer();
 });
 
+// Open settings drawer when Enter/Space pressed on login banner
+document.addEventListener('keydown', function(e) {
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement && document.activeElement.id === 'loginBanner') {
+    e.preventDefault();
+    openSettingsDrawer();
+  }
+});
+
 // ─── Drawer Zerodha Accounts ──────────────────────────────────
 
 function escapeHtml(str) {

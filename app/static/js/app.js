@@ -729,21 +729,18 @@ class PortfolioApp {
 
   _updateLoginBanner(unauthenticatedAccounts, isUpdating) {
     const banner = document.getElementById('loginBanner');
-    const bannerText = document.getElementById('loginBannerText');
-    if (!banner || !bannerText) return;
+    if (!banner) return;
 
     // Show banner when accounts need login and we're not mid-fetch
     if (unauthenticatedAccounts.length > 0 && !isUpdating) {
-      const parts = unauthenticatedAccounts.map(acc => {
-        if (acc.login_url) {
-          return '<a href="' + acc.login_url + '" target="_blank" rel="noopener" class="login-banner-link">' + this._escapeHtml(acc.name) + '</a>';
-        }
-        return '<strong>' + this._escapeHtml(acc.name) + '</strong>';
-      });
-      bannerText.innerHTML = 'Session expired for ' + parts.join(', ') + '. Click to log in.';
       banner.style.display = '';
+      // Trigger entrance animation
+      banner.classList.remove('login-banner-enter');
+      void banner.offsetWidth; // reflow
+      banner.classList.add('login-banner-enter');
     } else {
       banner.style.display = 'none';
+      banner.classList.remove('login-banner-enter');
     }
   }
 
