@@ -479,9 +479,9 @@ class PortfolioApp {
     }
 
     // ── Fetch data on real state transitions ──
-    // 1. First SSE after page load WITHOUT inlined data
+    // 1. First SSE after page load (always – gold/FD are not inlined)
     // 2. Transition from updating → done (refresh complete)
-    const shouldFetchData = (isFirstSSE && !this._hasInitialData) ||
+    const shouldFetchData = isFirstSSE ||
                            (!isUpdating && this._wasUpdating);
 
     if (shouldFetchData) {

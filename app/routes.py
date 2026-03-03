@@ -52,6 +52,20 @@ app_ui = _create_flask_app("ui_server", enable_static=True)
 app_ui.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 
 
+@app_ui.before_request
+def _sync_spreadsheet_id():
+    """If the session has no spreadsheet_id (background creation pending),
+    try to fetch it from Firebase so subsequent requests can use it."""
+    user = session.get("user")
+    if user and not user.get("spreadsheet_id"):
+        from .firebase_store import get_user
+        existing = get_user(user["google_id"])
+        if existing and existing.get("spreadsheet_id"):
+            user["spreadsheet_id"] = existing["spreadsheet_id"]
+            session["user"] = user
+            session.modified = True
+
+
 # --------------------------
 # HELPERS
 # --------------------------
@@ -227,13 +241,21 @@ def google_callback():
             spreadsheet_id=spreadsheet_id,
         )
 
-        # Create a portfolio sheet if the user doesn't have one yet
+        # Create a portfolio sheet if the user doesn't have one yet.
+        # Defer creation to a background thread so the redirect is instant.
         if not spreadsheet_id:
-            spreadsheet_id = create_portfolio_sheet(
-                credentials, title=f"Metron – {name or email}"
-            )
-            update_spreadsheet_id(google_id, spreadsheet_id)
-            user_doc["spreadsheet_id"] = spreadsheet_id
+            def _create_sheet_bg(creds, title, gid):
+                try:
+                    sid = create_portfolio_sheet(creds, title=title)
+                    update_spreadsheet_id(gid, sid)
+                    logger.info("Background sheet creation done for %s", gid)
+                except Exception:
+                    logger.exception("Background sheet creation failed for %s", gid)
+            threading.Thread(
+                target=_create_sheet_bg,
+                args=(credentials, f"Metron – {name or email}", google_id),
+                daemon=True,
+            ).start()
 
         # Store essential info in Flask session (cookie)
         session["user"] = {
@@ -496,19 +518,15 @@ def portfolio_page():
     physical_gold_enabled = True
     fixed_deposits_enabled = True
 
-    # Build initial data payload so the browser can render immediately.
-    user_gold, user_fds = _fetch_user_sheets_data(user)
-
-    gold_data = user_gold if user_gold is not None else []
-    fd_data = user_fds if user_fds is not None else []
-
-    enriched_gold = enrich_holdings_with_prices(gold_data, cache.gold_prices)
+    # Build initial data payload from the in-memory cache only (no
+    # blocking Google Sheets calls).  Gold / FD data will be fetched
+    # asynchronously by the client via their dedicated endpoints.
     initial_data = {
         "stocks": sorted(cache.stocks, key=lambda x: x.get("tradingsymbol", "")),
         "mfHoldings": sorted(cache.mf_holdings, key=lambda x: x.get("fund", "")),
         "sips": sorted(cache.sips, key=lambda x: x.get("status", "")),
-        "physicalGold": sorted(enriched_gold, key=lambda x: x.get("date", "")),
-        "fixedDeposits": sorted(fd_data, key=lambda x: x.get("deposited_on", "")),
+        "physicalGold": [],
+        "fixedDeposits": [],
         "fdSummary": [],
         "status": _build_status_response(),
     }
