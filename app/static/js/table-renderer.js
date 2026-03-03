@@ -53,16 +53,18 @@ class TableRenderer {
    * @param {boolean} hasData - Whether the section has data to display
    */
   _toggleSectionVisibility({ table, emptyState, controls, paginationInfo, paginationButtons, tabs }, hasData) {
-    // Table and controls are always visible (headers + Add button stay accessible)
+    // Table is always visible (headers stay accessible)
     if (table) table.style.display = 'table';
-    if (controls) controls.style.display = 'flex';
     if (emptyState) emptyState.style.display = 'none'; // replaced by in-table CTA
 
     if (hasData) {
+      if (controls) controls.style.display = 'flex';
       if (paginationInfo) paginationInfo.style.display = 'block';
       if (paginationButtons) paginationButtons.style.display = 'flex';
       if (tabs) tabs.style.display = 'flex';
     } else {
+      // Hide controls (Add button) when empty — the in-table CTA already provides Add
+      if (controls) controls.style.display = 'none';
       if (paginationInfo) paginationInfo.style.display = 'none';
       if (paginationButtons) paginationButtons.style.display = 'none';
       if (tabs) tabs.style.display = 'none';
