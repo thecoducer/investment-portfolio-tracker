@@ -414,12 +414,9 @@ h1 {
   transition: all 0.3s ease;
 }
 
-#status_tag.not-loaded {
-  display: none;
-}
-
-#status_tag.needs-login {
-  display: none;
+#status_tag.not-loaded .status-dot {
+  background: #999;
+  color: #999;
 }
 
 #status_tag .status-dot {

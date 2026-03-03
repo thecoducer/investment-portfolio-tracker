@@ -435,18 +435,17 @@ class PortfolioApp {
     const hasAuthenticatedAccounts = (status.authenticated_accounts || []).length > 0;
     const hasUnauthenticated = unauthenticated.length > 0;
 
-    // ── Status tag: reflects ACTUAL data-fetching, never login wait ──
+    // ── Status tag: always visible, reflects data-fetch state ──
     const isNotLoaded = status.portfolio_state === null;
     statusTag.classList.toggle('updating', isUpdating);
     statusTag.classList.toggle('updated', !isUpdating && !isNotLoaded);
     statusTag.classList.toggle('not-loaded', isNotLoaded && !isUpdating);
     statusTag.classList.toggle('market_closed', status.market_open === false);
-    statusTag.classList.toggle('needs-login', hasUnauthenticated && !isUpdating);
 
     if (isUpdating) {
       statusText.innerText = 'updating';
     } else if (isNotLoaded) {
-      statusText.innerText = '';
+      statusText.innerText = 'not loaded';
     } else {
       this.lastPortfolioUpdatedAt = status.portfolio_last_updated || null;
       statusText.innerText = this._formatStatusUpdatedText();
