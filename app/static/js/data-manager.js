@@ -1,4 +1,5 @@
 /* Metron - Data Management Module */
+import { metronFetch } from './utils.js';
 
 class DataManager {
   constructor() {
@@ -17,7 +18,7 @@ class DataManager {
   }
 
   async _fetchEndpoint(endpoint) {
-    const response = await fetch(endpoint);
+    const response = await metronFetch(endpoint);
     return await response.json();
   }
 
@@ -162,7 +163,7 @@ class DataManager {
   }
 
   async triggerRefresh() {
-    const response = await fetch('/refresh', { method: 'POST' });
+    const response = await metronFetch('/refresh', { method: 'POST' });
     if (response.status !== 202) {
       const data = await response.json();
       throw new Error(data.error || 'Unknown error');

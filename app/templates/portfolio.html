@@ -551,6 +551,15 @@ By Bank
 {% endif %}
 
 <script src="/static/js/nav.js"></script>
+<script>
+// App fetch wrapper — single source for the API identification header.
+window.metronFetch = function(url, options) {
+  options = options || {};
+  var h = new Headers(options.headers || {});
+  h.set('X-Requested-With', 'MetronApp');
+  return fetch(url, Object.assign({}, options, { headers: h }));
+};
+</script>
 <script src="/static/js/portfolio-ui.js"></script>
 
 {% if initial_data_json %}

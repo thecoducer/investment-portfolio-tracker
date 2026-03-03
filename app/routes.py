@@ -14,6 +14,7 @@ from .api.physical_gold import enrich_holdings_with_prices
 from .cache import market_cache, portfolio_cache, user_sheets_cache
 from .constants import HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL, SSE_KEEPALIVE_INTERVAL
 from .logging_config import logger
+from .middleware import app_only, login_required, protected_api
 from .services import (_build_status_response, ensure_user_loaded,
                        get_authenticated_accounts, get_user_accounts,
                        session_manager, sse_manager)
@@ -57,15 +58,6 @@ def _json_response(data: List[Dict[str, Any]], sort_key: Optional[str] = None) -
 
 def _current_user() -> Optional[Dict[str, Any]]:
     return session.get("user")
-
-
-def _get_user_google_credentials():
-    from .api.google_auth import credentials_from_dict
-    user = _current_user()
-    if not user:
-        return None
-    creds_dict = user.get("google_credentials")
-    return credentials_from_dict(creds_dict) if creds_dict else None
 
 
 _user_fetch_locks: Dict[str, threading.Lock] = {}
@@ -223,6 +215,7 @@ def auth_me():
 
 
 @app_ui.route("/auth/logout", methods=["POST"])
+@app_only
 def auth_logout():
     """Sign out the current user."""
     session.clear()
@@ -277,19 +270,21 @@ def zerodha_callback():
 
 
 @app_ui.route("/status", methods=["GET"])
+@protected_api
 def status():
     user = _current_user()
-    google_id = user.get("google_id") if user else None
+    google_id = user.get("google_id")
     response = jsonify(_build_status_response(google_id))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return response
 
 
 @app_ui.route("/events", methods=["GET"])
+@login_required
 def events():
     """SSE endpoint for real-time per-user status updates."""
     user = _current_user()
-    google_id = user.get("google_id") if user else None
+    google_id = user.get("google_id")
 
     def event_stream():
         client_queue = Queue(maxsize=10)
@@ -315,66 +310,64 @@ def events():
 
 
 @app_ui.route("/stocks_data", methods=["GET"])
+@protected_api
 def stocks_data():
     user = _current_user()
-    if not user:
-        return _json_response([], sort_key="tradingsymbol")
     user_data = portfolio_cache.get(user["google_id"])
     return _json_response(user_data.stocks, sort_key="tradingsymbol")
 
 
 @app_ui.route("/mf_holdings_data", methods=["GET"])
+@protected_api
 def mf_holdings_data():
     user = _current_user()
-    if not user:
-        return _json_response([], sort_key="fund")
     user_data = portfolio_cache.get(user["google_id"])
     return _json_response(user_data.mf_holdings, sort_key="fund")
 
 
 @app_ui.route("/sips_data", methods=["GET"])
+@protected_api
 def sips_data():
     user = _current_user()
-    if not user:
-        return _json_response([], sort_key="status")
     user_data = portfolio_cache.get(user["google_id"])
     return _json_response(user_data.sips, sort_key="status")
 
 
 @app_ui.route("/nifty50_data", methods=["GET"])
+@app_only
 def nifty50_data():
     return _json_response(market_cache.nifty50, sort_key="symbol")
 
 
 @app_ui.route("/physical_gold_data", methods=["GET"])
+@protected_api
 def physical_gold_data():
     user = _current_user()
-    if user:
-        gold, _ = _fetch_user_sheets_data(user)
-        if gold is not None:
-            enriched = enrich_holdings_with_prices(gold, market_cache.gold_prices)
-            return _json_response(enriched, sort_key="date")
-
+    gold, _ = _fetch_user_sheets_data(user)
+    if gold is not None:
+        enriched = enrich_holdings_with_prices(gold, market_cache.gold_prices)
+        return _json_response(enriched, sort_key="date")
     return _json_response([], sort_key="date")
 
 
 @app_ui.route("/fixed_deposits_data", methods=["GET"])
+@protected_api
 def fixed_deposits_data():
     user = _current_user()
-    if user:
-        _, deposits = _fetch_user_sheets_data(user)
-        if deposits is not None:
-            return _json_response(deposits, sort_key="deposited_on")
-
+    _, deposits = _fetch_user_sheets_data(user)
+    if deposits is not None:
+        return _json_response(deposits, sort_key="deposited_on")
     return _json_response([], sort_key="deposited_on")
 
 
 @app_ui.route("/fd_summary_data", methods=["GET"])
+@protected_api
 def fd_summary_data():
     return _json_response([])
 
 
 @app_ui.route("/market_indices", methods=["GET"])
+@app_only
 def market_indices():
     from datetime import datetime, timedelta
     from .api.market_data import MarketDataClient
@@ -396,21 +389,21 @@ def market_indices():
 
 
 @app_ui.route("/refresh", methods=["POST"])
+@protected_api
 def refresh_route():
     """Trigger manual data refresh for the signed-in user."""
     from .fetchers import run_background_fetch
 
     user = _current_user()
-    google_id = user.get("google_id") if user else None
+    google_id = user["google_id"]
 
-    if google_id and portfolio_cache.is_fetch_in_progress(google_id):
+    if portfolio_cache.is_fetch_in_progress(google_id):
         return make_response(jsonify({"error": "Fetch already in progress"}), HTTP_CONFLICT)
 
-    if google_id:
-        ensure_user_loaded(google_id)
-        user_sheets_cache.invalidate(google_id)
+    ensure_user_loaded(google_id)
+    user_sheets_cache.invalidate(google_id)
 
-    authenticated = get_authenticated_accounts(google_id) if google_id else []
+    authenticated = get_authenticated_accounts(google_id)
     run_background_fetch(is_manual=True, accounts=authenticated, google_id=google_id)
 
     return make_response(jsonify({"status": "started"}), HTTP_ACCEPTED)
@@ -453,11 +446,9 @@ def nifty50_page():
 
 
 @app_ui.route("/api/settings", methods=["GET"])
+@protected_api
 def get_settings():
     user = _current_user()
-    if not user:
-        return jsonify({"error": "not authenticated"}), 401
-
     from .firebase_store import get_zerodha_accounts
     google_id = user["google_id"]
     accounts = get_zerodha_accounts(google_id)
@@ -477,12 +468,10 @@ def get_settings():
 
 
 @app_ui.route("/api/settings/zerodha", methods=["POST"])
+@protected_api
 def add_zerodha():
     """Add a new Zerodha account for the signed-in user."""
     user = _current_user()
-    if not user:
-        return jsonify({"error": "not authenticated"}), 401
-
     data = request.get_json(silent=True) or {}
     account_name = (data.get("account_name") or "").strip()
     api_key = (data.get("api_key") or "").strip()
@@ -501,12 +490,10 @@ def add_zerodha():
 
 
 @app_ui.route("/api/settings/zerodha/<account_name>", methods=["DELETE"])
+@protected_api
 def remove_zerodha(account_name):
     """Remove a Zerodha account by name."""
     user = _current_user()
-    if not user:
-        return jsonify({"error": "not authenticated"}), 401
-
     from .firebase_store import remove_zerodha_account
     try:
         remove_zerodha_account(user["google_id"], account_name)

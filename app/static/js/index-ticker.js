@@ -1,4 +1,5 @@
 /* Metron - Market Index Ticker */
+import { metronFetch } from './utils.js';
 
 class IndexTicker {
   constructor() {
@@ -31,7 +32,7 @@ class IndexTicker {
 
   async fetchAndRender() {
     try {
-      const res = await fetch('/market_indices');
+      const res = await metronFetch('/market_indices');
       if (!res.ok) return;
       const data = await res.json();
       this._ensureDOM(data);

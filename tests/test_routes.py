@@ -7,6 +7,7 @@ from unittest.mock import Mock, PropertyMock, patch, MagicMock
 
 from app.routes import _json_response, app_ui
 from app.cache import PortfolioCacheManager, MarketCache, UserPortfolioData
+from app.middleware import APP_REQUEST_HEADER, APP_REQUEST_HEADER_VALUE
 
 # Reusable test user dict (simulates Flask session["user"])
 _TEST_USER = {
@@ -17,6 +18,9 @@ _TEST_USER = {
     "spreadsheet_id": "sheet_abc",
     "google_credentials": {},
 }
+
+# Standard header dict for simulating an app-originated request
+_APP_HEADERS = {APP_REQUEST_HEADER: APP_REQUEST_HEADER_VALUE}
 
 
 def _inject_user(client, user=None):
@@ -54,7 +58,8 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_format.return_value = None
             mock_market.return_value = False
 
-            response = self.client.get('/status')
+            _inject_user(self.client)
+            response = self.client.get('/status', headers=_APP_HEADERS)
 
             self.assertEqual(response.status_code, 200)
             data = json.loads(response.data)
@@ -81,7 +86,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.get.return_value = mock_data
 
             _inject_user(self.client)
-            response = self.client.get('/stocks_data')
+            response = self.client.get('/stocks_data', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -89,11 +94,9 @@ class TestUIServerRoutes(unittest.TestCase):
         self.assertEqual(data[0]["tradingsymbol"], "INFY")
 
     def test_stocks_data_unauthenticated(self):
-        """Unauthenticated user gets empty list."""
-        response = self.client.get('/stocks_data')
-        self.assertEqual(response.status_code, 200)
-        data = json.loads(response.data)
-        self.assertEqual(data, [])
+        """Unauthenticated user gets 401."""
+        response = self.client.get('/stocks_data', headers=_APP_HEADERS)
+        self.assertEqual(response.status_code, 401)
 
     def test_mf_holdings_data_endpoint(self):
         """Authenticated user gets their MF holdings."""
@@ -107,7 +110,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.get.return_value = mock_data
 
             _inject_user(self.client)
-            response = self.client.get('/mf_holdings_data')
+            response = self.client.get('/mf_holdings_data', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -126,7 +129,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.get.return_value = mock_data
 
             _inject_user(self.client)
-            response = self.client.get('/sips_data')
+            response = self.client.get('/sips_data', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -137,7 +140,7 @@ class TestUIServerRoutes(unittest.TestCase):
         """Nifty 50 is global — no user context needed."""
         with patch('app.routes.market_cache') as mock_mc:
             mock_mc.nifty50 = [{"symbol": "TCS", "ltp": 3500}]
-            response = self.client.get('/nifty50_data')
+            response = self.client.get('/nifty50_data', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -181,7 +184,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.is_fetch_in_progress.return_value = False
 
             _inject_user(self.client)
-            response = self.client.post('/refresh')
+            response = self.client.post('/refresh', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 202)
         data = json.loads(response.data)
@@ -196,7 +199,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.is_fetch_in_progress.return_value = True
 
             _inject_user(self.client)
-            response = self.client.post('/refresh')
+            response = self.client.post('/refresh', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 409)
         data = json.loads(response.data)
@@ -213,7 +216,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.is_fetch_in_progress.return_value = False
 
             _inject_user(self.client)
-            response = self.client.post('/refresh')
+            response = self.client.post('/refresh', headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 202)
         data = json.loads(response.data)
@@ -250,6 +253,7 @@ class TestSSE(unittest.TestCase):
 
             mock_session.is_valid.return_value = True
 
+            _inject_user(self.client)
             response = self.client.get('/events')
 
         self.assertEqual(response.status_code, 200)

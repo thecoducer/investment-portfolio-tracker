@@ -12,7 +12,7 @@
 
 // Sign-out handler
 function handleLogout() {
-  fetch('/auth/logout', { method: 'POST' })
+  window.metronFetch('/auth/logout', { method: 'POST' })
     .then(() => { window.location.href = '/'; })
     .catch(() => { window.location.href = '/'; });
 }
@@ -107,7 +107,7 @@ function loadDrawerAccounts() {
   const listEl = document.getElementById('drawerAccountsList');
   if (!listEl) return;
   listEl.innerHTML = '<div class="drawer-accounts-loading">Loading\u2026</div>';
-  fetch('/api/settings')
+  window.metronFetch('/api/settings')
     .then(r => r.ok ? r.json() : Promise.reject())
     .then(data => {
       const names = data.zerodha_accounts || [];
@@ -120,7 +120,7 @@ function loadDrawerAccounts() {
 
 function removeDrawerAccount(name) {
   if (!confirm('Remove account "' + name + '"? This will delete the stored API credentials.')) return;
-  fetch('/api/settings/zerodha/' + encodeURIComponent(name), { method: 'DELETE' })
+  window.metronFetch('/api/settings/zerodha/' + encodeURIComponent(name), { method: 'DELETE' })
     .then(r => r.ok ? loadDrawerAccounts() : Promise.reject())
     .catch(() => alert('Failed to remove account.'));
 }
@@ -170,7 +170,7 @@ function removeDrawerAccount(name) {
     status.textContent = '';
     status.className = 'drawer-save-status';
     try {
-      const resp = await fetch('/api/settings/zerodha', {
+      const resp = await window.metronFetch('/api/settings/zerodha', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_name, api_key, api_secret }),

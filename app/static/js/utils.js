@@ -367,4 +367,16 @@ function isETFInstrument(symbol, isin) {
   return false;
 }
 
-export { Formatter, Calculator, isGoldInstrument, isSGBInstrument, isSilverInstrument, isETFInstrument };
+/**
+ * Fetch wrapper that attaches the app identification header.
+ * Use this for every API call instead of raw ``fetch()``.
+ */
+function metronFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set('X-Requested-With', 'MetronApp');
+  return fetch(url, { ...options, headers });
+}
+
+window.metronFetch = metronFetch;
+
+export { Formatter, Calculator, isGoldInstrument, isSGBInstrument, isSilverInstrument, isETFInstrument, metronFetch };
