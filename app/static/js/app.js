@@ -450,9 +450,6 @@ class PortfolioApp {
     // ── Login banner (floating toast for unauthenticated accounts) ──
     this._updateLoginBanner(unauthenticated, isUpdating);
 
-    // ── Refresh button: spins only during actual data fetch ──
-    this._updateRefreshButton(isUpdating);
-
     // ── Refresh settings drawer pills if drawer is open ──
     if (typeof window.loadDrawerAccounts === 'function') {
       const drawer = document.getElementById('settingsDrawer');
@@ -480,8 +477,21 @@ class PortfolioApp {
                            (!isUpdating && this._wasUpdating);
 
     if (shouldFetchData) {
-      this.updateData();
+      // Keep refresh button and status tag in "updating" state until data is loaded
+      statusTag.classList.add('updating');
+      statusTag.classList.remove('updated');
+      statusText.innerText = 'updating';
+      this.updateData().then(() => {
+        this._updateRefreshButton(false);
+        // Restore final status tag state after data is rendered
+        statusTag.classList.remove('updating');
+        statusTag.classList.add('updated');
+        this.lastPortfolioUpdatedAt = status.portfolio_last_updated || null;
+        statusText.innerText = this._formatStatusUpdatedText();
+      });
     } else {
+      // No data fetch needed — update refresh button immediately
+      this._updateRefreshButton(isUpdating);
       const hasData = this.dataManager.getStocks().length > 0 ||
                       this.dataManager.getMFHoldings().length > 0 ||
                       this.dataManager.getSIPs().length > 0;
