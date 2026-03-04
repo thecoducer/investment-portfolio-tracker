@@ -22,7 +22,6 @@ run_server/
 
 # Firebase
 .firebase/
-firebase-public/
 
 # Test coverage
 .coverage
