@@ -193,3 +193,297 @@ function removeDrawerAccount(name) {
     }
   });
 })();
+
+// ─── Connect Broker Nudge Dismiss ─────────────────────────────
+
+(function() {
+  const dismissBtn = document.getElementById('connectNudgeDismiss');
+  const nudge = document.getElementById('connectNudge');
+  if (!dismissBtn || !nudge) return;
+
+  dismissBtn.addEventListener('click', () => {
+    nudge.classList.add('dismissing');
+    localStorage.setItem('metron_connect_nudge_dismissed', '1');
+    nudge.addEventListener('animationend', () => {
+      nudge.style.display = 'none';
+    }, { once: true });
+  });
+})();
+
+// ─── Setup Guide Expand/Collapse ──────────────────────────────
+
+(function() {
+  const guide = document.getElementById('setupGuide');
+  const toggle = document.getElementById('setupGuideToggle');
+  if (!guide || !toggle) return;
+
+  toggle.addEventListener('click', () => {
+    const isOpen = guide.classList.toggle('open');
+    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  });
+})();
+
+// ─── App Tour ─────────────────────────────────────────────────
+
+(function() {
+  const TOUR_KEY = 'metron_tour_done';
+  const isFirstVisit = !localStorage.getItem(TOUR_KEY);
+
+  // Hide "NEW" badge if tour was already done
+  if (!isFirstVisit) {
+    const badge = document.getElementById('tourBadge');
+    if (badge) badge.style.display = 'none';
+  }
+
+  const STEPS = [
+    {
+      target: '#combined_summary',
+      icon: '�',
+      title: 'Your net worth',
+      desc: 'Total invested value, current value, and overall P&L — all in one place. Updates automatically when markets are open.',
+      position: 'bottom',
+    },
+    {
+      target: '.overview-top-right',
+      icon: '🔄',
+      title: 'Refresh & status',
+      desc: 'Hit the refresh button to fetch the latest data from your broker.<br><br>The <strong>status dot</strong> shows sync state — <span style="color:#f59e0b">●</span> orange while updating, <span style="color:#22c55e">●</span> green when synced. It also shows how long ago data was last refreshed.',
+      position: 'bottom-end',
+    },
+    {
+      target: '#indexTickers',
+      icon: '📈',
+      title: 'Live market indices',
+      desc: 'NIFTY 50, SENSEX and other key indices update in real-time during market hours. See the day\'s movement at a glance.',
+      position: 'bottom',
+    },
+    {
+      target: '#data-container-summary',
+      icon: '📊',
+      title: 'Asset breakdown',
+      desc: 'Your portfolio split across Stocks, ETFs, Mutual Funds, Gold, Silver, and Fixed Deposits — each card shows invested vs current value and P&L.',
+      position: 'bottom',
+    },
+    {
+      target: '#gold_summary',
+      icon: '🥇',
+      title: 'Expandable gold summary',
+      desc: 'Click this card to expand it and see a detailed breakdown of your gold holdings — ETFs, physical gold, and SGBs listed separately with individual P&L.',
+      position: 'bottom',
+    },
+    {
+      target: '#stocks-section .crud-add-btn',
+      icon: '✏️',
+      title: 'Add, edit & delete data',
+      desc: 'Use the <strong>+ Add</strong> button on any table to manually enter holdings. Click a row to view details, edit quantities, or delete entries. Every table in the app has these controls.',
+      position: 'bottom-start',
+    },
+    {
+      target: '#stocks-section',
+      icon: '📋',
+      title: 'Your holdings tables',
+      desc: 'Stocks, ETFs and mutual funds each have their own table. Click any column header to sort. Click a row to see detailed info including day-wise change and account info.',
+      position: 'bottom',
+    },
+    {
+      target: '.nav-menu-btn',
+      icon: '🧭',
+      title: 'Navigation',
+      desc: 'Use the menu to switch between your Portfolio dashboard and the Nifty 50 heatmap.',
+      position: 'bottom-start',
+    },
+    {
+      target: '#userAvatarBtn',
+      icon: '⚙️',
+      title: 'Settings & broker accounts',
+      desc: 'Tap your avatar for theme, privacy mode and short numbers. Open <strong>Settings</strong> to connect your broker accounts — sync holdings automatically with a step-by-step setup guide built right in.',
+      position: 'bottom-end',
+    },
+  ];
+
+  let currentStep = 0;
+  const overlay = document.getElementById('appTourOverlay');
+  const tooltip = document.getElementById('appTourTooltip');
+  const content = document.getElementById('appTourContent');
+  const progress = document.getElementById('appTourProgress');
+  const nextBtn = document.getElementById('appTourNext');
+  const skipBtn = document.getElementById('appTourSkip');
+
+  if (!overlay || !tooltip) return;
+
+  function findTarget(selectorStr) {
+    const selectors = selectorStr.split(',').map(s => s.trim());
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && el.offsetParent !== null) return el;
+    }
+    // Return first match even if hidden
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  }
+
+  // Ensure arrow element exists inside tooltip
+  let arrowEl = tooltip.querySelector('.app-tour-arrow');
+  if (!arrowEl) {
+    arrowEl = document.createElement('div');
+    arrowEl.className = 'app-tour-arrow';
+    tooltip.appendChild(arrowEl);
+  }
+
+  function positionTooltip(rect, position) {
+    const gap = 16;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    let top, left;
+    let arrowSide; // 'top' = arrow sticks out of top edge, 'bottom' = out of bottom
+
+    switch (position) {
+      case 'bottom':
+      case 'bottom-start':
+      case 'bottom-end':
+        top = rect.bottom + gap;
+        arrowSide = 'top';
+        break;
+      case 'top':
+        top = rect.top - th - gap;
+        arrowSide = 'bottom';
+        break;
+      default:
+        top = rect.bottom + gap;
+        arrowSide = 'top';
+    }
+
+    switch (position) {
+      case 'bottom-start':
+        left = rect.left;
+        break;
+      case 'bottom-end':
+        left = rect.right - tw;
+        break;
+      default:
+        left = rect.left + rect.width / 2 - tw / 2;
+    }
+
+    // Clamp to viewport
+    left = Math.max(12, Math.min(left, window.innerWidth - tw - 12));
+    top = Math.max(12, Math.min(top, window.innerHeight - th - 12));
+
+    tooltip.style.top = top + 'px';
+    tooltip.style.left = left + 'px';
+    tooltip.setAttribute('data-arrow', arrowSide);
+
+    // Position arrow horizontally to point at center of target
+    const targetCenterX = rect.left + rect.width / 2;
+    const arrowLeft = Math.max(18, Math.min(targetCenterX - left - 7, tw - 26));
+    arrowEl.style.left = arrowLeft + 'px';
+  }
+
+  function renderProgress() {
+    progress.innerHTML = STEPS.map((_, i) => {
+      let cls = 'app-tour-dot';
+      if (i < currentStep) cls += ' done';
+      else if (i === currentStep) cls += ' active';
+      return '<span class="' + cls + '"></span>';
+    }).join('');
+  }
+
+  // Smoothly scroll element into view, then invoke callback after scroll settles
+  function scrollToElement(el, callback) {
+    const rect = el.getBoundingClientRect();
+    const inView = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (inView) {
+      callback();
+      return;
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Wait for smooth scroll to finish, then fire callback
+    let lastY = window.scrollY;
+    let settled = 0;
+    const check = () => {
+      if (Math.abs(window.scrollY - lastY) < 1) {
+        settled++;
+        if (settled >= 3) { callback(); return; }
+      } else {
+        settled = 0;
+      }
+      lastY = window.scrollY;
+      requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  }
+
+  function showStep(index) {
+    if (index >= STEPS.length) {
+      endTour();
+      return;
+    }
+    currentStep = index;
+    const step = STEPS[index];
+    const el = findTarget(step.target);
+    if (!el || !el.getBoundingClientRect) {
+      showStep(index + 1);
+      return;
+    }
+
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) {
+      showStep(index + 1);
+      return;
+    }
+
+    // Hide tooltip during scroll transition
+    tooltip.classList.remove('active');
+
+    scrollToElement(el, () => _renderStep(step, el));
+  }
+
+  function _renderStep(step, el) {
+    const rect = el.getBoundingClientRect();
+
+    content.innerHTML =
+      '<span class="tour-tip-icon">' + step.icon + '</span>' +
+      '<div class="tour-tip-title">' + step.title + '</div>' +
+      '<p class="tour-tip-desc">' + step.desc + '</p>';
+
+    renderProgress();
+
+    nextBtn.textContent = currentStep === STEPS.length - 1 ? 'Done' : 'Next';
+
+    overlay.classList.add('active');
+
+    requestAnimationFrame(() => {
+      tooltip.classList.add('active');
+      positionTooltip(rect, step.position);
+    });
+  }
+
+  function endTour() {
+    overlay.classList.remove('active');
+    tooltip.classList.remove('active');
+    localStorage.setItem(TOUR_KEY, '1');
+  }
+
+  nextBtn.addEventListener('click', () => showStep(currentStep + 1));
+  skipBtn.addEventListener('click', endTour);
+  overlay.addEventListener('click', endTour);
+
+  // Expose globally so the menu button can trigger it
+  window.startAppTour = function() {
+    // Close the user dropdown first
+    const dd = document.getElementById('userDropdown');
+    if (dd) dd.classList.remove('open');
+    // Scroll to top first for a clean start
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    currentStep = 0;
+    setTimeout(() => showStep(0), 400);
+  };
+
+  // Auto-start for first-time visitors — generous delay so UI settles
+  if (isFirstVisit) {
+    const tourDelay = window.__INITIAL_DATA__ ? 2500 : 4500;
+    setTimeout(() => showStep(0), tourDelay);
+  }
+})();

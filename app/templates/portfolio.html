@@ -97,6 +97,14 @@
             </button>
         </div>
 
+        <div class="user-dropdown-section">
+            <button class="user-dropdown-item user-dropdown-tour" id="startTourBtn" onclick="startAppTour()">
+                <svg class="dropdown-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                <span>Take a Tour</span>
+                <span class="tour-badge" id="tourBadge">NEW</span>
+            </button>
+        </div>
+
         <div class="user-dropdown-section user-dropdown-section--logout">
             <button class="user-dropdown-item user-dropdown-logout" onclick="handleLogout()">
                 <svg class="dropdown-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -108,6 +116,28 @@
 {% endif %}
 </div>
 </header>
+
+{% if user %}
+<!-- Connect broker nudge (shown when no accounts linked) -->
+<div class="connect-nudge" id="connectNudge" style="display:none">
+  <div class="connect-nudge-inner">
+    <div class="connect-nudge-icon-wrap">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    </div>
+    <div class="connect-nudge-body">
+      <div class="connect-nudge-title">Connect your broker to get started</div>
+      <div class="connect-nudge-desc">Link your broker account to automatically sync your holdings, P&amp;L, and mutual funds.</div>
+    </div>
+    <button class="connect-nudge-cta" onclick="openSettingsDrawer()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span>Open Settings</span>
+    </button>
+    <button class="connect-nudge-dismiss" id="connectNudgeDismiss" title="Dismiss" aria-label="Dismiss">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+    </button>
+  </div>
+</div>
+{% endif %}
 
 <!-- Broker out-of-sync banner (hidden by default, shown via JS when accounts expire) -->
 <div class="login-banner" id="loginBanner" style="display:none" onclick="openSettingsDrawer()" role="button" tabindex="0">
@@ -503,6 +533,65 @@ By Bank
         <p class="drawer-card-hint">
           Connect your Kite Connect API accounts. Credentials are stored securely and never displayed.
         </p>
+
+        <!-- Expandable setup guide -->
+        <div class="setup-guide" id="setupGuide">
+          <button type="button" class="setup-guide-toggle" id="setupGuideToggle" aria-expanded="false" aria-controls="setupGuideBody">
+            <div class="setup-guide-toggle-left">
+              <svg class="setup-guide-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span class="setup-guide-label">How to get API Key &amp; Secret</span>
+            </div>
+            <svg class="setup-guide-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="setup-guide-body" id="setupGuideBody">
+            <div class="setup-guide-inner">
+            <div class="setup-guide-steps">
+              <div class="setup-step">
+                <span class="setup-step-num">1</span>
+                <div class="setup-step-content">
+                  <div class="setup-step-title">Register on Kite Connect</div>
+                  <p>Go to <a href="https://developers.kite.trade/" target="_blank" rel="noopener">developers.kite.trade</a> and sign up with your Zerodha credentials.</p>
+                  <p class="setup-step-muted">Note: This password is different from your Zerodha login password.</p>
+                </div>
+              </div>
+              <div class="setup-step">
+                <span class="setup-step-num">2</span>
+                <div class="setup-step-content">
+                  <div class="setup-step-title">Create a new app</div>
+                  <p>Click <strong>Create new app</strong>. Fill in:</p>
+                  <ul class="setup-step-list">
+                    <li><strong>App name:</strong> anything (e.g. &ldquo;Metron&rdquo;)</li>
+                    <li><strong>Redirect URL (web app):</strong><br><code>https://metron.web.app/api/callback</code><br><span class="setup-step-muted">or <code>http://127.0.0.1:8000/api/callback</code> for local setup</span></li>
+                    <li><strong>Postback URL:</strong> leave blank</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="setup-step">
+                <span class="setup-step-num">3</span>
+                <div class="setup-step-content">
+                  <div class="setup-step-title">Copy your credentials</div>
+                  <p>After creation, copy the <strong>API Key</strong> and <strong>API Secret</strong> from the app details page.</p>
+                </div>
+              </div>
+              <div class="setup-step">
+                <span class="setup-step-num">4</span>
+                <div class="setup-step-content">
+                  <div class="setup-step-title">Paste them here</div>
+                  <p>Click <strong>Add Account</strong> below, enter a label, paste your key &amp; secret, and hit <strong>Save</strong>.</p>
+                </div>
+              </div>
+              <div class="setup-step">
+                <span class="setup-step-num">5</span>
+                <div class="setup-step-content">
+                  <div class="setup-step-title">Authorize &amp; sync</div>
+                  <p>Click <strong>Login</strong> next to the account &mdash; authorize on Zerodha&rsquo;s page and your portfolio loads automatically.</p>
+                </div>
+              </div>
+            </div>
+            </div><!-- /setup-guide-inner -->
+          </div>
+        </div>
+
         <div id="drawerAccountsList" class="drawer-accounts-list">
           <div class="drawer-accounts-loading">Loading…</div>
         </div>
@@ -535,6 +624,19 @@ By Bank
   </div>
 </aside>
 {% endif %}
+
+<!-- App Tour -->
+<div class="app-tour-overlay" id="appTourOverlay"></div>
+<div class="app-tour-tooltip" id="appTourTooltip">
+  <div class="app-tour-tooltip-content" id="appTourContent"></div>
+  <div class="app-tour-tooltip-footer">
+    <div class="app-tour-progress" id="appTourProgress"></div>
+    <div class="app-tour-actions">
+      <button class="app-tour-skip" id="appTourSkip">Skip tour</button>
+      <button class="app-tour-next" id="appTourNext">Next</button>
+    </div>
+  </div>
+</div>
 
 <script src="/static/js/nav.js"></script>
 <script>

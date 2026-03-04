@@ -460,6 +460,9 @@ class PortfolioApp {
     // ── Login banner (floating toast for unauthenticated accounts) ──
     this._updateLoginBanner(unauthenticated, isUpdating);
 
+    // ── Connect-broker nudge (inline banner for zero accounts) ──
+    this._updateConnectNudge(status);
+
     // ── Refresh settings drawer pills if drawer is open ──
     if (typeof window.loadDrawerAccounts === 'function') {
       const drawer = document.getElementById('settingsDrawer');
@@ -819,6 +822,28 @@ class PortfolioApp {
       // Accounts are now synced — hide
       banner.style.display = 'none';
       banner.classList.remove('login-banner-enter');
+    }
+  }
+
+  _updateConnectNudge(status) {
+    const nudge = document.getElementById('connectNudge');
+    if (!nudge) return;
+    const DISMISS_KEY = 'metron_connect_nudge_dismissed';
+
+    // Once user connects accounts, auto-hide and clear dismiss state
+    if (status.has_zerodha_accounts) {
+      if (nudge.style.display !== 'none') {
+        nudge.style.display = 'none';
+      }
+      return;
+    }
+
+    // Don't show if user explicitly dismissed
+    if (localStorage.getItem(DISMISS_KEY)) return;
+
+    // Show the nudge
+    if (nudge.style.display === 'none') {
+      nudge.style.display = '';
     }
   }
 
