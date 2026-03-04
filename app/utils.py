@@ -153,7 +153,7 @@ class StateManager:
         with self._lock:
             return self._user_state.setdefault(google_id, {
                 "portfolio_state": None,
-                "portfolio_last_updated": None,
+                "portfolio_last_updated": time.time(),
                 "last_error": None,
             })
 

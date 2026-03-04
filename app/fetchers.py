@@ -12,12 +12,13 @@ from requests.exceptions import ConnectionError, Timeout
 
 from .api import MarketDataClient
 from .api.ibja_gold_price import get_gold_price_service
-from .cache import market_cache, nifty50_fetch_in_progress, portfolio_cache
+from .cache import market_cache, nifty50_fetch_in_progress, portfolio_cache, user_sheets_cache
 from .config import app_config
 from .constants import GOLD_PRICE_FETCH_HOURS, NIFTY50_FALLBACK_SYMBOLS
 from .logging_config import logger
 from .services import (state_manager, zerodha_client, session_manager,
-                       get_user_accounts, get_authenticated_accounts)
+                       get_user_accounts, get_authenticated_accounts,
+                       broadcast_state_change)
 from .sse import sse_manager
 from .utils import is_market_open_ist
 
@@ -176,8 +177,23 @@ def run_auto_refresh() -> None:
     Portfolio fetches for each user run concurrently so one slow Zerodha
     account doesn't block updates for other users.
     """
+    last_market_open: Optional[bool] = None
+
     while True:
         time.sleep(app_config.auto_refresh_interval)
+
+        # Detect market open/close transitions and broadcast immediately
+        # so the UI status indicator updates without a page refresh.
+        current_market_open = is_market_open_ist()
+        if last_market_open is not None and current_market_open != last_market_open:
+            logger.info(
+                "Market state changed: %s → %s",
+                "open" if last_market_open else "closed",
+                "open" if current_market_open else "closed",
+            )
+            broadcast_state_change()
+        last_market_open = current_market_open
+
         should_run, reason = _should_auto_refresh()
         if not should_run:
             logger.info("Auto-refresh skipped: %s", reason)
@@ -194,6 +210,11 @@ def run_auto_refresh() -> None:
         # one slow API response doesn't delay updates for other users.
         user_threads = []
         for gid in sse_manager.connected_user_ids():
+            # Invalidate Google Sheets cache so the frontend gets fresh
+            # sheet data (gold, FDs, manual entries) when it calls
+            # /api/all_data after the state transition.
+            user_sheets_cache.invalidate(gid)
+
             if not portfolio_cache.is_fetch_in_progress(gid):
                 authenticated = get_authenticated_accounts(gid)
                 if authenticated:

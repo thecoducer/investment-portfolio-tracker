@@ -26,6 +26,7 @@ class PortfolioApp {
     this.needsLogin = false;
     this.lastStatus = null;
     this.lastPortfolioUpdatedAt = null;
+    this._lastFetchedPortfolioTimestamp = null; // tracks last-fetched portfolio_last_updated for change detection
     this.relativeStatusTimer = null;
     this.searchTimeout = null;
     // _wasUpdating intentionally left undefined to detect first SSE on page load
@@ -440,6 +441,15 @@ class PortfolioApp {
     const isUpdating = this._isStatusUpdating(status);
     const isFirstSSE = this._wasUpdating === undefined;
 
+    // Detect if the backend has newer data than what we last fetched.
+    // This catches cases where the updating→updated SSE transition was
+    // missed (connection hiccup, exception during rendering, SSE
+    // reconnect after background auto-refresh, etc.).
+    const newPortfolioTimestamp = status.portfolio_last_updated || null;
+    const hasNewerData = !isUpdating && !isFirstSSE &&
+                         newPortfolioTimestamp !== null &&
+                         newPortfolioTimestamp !== this._lastFetchedPortfolioTimestamp;
+
     this.lastStatus = status;
 
     // ── Derive login state from new response fields ──
@@ -492,17 +502,23 @@ class PortfolioApp {
     // ── Fetch data on real state transitions ──
     // 1. First SSE after page load (always – gold/FD are not inlined)
     // 2. Transition from updating → done (refresh complete)
+    // 3. Backend has newer data than what we last fetched (safety net
+    //    for missed transitions, SSE reconnects, etc.)
     const shouldFetchData = isFirstSSE ||
-                           (!isUpdating && this._wasUpdating);
+                           (!isUpdating && this._wasUpdating) ||
+                           hasNewerData;
 
     if (shouldFetchData) {
       const isRealRefresh = !isFirstSSE && !isUpdating && this._wasUpdating;
-      if (isRealRefresh) {
+      if (isRealRefresh || hasNewerData) {
         // Keep refresh button and status tag in "updating" state until data is loaded
         statusTag.classList.add('updating');
         statusTag.classList.remove('updated');
         statusText.innerText = 'updating';
       }
+      // Track what we're fetching so duplicate SSE messages with the
+      // same timestamp don't trigger redundant fetches.
+      this._lastFetchedPortfolioTimestamp = newPortfolioTimestamp;
       this.updateData().then(() => {
         this._updateRefreshButton(false);
         // Restore final status tag state after data is rendered
@@ -667,6 +683,20 @@ class PortfolioApp {
       const data = await this.dataManager.fetchAllData();
       this._hideLoadingIndicators();
       this._applyData(data);
+
+      // Sync timestamp tracking from the response so every /api/all_data
+      // call properly updates portfolio_last_updated — not just SSE events.
+      // This is critical for the first load where the early-return path
+      // calls updateData() fire-and-forget without timestamp tracking.
+      const respTimestamp = data.status?.portfolio_last_updated || null;
+      if (respTimestamp) {
+        this._lastFetchedPortfolioTimestamp = respTimestamp;
+        this.lastPortfolioUpdatedAt = respTimestamp;
+        const statusText = document.getElementById('status_text');
+        if (statusText && !this._isStatusUpdating(this.lastStatus || {})) {
+          statusText.innerText = this._formatStatusUpdatedText();
+        }
+      }
     } catch (error) {
       console.error('Error updating data:', error);
     }
@@ -761,7 +791,11 @@ class PortfolioApp {
     try {
       await this.dataManager.triggerRefresh();
     } catch (error) {
-      alert('Error triggering refresh: ' + error.message);
+      // A 409 "Fetch already in progress" is expected when
+      // ensure_user_loaded already started a background fetch.
+      // Don't use alert() — it blocks the JS thread and freezes
+      // SSE event processing, preventing state transitions.
+      console.warn('[Refresh] Request failed:', error.message);
       this._updateRefreshButton(false);
     }
   }
