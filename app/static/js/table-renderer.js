@@ -153,6 +153,11 @@ class TableRenderer {
    * @param {number} colCount - Number of columns for colspan
    */
   _renderEmptyCta(tbody, schemaKey, label, colCount) {
+    // If an inline add/edit form is already open, don't show the empty CTA —
+    // the user is actively adding a row.  The CTA will reappear naturally if
+    // they cancel the form and the table is still empty.
+    if (tbody.querySelector('tr.crud-inline-row')) return;
+
     const ctaHtml = `<tr class="crud-empty-cta-row">
       <td colspan="${colCount}">
         <div class="crud-empty-cta">
