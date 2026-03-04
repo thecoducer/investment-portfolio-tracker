@@ -1,7 +1,6 @@
 /* Metron - Table Rendering Module */
 
 import { Formatter, Calculator, isGoldInstrument, isSGBInstrument, isSilverInstrument, isETFInstrument } from './utils.js';
-import PaginationManager from './pagination.js';
 
 /**
  * Build inline edit + delete action buttons for a manual-entry row.
@@ -26,12 +25,7 @@ function buildCrudActions(schemaKey, rowNumber, values) {
 class TableRenderer {
   constructor() {
     this.searchQuery = '';
-    this.stocksPagination = new PaginationManager(10, 1);
-    this.etfPagination = new PaginationManager(10, 1);
-    this.mfPagination = new PaginationManager(10, 1);
-    this.physicalGoldPagination = new PaginationManager(10, 1);
-    this.fixedDepositsPagination = new PaginationManager(10, 1);
-    this.fdSummaryPagination = new PaginationManager(10, 1);
+    this.rowLimit = window.__TABLE_ROW_LIMIT__ || 10;
     this.expandedGroups = new Set(); // Track which groups are expanded
   }
 
@@ -122,27 +116,44 @@ class TableRenderer {
    * @param {HTMLElement} opts.table - Table element
    * @param {HTMLElement} opts.emptyState - Empty state message element
    * @param {HTMLElement} [opts.controls] - Controls container element
-   * @param {HTMLElement} [opts.paginationInfo] - Pagination info element
-   * @param {HTMLElement} [opts.paginationButtons] - Pagination buttons element
    * @param {boolean} hasData - Whether the section has data to display
    */
-  _toggleSectionVisibility({ table, emptyState, controls, paginationInfo, paginationButtons, tabs }, hasData) {
+  _toggleSectionVisibility({ table, emptyState, controls, tabs }, hasData) {
     // Table is always visible (headers stay accessible)
     if (table) table.style.display = 'table';
     if (emptyState) emptyState.style.display = 'none'; // replaced by in-table CTA
 
     if (hasData) {
       if (controls) controls.style.display = 'flex';
-      if (paginationInfo) paginationInfo.style.display = 'block';
-      if (paginationButtons) paginationButtons.style.display = 'flex';
       if (tabs) tabs.style.display = 'flex';
     } else {
       // Hide controls (Add button) when empty — the in-table CTA already provides Add
       if (controls) controls.style.display = 'none';
-      if (paginationInfo) paginationInfo.style.display = 'none';
-      if (paginationButtons) paginationButtons.style.display = 'none';
       if (tabs) tabs.style.display = 'none';
     }
+  }
+
+  /**
+   * Build a subtle "View all" footer row that links to the standalone table page.
+   * Only shown when the total count exceeds the row limit.
+   * @param {number} totalCount - Total number of items
+   * @param {number} colCount - Number of columns for colspan
+   * @param {string} tableKey - Route key (e.g. 'stocks', 'etfs', 'mutual-funds')
+   * @param {string} label - Human-readable plural label (e.g. 'stocks', 'ETFs')
+   * @returns {string} HTML string for the footer row, or empty string
+   */
+  _buildViewMoreRow(totalCount, colCount, tableKey, label) {
+    if (totalCount <= this.rowLimit) return '';
+    const remaining = totalCount - this.rowLimit;
+    return `<tr class="view-more-row">
+      <td colspan="${colCount}">
+        <a href="/details/${tableKey}" class="view-more-link">
+          View all ${totalCount} ${label}
+          <span class="view-more-extra">+${remaining} more</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/></svg>
+        </a>
+      </td>
+    </tr>`;
   }
 
   /**
@@ -278,9 +289,9 @@ class TableRenderer {
     const groupedHoldings = this._groupStocksBySymbol(filteredHoldings);
     const groupedArray = Object.values(groupedHoldings);
 
-    // Use pagination manager on grouped holdings
-    const paginationData = this.stocksPagination.paginate(groupedArray);
-    const { pageData } = paginationData;
+    // Slice to row limit for portfolio dashboard
+    const totalGroups = groupedArray.length;
+    const pageData = groupedArray.slice(0, this.rowLimit);
 
     let rowsHTML = '';
     pageData.forEach((group, index) => {
@@ -310,6 +321,9 @@ class TableRenderer {
         });
       }
     });
+    // Append "view more" footer if data exceeds row limit
+    rowsHTML += this._buildViewMoreRow(totalGroups, 10, 'stocks', 'stocks');
+
     if (filteredHoldings.length === 0 && holdings.length === 0) {
       this._renderEmptyCta(tbody, 'stocks', 'stocks', 10);
     } else {
@@ -321,18 +335,7 @@ class TableRenderer {
       table: section.querySelector('table'),
       emptyState: null,
       controls: section.querySelector('.controls-container'),
-      paginationInfo: document.getElementById('stocks_pagination_info'),
-      paginationButtons: document.getElementById('stocks_pagination_buttons')
     }, filteredHoldings.length > 0);
-    
-    // Update pagination UI
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'stocks_pagination_info',
-      'stocks_pagination_buttons',
-      'goToStocksPage',
-      'stocks'
-    );
 
     // Restore expanded state for groups that were previously expanded
     this._restoreExpandedState();
@@ -393,9 +396,9 @@ class TableRenderer {
     const groupedMF = this._groupMFByFundName(filteredHoldings);
     const groupedArray = Object.values(groupedMF);
 
-    // Use pagination manager on grouped holdings
-    const paginationData = this.mfPagination.paginate(groupedArray);
-    const { pageData } = paginationData;
+    // Slice to row limit for portfolio dashboard
+    const totalGroups = groupedArray.length;
+    const pageData = groupedArray.slice(0, this.rowLimit);
 
     let rowsHTML = '';
     pageData.forEach((group, index) => {
@@ -425,6 +428,9 @@ class TableRenderer {
         });
       }
     });
+    // Append "view more" footer if data exceeds row limit
+    rowsHTML += this._buildViewMoreRow(totalGroups, 8, 'mutual-funds', 'funds');
+
     if (filteredHoldings.length === 0 && mfHoldings.length === 0) {
       this._renderEmptyCta(tbody, 'mutual_funds', 'mutual funds', 8);
     } else {
@@ -436,18 +442,7 @@ class TableRenderer {
       table: section.querySelector('table'),
       emptyState: null,
       controls: section.querySelector('.controls-container'),
-      paginationInfo: document.getElementById('mf_pagination_info'),
-      paginationButtons: document.getElementById('mf_pagination_buttons')
     }, filteredHoldings.length > 0);
-
-    // Update pagination UI
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'mf_pagination_info',
-      'mf_pagination_buttons',
-      'goToMFPage',
-      'funds'
-    );
 
     // Restore expanded state for groups that were previously expanded
     this._restoreExpandedState();
@@ -466,23 +461,21 @@ class TableRenderer {
     const isUpdating = status.portfolio_state === 'updating';
     const dataClass = this._getUpdateClass(isUpdating);
 
-    let rowsHTML = '';
+    let allRows = [];
     let totalMonthlyAmount = 0;
-    let visibleCount = 0;
 
     sips.forEach(sip => {
       const fundName = (sip.fund || sip.tradingsymbol).toUpperCase();
       const text = (fundName + sip.account).toLowerCase();
       if (!text.includes(this.searchQuery)) return;
 
-      visibleCount++;
-      rowsHTML += this._buildSIPRow(fundName, sip, dataClass);
-      
+      allRows.push(this._buildSIPRow(fundName, sip, dataClass));
+
       // Calculate total monthly amount for SIPs
       if (sip.status === 'ACTIVE' && sip.instalment_amount) {
         const frequency = sip.frequency || 'monthly';
         const amount = sip.instalment_amount;
-        
+
         // Convert to monthly equivalent
         if (frequency.toLowerCase() === 'monthly') {
           totalMonthlyAmount += amount;
@@ -494,13 +487,20 @@ class TableRenderer {
       }
     });
 
-    if (visibleCount === 0 && sips.length === 0) {
+    if (allRows.length === 0 && sips.length === 0) {
       this._renderEmptyCta(tbody, 'sips', 'SIPs', 7);
     } else {
+      const totalVisible = allRows.length;
+      let rowsHTML = allRows.slice(0, this.rowLimit).join('');
+
+      if (totalVisible > this.rowLimit) {
+        rowsHTML += this._buildViewMoreRow(totalVisible, 7, 'sips', 'SIPs');
+      }
+
       rowsHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);
       this._updateTbodyContent(tbody, rowsHTML);
     }
-    
+
     // Show/hide table and controls (Add button)
     this._toggleSectionVisibility({
       table: section.querySelector('table'),
@@ -826,14 +826,6 @@ class TableRenderer {
 </tr>`;
   }
 
-  changeStocksPageSize(size) {
-    this.stocksPagination.changePageSize(size);
-  }
-
-  goToStocksPage(page) {
-    this.stocksPagination.goToPage(page);
-  }
-
   /**
    * Render ETF holdings table (separate from stocks).
    * Gold/Silver ETFs are shown in the table but their totals go to Gold/Silver cards, not ETF card.
@@ -887,9 +879,9 @@ class TableRenderer {
     const groupedHoldings = this._groupStocksBySymbol(filteredHoldings);
     const groupedArray = Object.values(groupedHoldings);
 
-    // Use pagination manager on grouped holdings
-    const paginationData = this.etfPagination.paginate(groupedArray);
-    const { pageData } = paginationData;
+    // Slice to row limit for portfolio dashboard
+    const totalGroups = groupedArray.length;
+    const pageData = groupedArray.slice(0, this.rowLimit);
 
     let rowsHTML = '';
     pageData.forEach((group, index) => {
@@ -918,6 +910,9 @@ class TableRenderer {
         });
       }
     });
+    // Append "view more" footer if data exceeds row limit
+    rowsHTML += this._buildViewMoreRow(totalGroups, 10, 'etfs', 'ETFs');
+
     if (filteredHoldings.length === 0 && holdings.filter(h => isETFInstrument(h.tradingsymbol || '', h.isin || '')).length === 0) {
       this._renderEmptyCta(tbody, 'etfs', 'ETFs', 10);
     } else {
@@ -929,18 +924,7 @@ class TableRenderer {
       table: section.querySelector('table'),
       emptyState: null,
       controls: section.querySelector('.controls-container'),
-      paginationInfo: document.getElementById('etf_pagination_info'),
-      paginationButtons: document.getElementById('etf_pagination_buttons')
     }, filteredHoldings.length > 0);
-
-    // Update pagination UI
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'etf_pagination_info',
-      'etf_pagination_buttons',
-      'goToETFPage',
-      'etfs'
-    );
 
     // Restore expanded state
     this._restoreExpandedState();
@@ -969,24 +953,8 @@ class TableRenderer {
     return { etfTotals, goldETFTotals, silverETFTotals };
   }
 
-  changeETFPageSize(size) {
-    this.etfPagination.changePageSize(size);
-  }
-
-  goToETFPage(page) {
-    this.etfPagination.goToPage(page);
-  }
-
-  changeMFPageSize(size) {
-    this.mfPagination.changePageSize(size);
-  }
-
-  goToMFPage(page) {
-    this.mfPagination.goToPage(page);
-  }
-
   /**
-   * Render physical gold holdings table with pagination
+   * Render physical gold holdings table
    */
   renderPhysicalGoldTable(holdings) {
     const tbody = document.getElementById('physical_gold_table_body');
@@ -998,8 +966,6 @@ class TableRenderer {
       table: section ? section.querySelector('table') : null,
       emptyState: null,
       controls: section ? section.querySelector('.controls-container') : null,
-      paginationInfo: document.getElementById('physical_gold_pagination_info'),
-      paginationButtons: document.getElementById('physical_gold_pagination_buttons')
     };
 
     if (!holdings || holdings.length === 0) {
@@ -1023,16 +989,17 @@ class TableRenderer {
       totalPhysicalGoldPL += holding.pl || 0;
     });
 
-    const paginationData = this.physicalGoldPagination.paginate(holdings);
-    const { pageData } = paginationData;
+    // Slice to row limit for portfolio dashboard
+    const totalCount = holdings.length;
+    const pageData = holdings.slice(0, this.rowLimit);
 
     let rowsHTML = '';
     pageData.forEach((holding) => {
       rowsHTML += this._buildPhysicalGoldRow(holding);
     });
+    // Append "view more" footer if data exceeds row limit
+    rowsHTML += this._buildViewMoreRow(totalCount, 8, 'physical-gold', 'holdings');
     this._updateTbodyContent(tbody, rowsHTML);
-
-    this._renderPhysicalGoldPagination(paginationData);
     
     const plPct = totalPhysicalGoldInvested ? (totalPhysicalGoldPL / totalPhysicalGoldInvested * 100) : 0;
     
@@ -1088,31 +1055,8 @@ class TableRenderer {
     </tr>`;
   }
 
-  _renderPhysicalGoldPagination(paginationData) {
-    const paginationInfo = document.getElementById('physical_gold_pagination_info');
-    const paginationButtons = document.getElementById('physical_gold_pagination_buttons');
-
-    if (!paginationInfo || !paginationButtons) return;
-
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'physical_gold_pagination_info',
-      'physical_gold_pagination_buttons',
-      'goToPhysicalGoldPage',
-      'holdings'
-    );
-  }
-
-  changePhysicalGoldPageSize(size) {
-    this.physicalGoldPagination.changePageSize(size);
-  }
-
-  goToPhysicalGoldPage(page) {
-    this.physicalGoldPagination.goToPage(page);
-  }
-
   /**
-   * Render fixed deposits table with pagination
+   * Render fixed deposits table
    */
   renderFixedDepositsTable(deposits) {
     const tbody = document.getElementById('fixed_deposits_table_body');
@@ -1124,8 +1068,6 @@ class TableRenderer {
       table: section ? section.querySelector('table') : null,
       emptyState: null,
       controls: section ? section.querySelector('.controls-container') : null,
-      paginationInfo: document.getElementById('fixed_deposits_pagination_info'),
-      paginationButtons: document.getElementById('fixed_deposits_pagination_buttons'),
       tabs: section ? section.querySelector('.fd-tabs') : null
     };
 
@@ -1153,9 +1095,9 @@ class TableRenderer {
     const groupedDeposits = this._groupFixedDepositsByMaturityROIBank(deposits);
     const groupedArray = Object.values(groupedDeposits);
 
-    // Use pagination manager on grouped deposits
-    const paginationData = this.fixedDepositsPagination.paginate(groupedArray);
-    const { pageData } = paginationData;
+    // Slice to row limit for portfolio dashboard
+    const totalGroups = groupedArray.length;
+    const pageData = groupedArray.slice(0, this.rowLimit);
 
     let rowsHTML = '';
     pageData.forEach((group, index) => {
@@ -1175,9 +1117,9 @@ class TableRenderer {
         });
       }
     });
+    // Append "view more" footer if data exceeds row limit
+    rowsHTML += this._buildViewMoreRow(totalGroups, 9, 'fixed-deposits', 'deposits');
     this._updateTbodyContent(tbody, rowsHTML);
-
-    this._renderFixedDepositsPagination(paginationData);
     
     // Restore expanded state for groups that were previously expanded
     this._restoreExpandedState();
@@ -1323,28 +1265,7 @@ class TableRenderer {
     </tr>`;
   }
 
-  _renderFixedDepositsPagination(paginationData) {
-    const paginationInfo = document.getElementById('fixed_deposits_pagination_info');
-    const paginationButtons = document.getElementById('fixed_deposits_pagination_buttons');
 
-    if (!paginationInfo || !paginationButtons) return;
-
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'fixed_deposits_pagination_info',
-      'fixed_deposits_pagination_buttons',
-      'goToFixedDepositsPage',
-      'deposits'
-    );
-  }
-
-  changeFixedDepositsPageSize(size) {
-    this.fixedDepositsPagination.changePageSize(size);
-  }
-
-  goToFixedDepositsPage(page) {
-    this.fixedDepositsPagination.goToPage(page);
-  }
 
   /**
    * Render fixed deposits summary table grouped by bank and account
@@ -1358,9 +1279,7 @@ class TableRenderer {
 
     const sectionElements = {
       table: section ? section.querySelector('table') : null,
-      controls: section ? section.querySelector('.controls-container') : null,
-      paginationInfo: document.getElementById('fd_summary_pagination_info'),
-      paginationButtons: document.getElementById('fd_summary_pagination_buttons')
+      controls: section ? section.querySelector('.controls-container') : null
     };
 
     if (!summaryArray || summaryArray.length === 0) {
@@ -1369,25 +1288,20 @@ class TableRenderer {
       return;
     }
 
-    // Use pagination manager on pre-computed summary data
-    const paginationData = this.fdSummaryPagination.paginate(summaryArray);
-    const { pageData } = paginationData;
+    const totalSummaries = summaryArray.length;
+    const pageData = summaryArray.slice(0, this.rowLimit);
 
     let rowsHTML = '';
     pageData.forEach((summary) => {
       rowsHTML += this._buildFDSummaryRow(summary);
     });
+
+    if (totalSummaries > this.rowLimit) {
+      rowsHTML += this._buildViewMoreRow(totalSummaries, 5, 'fixed-deposits', 'summaries');
+    }
     this._updateTbodyContent(tbody, rowsHTML);
 
     this._toggleSectionVisibility(sectionElements, true);
-
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'fd_summary_pagination_info',
-      'fd_summary_pagination_buttons',
-      'goToFDSummaryPage',
-      'summaries'
-    );
   }
 
   /**
@@ -1445,14 +1359,6 @@ class TableRenderer {
       <td>${Formatter.formatCurrency(totalCurrentValue)}${alertIcon}</td>
       <td><span style="color:${returnColor};font-weight:600">${Formatter.formatCurrency(totalReturns)} <span class="pl_pct_small" style="color:${returnColor}">${returnsPctText}</span></span></td>
     </tr>`;
-  }
-
-  changeFDSummaryPageSize(size) {
-    this.fdSummaryPagination.changePageSize(size);
-  }
-
-  goToFDSummaryPage(page) {
-    this.fdSummaryPagination.goToPage(page);
   }
 
 }

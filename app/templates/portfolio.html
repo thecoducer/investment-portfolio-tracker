@@ -281,15 +281,6 @@
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
 <span>Add</span>
 </button>
-<div class="pagination-controls">
-<label for="stocks_page_size">Show:</label>
-<select id="stocks_page_size" onchange="window.changeStocksPageSize(this.value)">
-<option value="10" selected>10</option>
-<option value="25">25</option>
-<option value="50">50</option>
-<option value="100">All</option>
-</select>
-</div>
 </div>
 </div>
 <div class="table-scroll-wrapper">
@@ -303,8 +294,6 @@
 </tbody>
 </table>
 </div>
-<div class="pagination-info" id="stocks_pagination_info"></div>
-<div class="pagination-buttons" id="stocks_pagination_buttons"></div>
 </div>
 
 <div class="section-wrapper" id="etf-section">
@@ -315,15 +304,6 @@
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
 <span>Add</span>
 </button>
-<div class="pagination-controls">
-<label for="etf_page_size">Show:</label>
-<select id="etf_page_size" onchange="window.changeETFPageSize(this.value)">
-<option value="10" selected>10</option>
-<option value="25">25</option>
-<option value="50">50</option>
-<option value="100">All</option>
-</select>
-</div>
 </div>
 </div>
 <div class="table-scroll-wrapper">
@@ -337,8 +317,6 @@
 </tbody>
 </table>
 </div>
-<div class="pagination-info" id="etf_pagination_info"></div>
-<div class="pagination-buttons" id="etf_pagination_buttons"></div>
 </div>
 
 <div class="section-wrapper" id="mf-section">
@@ -349,15 +327,6 @@
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
 <span>Add</span>
 </button>
-<div class="pagination-controls">
-<label for="mf_page_size">Show:</label>
-<select id="mf_page_size" onchange="window.changeMFPageSize(this.value)">
-<option value="10" selected>10</option>
-<option value="25">25</option>
-<option value="50">50</option>
-<option value="100">All</option>
-</select>
-</div>
 </div>
 </div>
 <div class="table-scroll-wrapper">
@@ -371,8 +340,6 @@
 </tbody>
 </table>
 </div>
-<div class="pagination-info" id="mf_pagination_info"></div>
-<div class="pagination-buttons" id="mf_pagination_buttons"></div>
 </div>
 
 <!-- Physical Gold Section -->
@@ -385,15 +352,6 @@
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
 <span>Add</span>
 </button>
-<div class="pagination-controls">
-<label for="physical_gold_page_size">Show:</label>
-<select id="physical_gold_page_size" onchange="window.changePhysicalGoldPageSize(this.value)">
-<option value="10" selected>10</option>
-<option value="25">25</option>
-<option value="50">50</option>
-<option value="100">All</option>
-</select>
-</div>
 </div>
 </div>
 <div class="table-scroll-wrapper">
@@ -414,8 +372,6 @@
 </tbody>
 </table>
 </div>
-<div class="pagination-info" id="physical_gold_pagination_info"></div>
-<div class="pagination-buttons" id="physical_gold_pagination_buttons"></div>
 </div>
 {% endif %}
 
@@ -437,24 +393,6 @@ By Bank
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
 <span>Add</span>
 </button>
-<div class="pagination-controls active" id="fixed_deposits_header_control">
-<label for="fixed_deposits_page_size">Show:</label>
-<select id="fixed_deposits_page_size" onchange="window.changeFixedDepositsPageSize(this.value)">
-<option value="10" selected>10</option>
-<option value="25">25</option>
-<option value="50">50</option>
-<option value="100">All</option>
-</select>
-</div>
-<div class="pagination-controls" id="fd_summary_header_control">
-<label for="fd_summary_page_size">Show:</label>
-<select id="fd_summary_page_size" onchange="window.changeFDSummaryPageSize(this.value)">
-<option value="10" selected>10</option>
-<option value="25">25</option>
-<option value="50">50</option>
-<option value="100">All</option>
-</select>
-</div>
 </div>
 </div>
 
@@ -479,8 +417,6 @@ By Bank
 </tbody>
 </table>
 </div>
-<div class="pagination-info" id="fixed_deposits_pagination_info"></div>
-<div class="pagination-buttons" id="fixed_deposits_pagination_buttons"></div>
 </div>
 
 <!-- Tab Content: By Bank (Summary View) -->
@@ -500,8 +436,6 @@ By Bank
 </tbody>
 </table>
 </div>
-<div class="pagination-info" id="fd_summary_pagination_info"></div>
-<div class="pagination-buttons" id="fd_summary_pagination_buttons"></div>
 </div>
 
 </div>
@@ -620,6 +554,7 @@ window.metronFetch = function(url, options) {
 {% if sse_base_url %}
 <script>window.__SSE_CONFIG__ = { baseUrl: "{{ sse_base_url }}" };</script>
 {% endif %}
+<script>window.__TABLE_ROW_LIMIT__ = {{ table_row_limit }};</script>
 <script type="module" src="/static/js/app.js"></script>
 </body>
 </html>

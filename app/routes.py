@@ -15,6 +15,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from .api.physical_gold import enrich_holdings_with_prices
 from .cache import market_cache, portfolio_cache, user_sheets_cache
 from .constants import (HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL,
+                         PORTFOLIO_TABLE_ROW_LIMIT,
                          SSE_KEEPALIVE_INTERVAL, SSE_TOKEN_MAX_AGE)
 from .logging_config import logger
 from .middleware import app_only, login_required, protected_api
@@ -881,6 +882,46 @@ def portfolio_page():
         fixed_deposits_enabled=True,
         user=user,
         initial_data_json=json.dumps(initial_data, default=str) if initial_data else None,
+        sse_base_url=sse_base_url,
+        table_row_limit=PORTFOLIO_TABLE_ROW_LIMIT,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Standalone table detail page (full table view with pagination)
+# ---------------------------------------------------------------------------
+# Valid table keys — prevents arbitrary template injection
+_VALID_TABLE_KEYS = frozenset({
+    "stocks", "etfs", "mutual-funds", "physical-gold",
+    "fixed-deposits", "sips",
+})
+
+_TABLE_DISPLAY_NAMES = {
+    "stocks": "Stocks",
+    "etfs": "ETFs",
+    "mutual-funds": "Mutual Funds",
+    "physical-gold": "Physical Gold",
+    "fixed-deposits": "Fixed Deposits",
+    "sips": "SIPs",
+}
+
+
+@app_ui.route("/details/<table_key>", methods=["GET"])
+@login_required
+def standalone_table_page(table_key):
+    """Serve a standalone full-table view with pagination for a given table."""
+    if table_key not in _VALID_TABLE_KEYS:
+        return redirect("/")
+
+    user = _current_user()
+    google_id = user.get("google_id", "") if user else ""
+    sse_base_url = CLOUD_RUN_URL if _is_firebase_hosting_request() else ""
+
+    return render_template(
+        "table_detail.html",
+        table_key=table_key,
+        table_title=_TABLE_DISPLAY_NAMES.get(table_key, table_key.replace("-", " ").title()),
+        user=user,
         sse_base_url=sse_base_url,
     )
 

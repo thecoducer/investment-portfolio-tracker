@@ -7,7 +7,6 @@ import SortManager from './sort-manager.js';
 import ThemeManager from './theme-manager.js';
 import PrivacyManager from './visibility-manager.js';
 import SSEConnectionManager from './sse-manager.js';
-import PaginationManager from './pagination.js';
 import { Formatter } from './utils.js';
 import IndexTicker from './index-ticker.js';
 import CrudManager from './crud-manager.js';
@@ -195,18 +194,7 @@ class PortfolioApp {
 
     this._setupHeaderSortListeners();
 
-    // Pagination handlers — data-driven registration
-    const paginatedTables = ['Stocks', 'ETF', 'MF', 'PhysicalGold', 'FixedDeposits', 'FDSummary'];
-    paginatedTables.forEach((name) => {
-      window[`change${name}PageSize`] = (size) => {
-        this.tableRenderer[`change${name}PageSize`](parseInt(size));
-        this.updateData();
-      };
-      window[`goTo${name}Page`] = (page) => {
-        this.tableRenderer[`goTo${name}Page`](page);
-        this.updateData();
-      };
-    });
+
 
     this._setupSummaryCardNavigation();
 
@@ -755,27 +743,21 @@ class PortfolioApp {
     // Get current summary data from table
     const groupedData = this.tableRenderer._groupFDByBankAndAccount(fixedDeposits);
     const summaryArray = Object.values(groupedData);
-    
-    // Sort and re-render
+
+    // Sort and re-render with row limit
     const sortedSummary = this.sortManager.sortFDSummary(summaryArray, sortBy);
-    
-    // Update pagination and re-render
-    this.tableRenderer.fdSummaryPagination.goToPage(1);
-    const paginationData = this.tableRenderer.fdSummaryPagination.paginate(sortedSummary);
-    
+    const rowLimit = this.tableRenderer.rowLimit;
+    const pageData = sortedSummary.slice(0, rowLimit);
+
     let rowsHTML = '';
-    paginationData.pageData.forEach((summary) => {
+    pageData.forEach((summary) => {
       rowsHTML += this.tableRenderer._buildFDSummaryRow(summary);
     });
-    this.tableRenderer._updateTbodyContent(tbody, rowsHTML);
 
-    PaginationManager.updatePaginationUI(
-      paginationData,
-      'fd_summary_pagination_info',
-      'fd_summary_pagination_buttons',
-      'goToFDSummaryPage',
-      'summaries'
-    );
+    if (sortedSummary.length > rowLimit) {
+      rowsHTML += this.tableRenderer._buildViewMoreRow(sortedSummary.length, 5, 'fixed-deposits', 'summaries');
+    }
+    this.tableRenderer._updateTbodyContent(tbody, rowsHTML);
   }
 
   async handleRefresh() {

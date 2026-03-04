@@ -49,6 +49,10 @@ SSE_TOKEN_MAX_AGE = 60        # SSE auth token validity (seconds) — short-live
                               # only needs to be valid at connection time, not
                               # for the full SSE session duration
 
+# Portfolio table row limit (displayed per table on the dashboard)
+# Only a developer should change this value from the backend.
+PORTFOLIO_TABLE_ROW_LIMIT = 10
+
 # External service URLs
 NSE_BASE_URL = "https://www.nseindia.com"
 IBJA_BASE_URL = "https://ibjarates.com/"
