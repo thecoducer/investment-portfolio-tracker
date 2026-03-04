@@ -821,14 +821,20 @@ class PortfolioApp {
     const banner = document.getElementById('loginBanner');
     if (!banner) return;
 
-    // Show banner when accounts need login and we're not mid-fetch
-    if (unauthenticatedAccounts.length > 0 && !isUpdating) {
+    const hasUnauthenticated = unauthenticatedAccounts.length > 0;
+    const isVisible = banner.style.display !== 'none';
+
+    // While refreshing, leave banner as-is so it doesn't detach/reattach
+    if (isUpdating) return;
+
+    if (hasUnauthenticated && !isVisible) {
+      // First appearance — show with entrance animation
       banner.style.display = '';
-      // Trigger entrance animation
       banner.classList.remove('login-banner-enter');
       void banner.offsetWidth; // reflow
       banner.classList.add('login-banner-enter');
-    } else {
+    } else if (!hasUnauthenticated && isVisible) {
+      // Accounts are now synced — hide
       banner.style.display = 'none';
       banner.classList.remove('login-banner-enter');
     }

@@ -18,9 +18,9 @@ from .constants import (HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL,
                          SSE_KEEPALIVE_INTERVAL, SSE_TOKEN_MAX_AGE)
 from .logging_config import logger
 from .middleware import app_only, login_required, protected_api
-from .services import (_build_status_response, ensure_user_loaded,
-                       get_authenticated_accounts, get_user_accounts,
-                       session_manager, sse_manager)
+from .services import (_build_status_response, broadcast_state_change,
+                       ensure_user_loaded, get_authenticated_accounts,
+                       get_user_accounts, session_manager, sse_manager)
 from .sse import EVICT_SENTINEL, SSE_MAX_CONNECTION_AGE, SSE_QUEUE_SIZE, SSE_RETRY_MS
 
 # ---------------------------------------------------------------------------
@@ -491,6 +491,9 @@ def zerodha_callback():
         return render_template("callback_error.html")
 
     logger.info("Login succeeded for %s/%s", google_id, authenticated_account)
+
+    # Immediately broadcast updated auth state so the banner hides right away
+    broadcast_state_change(google_id)
 
     auth_accounts = [acc for acc in accounts if session_manager.is_valid(google_id, acc["name"])]
     if auth_accounts and not portfolio_cache.is_fetch_in_progress(google_id):
