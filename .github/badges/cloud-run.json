@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "label": "Cloud Run",
+  "message": "not deployed",
+  "color": "gray",
+  "namedLogo": "googlecloud",
+  "logoColor": "white"
+}
