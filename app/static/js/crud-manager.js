@@ -198,19 +198,24 @@ class CrudManager {
     if (!schema) return;
 
     this._modalEl.innerHTML = `
-      <div class="crud-modal-header">
-        <h3>Delete ${schema.label}</h3>
-        <button class="crud-close-btn" title="Close">&times;</button>
-      </div>
-      <div class="crud-modal-body crud-confirm-body">
-        <svg class="crud-warn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-        <p>Are you sure you want to delete this entry?<br><span class="crud-confirm-sub">This action cannot be undone.</span></p>
-      </div>
-      <div class="crud-modal-footer">
-        <button class="crud-btn crud-btn-cancel">Cancel</button>
-        <button class="crud-btn crud-btn-danger" id="crud-confirm-delete">Delete</button>
+      <div class="crud-delete-compact">
+        <div class="crud-delete-row">
+          <div class="crud-delete-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </div>
+          <div class="crud-delete-text">
+            <span class="crud-delete-title">Delete ${schema.label}?</span>
+            <span class="crud-delete-sub">This can't be undone.</span>
+          </div>
+          <button class="crud-close-btn" title="Close">&times;</button>
+        </div>
+        <div class="crud-delete-actions">
+          <button class="crud-btn crud-btn-cancel">Cancel</button>
+          <button class="crud-btn crud-btn-danger" id="crud-confirm-delete">Delete</button>
+        </div>
       </div>`;
 
+    this._modalEl.classList.add('crud-modal-compact');
     this._openModal();
 
     this._modalEl.querySelector('.crud-close-btn').addEventListener('click', () => this._closeModal());
@@ -492,6 +497,7 @@ class CrudManager {
   _closeModal() {
     this._backdropEl.classList.remove('open');
     this._modalEl.classList.remove('open');
+    this._modalEl.classList.remove('crud-modal-compact');
     document.body.style.overflow = '';
   }
 

@@ -206,6 +206,20 @@ class TableRenderer {
   }
 
   /**
+   * Build a P/L cell showing both value and percentage.
+   * @param {number} value - P/L value
+   * @param {number} percentage - P/L percentage
+   * @param {string} cssClass - Optional CSS class
+   * @returns {string} HTML string for P/L cell with percentage
+   */
+  _buildPLWithPctCell(value, percentage, cssClass = '') {
+    const formatted = Formatter.formatCurrency(value);
+    const color = Formatter.colorPL(value);
+    const pctText = Formatter.formatPercentage(percentage);
+    return `<td><span class="${cssClass}" style="color:${color};font-weight:600">${formatted}</span> <span class="pl_pct_small" style="color:${color}">${pctText}</span></td>`;
+  }
+
+  /**
    * Build a cell with value and percentage with color coding.
    * @param {number|string} value - Main value (numeric or formatted string)
    * @param {number} percentage - Percentage to display
@@ -691,9 +705,9 @@ class TableRenderer {
   ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
   ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
   ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
-  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
+  ${this._buildCell(Formatter.formatCurrency(current), classes.currentClass)}
   ${this._buildCell(Formatter.formatLTP(ltp), classes.ltpClass)}
-  ${this._buildPLCell(pl, classes.plClass)}
+  ${this._buildPLWithPctCell(pl, plPct, classes.plClass)}
   ${this._buildChangeCell(dayChange, dayChangePct, classes.dayChangeClass)}
   ${this._buildCell(holding.exchange, classes.exchangeClass)}
   ${this._buildCell(accountDisplay + actions, classes.accountClass)}
@@ -708,9 +722,9 @@ class TableRenderer {
   ${this._buildCell(qty.toLocaleString(), '')}
   ${this._buildCell(Formatter.formatCurrency(avg), '')}
   ${this._buildCell(Formatter.formatCurrency(invested), '')}
-  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, '')}
+  ${this._buildCell(Formatter.formatCurrency(current), '')}
   ${this._buildCell(Formatter.formatLTP(ltp), '')}
-  ${this._buildPLCell(pl, '')}
+  ${this._buildPLWithPctCell(pl, plPct, '')}
   ${this._buildChangeCell(dayChange, dayChangePct, '')}
   ${this._buildCell(holding.exchange, '')}
   ${this._buildCell('', '')}
@@ -730,7 +744,7 @@ class TableRenderer {
     if (mf.last_price_date) {
       const formattedDate = Formatter.formatRelativeDate(mf.last_price_date, true);
       if (formattedDate) {
-        navDateText = ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
+        navDateText = `<span class="nav-date-sub">${formattedDate.toLowerCase()}</span>`;
       }
     }
 
@@ -748,9 +762,9 @@ class TableRenderer {
   ${this._buildCell(qty.toLocaleString(), classes.qtyClass)}
   ${this._buildCell(Formatter.formatCurrency(avg), classes.avgClass)}
   ${this._buildCell(Formatter.formatCurrency(invested), classes.investedClass)}
-  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, classes.currentClass)}
-  ${this._buildCell(Formatter.formatLTP(nav) + navDateText, classes.navClass)}
-  ${this._buildPLCell(pl, classes.plClass)}
+  ${this._buildCell(Formatter.formatCurrency(current), classes.currentClass)}
+  <td class="${classes.navClass}">${Formatter.formatLTP(nav)}${navDateText}</td>
+  ${this._buildPLWithPctCell(pl, plPct, classes.plClass)}
   ${this._buildCell(accountDisplay + crudActions, classes.accountClass)}
   </tr>`;
   }
@@ -762,7 +776,7 @@ class TableRenderer {
     if (mf.last_price_date) {
       const formattedDate = Formatter.formatRelativeDate(mf.last_price_date, true);
       if (formattedDate) {
-        navDateText = ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
+        navDateText = `<span class="nav-date-sub">${formattedDate.toLowerCase()}</span>`;
       }
     }
     
@@ -771,9 +785,9 @@ class TableRenderer {
   ${this._buildCell(qty.toLocaleString(), '')}
   ${this._buildCell(Formatter.formatCurrency(avg), '')}
   ${this._buildCell(Formatter.formatCurrency(invested), '')}
-  ${this._buildValueWithPctCell(Formatter.formatCurrency(current), plPct, '')}
-  ${this._buildCell(Formatter.formatLTP(nav) + navDateText, '')}
-  ${this._buildPLCell(pl, '')}
+  ${this._buildCell(Formatter.formatCurrency(current), '')}
+  <td>${Formatter.formatLTP(nav)}${navDateText}</td>
+  ${this._buildPLWithPctCell(pl, plPct, '')}
   ${this._buildCell('', '')}
   </tr>`;
   }

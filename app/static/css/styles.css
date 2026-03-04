@@ -1683,26 +1683,50 @@ th.sortable-header {
   position: relative;
   padding-right: 22px;
   user-select: none;
+  transition: background 0.15s ease;
+}
+
+th.sortable-header:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 th.sortable-header::after {
-  content: '';
+  content: '\21C5';
   position: absolute;
-  right: 10px;
+  right: 5px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 11px;
-  opacity: 0;
+  font-size: 10px;
+  opacity: 0.22;
+  transition: opacity 0.15s ease;
+}
+
+th.sortable-header:hover::after {
+  opacity: 0.45;
 }
 
 th.sortable-header.sorted-asc::after {
   content: '\2191';
-  opacity: 1;
+  opacity: 0.85;
 }
 
 th.sortable-header.sorted-desc::after {
   content: '\2193';
-  opacity: 1;
+  opacity: 0.85;
+}
+
+th.sortable-header.sorted-pct-asc::after {
+  content: '%\2191';
+  opacity: 0.85;
+  font-size: 9px;
+  letter-spacing: -0.5px;
+}
+
+th.sortable-header.sorted-pct-desc::after {
+  content: '%\2193';
+  opacity: 0.85;
+  font-size: 9px;
+  letter-spacing: -0.5px;
 }
 
 td {
@@ -1808,6 +1832,20 @@ body.dark-theme .positive {
 
 body.dark-theme .negative {
   color: #f87171;
+}
+
+/* NAV date sub-text (displayed below NAV value in MF tables) */
+.nav-date-sub {
+  display: block;
+  font-size: 10px;
+  color: #999;
+  font-weight: 400;
+  margin-top: 1px;
+  line-height: 1.2;
+}
+
+body.dark-theme .nav-date-sub {
+  color: #666;
 }
 
 /* ============ UTILITIES ============ */
@@ -2320,8 +2358,8 @@ body.dark-theme .card-title {
 }
 
 body.dark-theme .allocation-pct {
-  background: rgba(55,53,47,.1);
-  color: #ebebea;
+  background: rgba(255,255,255,.1);
+  color: #e0e0e0;
 }
 
 /* Dark theme - Overview banner */
@@ -2393,12 +2431,16 @@ body.dark-theme table {
 }
 
 body.dark-theme thead {
-  background: #1e1e1e;
-  border-bottom-color: #333;
+  background: #242424;
+  border-bottom-color: #3a3a3a;
 }
 
 body.dark-theme th {
-  color: #9b9b9b;
+  color: #b0b0b0;
+}
+
+body.dark-theme th.sortable-header:hover {
+  background: rgba(255, 255, 255, 0.05);
 }
 
 body.dark-theme td {
@@ -2454,16 +2496,16 @@ body.dark-theme .sort-controls select option {
 }
 
 body.dark-theme .pagination-controls {
-  background: #141414;
-  border-color: #222;
+  background: #242424;
+  border-color: #3a3a3a;
 }
 
 body.dark-theme .pagination-controls:hover {
-  border-color: #333;
+  border-color: #4a4a4a;
 }
 
 body.dark-theme .pagination-controls label {
-  color: #777;
+  color: #999;
 }
 
 body.dark-theme .pagination-controls select {
@@ -2480,24 +2522,24 @@ body.dark-theme .pagination-controls select:focus {
 }
 
 body.dark-theme .pagination-info {
-  color: #777;
+  color: #999;
 }
 
 body.dark-theme .pagination-buttons button {
-  background: #141414;
+  background: #242424;
   color: #e5e5e5;
-  border-color: #222;
+  border-color: #3a3a3a;
 }
 
 body.dark-theme .pagination-buttons button:hover:not(:disabled) {
-  background: #1a1a1a;
-  border-color: #333;
+  background: #303030;
+  border-color: #4a4a4a;
 }
 
 body.dark-theme .pagination-buttons button.active {
-  background: #37352f;
+  background: #4a4a4a;
   color: #fff;
-  border-color: #37352f;
+  border-color: #555;
 }
 
 body.dark-theme .sip-total-label {
@@ -2519,21 +2561,22 @@ body.dark-theme .section-wrapper h2::after {
 }
 
 body.dark-theme .fd-tabs {
-  background: #1e1e1e;
+  background: #262626;
+  border: 1px solid #333;
 }
 
 body.dark-theme .fd-tab {
-  color: #777;
+  color: #888;
 }
 
 body.dark-theme .fd-tab:hover {
-  color: #ccc;
+  color: #d0d0d0;
 }
 
 body.dark-theme .fd-tab.active {
-  color: #ebebea;
-  background: #2a2a2a;
-  box-shadow: 0 1px 3px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.06);
+  color: #f0f0f0;
+  background: #363636;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3), 0 0 0 1px rgba(255,255,255,.08);
 }
 
 /* Made with love footer */
@@ -4754,6 +4797,9 @@ body.dark-theme .drawer-account-chip.expired {
   pointer-events: auto;
   transform: translate(-50%, -50%) scale(1);
 }
+.crud-modal.crud-modal-compact {
+  width: min(360px, calc(100vw - 32px));
+}
 
 .crud-modal-header {
   display: flex;
@@ -4908,26 +4954,66 @@ select.crud-input {
   box-shadow: 0 2px 8px rgba(239,68,68,.4);
 }
 
-/* ── Confirm dialog body ────────────────────────────────────── */
-.crud-confirm-body {
+/* ── Compact delete confirm ─────────────────────────────────── */
+.crud-delete-compact {
+  padding: 16px 18px 14px;
+}
+.crud-delete-row {
+  display: flex;
   align-items: center;
-  text-align: center;
+  gap: 12px;
 }
-.crud-confirm-body p {
-  margin: 0;
-  font-size: 14.5px;
-  color: #333;
-  line-height: 1.6;
+.crud-delete-badge {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #fef2f2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.crud-confirm-sub {
-  font-size: 12.5px;
-  color: #888;
-}
-.crud-warn-icon {
-  width: 44px;
-  height: 44px;
+.crud-delete-badge svg {
+  width: 18px;
+  height: 18px;
   color: #ef4444;
-  margin-bottom: 4px;
+}
+.crud-delete-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.crud-delete-title {
+  font-size: 14.5px;
+  font-weight: 620;
+  color: #111;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -.01em;
+}
+.crud-delete-sub {
+  font-size: 12px;
+  color: #999;
+  font-family: 'Inter', sans-serif;
+}
+.crud-delete-compact .crud-close-btn {
+  width: 28px;
+  height: 28px;
+  font-size: 17px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.crud-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+.crud-delete-actions .crud-btn {
+  padding: 7px 18px;
+  font-size: 12.5px;
+  border-radius: 8px;
 }
 
 /* ── Toast notifications ────────────────────────────────────── */
@@ -5145,11 +5231,14 @@ body.dark-theme .crud-btn-cancel:hover {
   color: #e5e5e5;
 }
 
-body.dark-theme .crud-confirm-body p {
-  color: #ddd;
+body.dark-theme .crud-delete-badge {
+  background: rgba(239,68,68,.12);
 }
-body.dark-theme .crud-confirm-sub {
-  color: #777;
+body.dark-theme .crud-delete-title {
+  color: #f5f5f5;
+}
+body.dark-theme .crud-delete-sub {
+  color: #666;
 }
 
 body.dark-theme .crud-toast-success {
@@ -5173,14 +5262,14 @@ body.dark-theme .crud-toast {
 }
 
 body.dark-theme .crud-add-btn {
-  border-color: #333;
-  background: #202020;
-  color: #888;
+  border-color: #3a3a3a;
+  background: #262626;
+  color: #aaa;
 }
 body.dark-theme .crud-add-btn:hover {
-  border-color: #444;
-  color: #ccc;
-  background: #222226;
+  border-color: #555;
+  color: #e0e0e0;
+  background: #303030;
 }
 
 body.dark-theme .crud-row-actions {

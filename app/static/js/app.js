@@ -356,10 +356,17 @@ class PortfolioApp {
   _getNextHeaderSortOrder(header, currentSortOrder) {
     const ascSort = header.dataset.sortAsc;
     const descSort = header.dataset.sortDesc;
+    const asc2Sort = header.dataset.sortAsc2;
+    const desc2Sort = header.dataset.sortDesc2;
     const defaultDirection = header.dataset.sortDefault || 'desc';
 
+    // Cycle: desc → asc → (desc2 → asc2 →) desc
     if (currentSortOrder === descSort) return ascSort;
-    if (currentSortOrder === ascSort) return descSort;
+    if (currentSortOrder === ascSort) {
+      return desc2Sort ? desc2Sort : descSort;
+    }
+    if (desc2Sort && currentSortOrder === desc2Sort) return asc2Sort;
+    if (asc2Sort && currentSortOrder === asc2Sort) return descSort;
     return defaultDirection === 'asc' ? ascSort : descSort;
   }
 
@@ -368,8 +375,10 @@ class PortfolioApp {
     sortableHeaders.forEach((header) => {
       const ascSort = header.dataset.sortAsc;
       const descSort = header.dataset.sortDesc;
+      const asc2Sort = header.dataset.sortAsc2;
+      const desc2Sort = header.dataset.sortDesc2;
 
-      header.classList.remove('sorted-asc', 'sorted-desc');
+      header.classList.remove('sorted-asc', 'sorted-desc', 'sorted-pct-asc', 'sorted-pct-desc');
       header.setAttribute('aria-sort', 'none');
 
       if (currentSortOrder === ascSort) {
@@ -377,6 +386,12 @@ class PortfolioApp {
         header.setAttribute('aria-sort', 'ascending');
       } else if (currentSortOrder === descSort) {
         header.classList.add('sorted-desc');
+        header.setAttribute('aria-sort', 'descending');
+      } else if (asc2Sort && currentSortOrder === asc2Sort) {
+        header.classList.add('sorted-pct-asc');
+        header.setAttribute('aria-sort', 'ascending');
+      } else if (desc2Sort && currentSortOrder === desc2Sort) {
+        header.classList.add('sorted-pct-desc');
         header.setAttribute('aria-sort', 'descending');
       }
     });

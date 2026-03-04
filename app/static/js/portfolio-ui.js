@@ -247,7 +247,7 @@ function removeDrawerAccount(name) {
       target: '.overview-top-right',
       icon: '🔄',
       title: 'Refresh & status',
-      desc: 'Hit the refresh button to fetch the latest data from your broker.<br><br>The <strong>status dot</strong> shows sync state — <span style="color:#f59e0b">●</span> orange while updating, <span style="color:#22c55e">●</span> green when synced. It also shows how long ago data was last refreshed.',
+      desc: 'Hit the refresh button to fetch the latest data. Auto-refresh runs during market hours.<br><br>The <strong>status dot</strong> shows — <span style="color:#f59e0b">●</span> yellow while updating, <span style="color:#22c55e">●</span> green when the market is open, <span style="color:#ef4444">●</span> red when the market is closed. It also shows how long ago data was last refreshed.',
       position: 'bottom-end',
     },
     {

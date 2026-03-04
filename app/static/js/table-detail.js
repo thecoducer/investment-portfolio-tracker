@@ -37,7 +37,7 @@ const TABLE_HEADERS = {
     { label: 'Invested', sortAsc: 'invested_asc', sortDesc: 'invested_desc' },
     { label: 'Current', sortAsc: 'current_asc', sortDesc: 'current_desc' },
     { label: 'LTP', sortAsc: 'ltp_asc', sortDesc: 'ltp_desc' },
-    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc' },
+    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc', sortAsc2: 'pl_pct_asc', sortDesc2: 'pl_pct_desc' },
     { label: "Day's Change", sortAsc: 'day_change_asc', sortDesc: 'day_change_desc' },
     { label: 'EX', sortAsc: 'exchange_asc', sortDesc: 'exchange_desc', sortDefault: 'asc' },
     { label: 'Account', sortAsc: 'account_asc', sortDesc: 'account_desc', sortDefault: 'asc' },
@@ -49,7 +49,7 @@ const TABLE_HEADERS = {
     { label: 'Invested', sortAsc: 'invested_asc', sortDesc: 'invested_desc' },
     { label: 'Current', sortAsc: 'current_asc', sortDesc: 'current_desc' },
     { label: 'LTP', sortAsc: 'ltp_asc', sortDesc: 'ltp_desc' },
-    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc' },
+    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc', sortAsc2: 'pl_pct_asc', sortDesc2: 'pl_pct_desc' },
     { label: "Day's Change", sortAsc: 'day_change_asc', sortDesc: 'day_change_desc' },
     { label: 'EX', sortAsc: 'exchange_asc', sortDesc: 'exchange_desc', sortDefault: 'asc' },
     { label: 'Account', sortAsc: 'account_asc', sortDesc: 'account_desc', sortDefault: 'asc' },
@@ -61,7 +61,7 @@ const TABLE_HEADERS = {
     { label: 'Invested', sortAsc: 'invested_asc', sortDesc: 'invested_desc' },
     { label: 'Current', sortAsc: 'current_asc', sortDesc: 'current_desc' },
     { label: 'NAV', sortAsc: 'nav_asc', sortDesc: 'nav_desc' },
-    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc' },
+    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc', sortAsc2: 'pl_pct_asc', sortDesc2: 'pl_pct_desc' },
     { label: 'Account', sortAsc: 'account_asc', sortDesc: 'account_desc', sortDefault: 'asc' },
   ],
   'physical-gold': [
@@ -72,7 +72,7 @@ const TABLE_HEADERS = {
     { label: 'Weight (gms)', sortAsc: 'weight_asc', sortDesc: 'weight_desc' },
     { label: 'Bought IBJA Rate/gm', sortAsc: 'bought_rate_asc', sortDesc: 'bought_rate_desc' },
     { label: 'Latest IBJA Rate/gm', sortAsc: 'latest_rate_asc', sortDesc: 'latest_rate_desc' },
-    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc' },
+    { label: 'P/L', sortAsc: 'pl_asc', sortDesc: 'pl_desc', sortAsc2: 'pl_pct_asc', sortDesc2: 'pl_pct_desc' },
   ],
   'fixed-deposits': [
     { label: 'Deposited On', sortAsc: 'date_asc', sortDesc: 'date_desc' },
@@ -131,6 +131,13 @@ function buildPLCell(value) {
   return `<td><span style="color:${color};font-weight:600">${formatted}</span></td>`;
 }
 
+function buildPLWithPctCell(value, percentage) {
+  const formatted = Formatter.formatCurrency(value);
+  const color = Formatter.colorPL(value);
+  const pctText = Formatter.formatPercentage(percentage);
+  return `<td><span style="color:${color};font-weight:600">${formatted}</span> <span class="pl_pct_small" style="color:${color}">${pctText}</span></td>`;
+}
+
 function buildValueWithPctCell(value, percentage) {
   const formatted = (typeof value === 'number') ? Formatter.formatNumberWithLocale(value, 1) : value;
   const color = Formatter.colorPL(percentage);
@@ -161,9 +168,9 @@ function buildStockRow(holding, metrics) {
   ${buildCell(qty.toLocaleString())}
   ${buildCell(Formatter.formatCurrency(avg))}
   ${buildCell(Formatter.formatCurrency(invested))}
-  ${buildValueWithPctCell(Formatter.formatCurrency(current), plPct)}
+  ${buildCell(Formatter.formatCurrency(current))}
   ${buildCell(Formatter.formatLTP(ltp))}
-  ${buildPLCell(pl)}
+  ${buildPLWithPctCell(pl, plPct)}
   ${buildChangeCell(dayChange, dayChangePct)}
   ${buildCell(holding.exchange)}
   ${buildCell((holding.account || '-') + actions)}
@@ -175,7 +182,7 @@ function buildMFRow(mf, metrics) {
   let navDateText = '';
   if (mf.last_price_date) {
     const formattedDate = Formatter.formatRelativeDate(mf.last_price_date, true);
-    if (formattedDate) navDateText = ` <span class="pl_pct_small">${formattedDate.toLowerCase()}</span>`;
+    if (formattedDate) navDateText = `<span class="nav-date-sub">${formattedDate.toLowerCase()}</span>`;
   }
   const fundName = mf.fund || mf.tradingsymbol;
   const isManual = mf.source === 'manual';
@@ -190,9 +197,9 @@ function buildMFRow(mf, metrics) {
   ${buildCell(qty.toLocaleString())}
   ${buildCell(Formatter.formatCurrency(avg))}
   ${buildCell(Formatter.formatCurrency(invested))}
-  ${buildValueWithPctCell(Formatter.formatCurrency(current), plPct)}
-  ${buildCell(Formatter.formatLTP(nav) + navDateText)}
-  ${buildPLCell(pl)}
+  ${buildCell(Formatter.formatCurrency(current))}
+  <td>${Formatter.formatLTP(nav)}${navDateText}</td>
+  ${buildPLWithPctCell(pl, plPct)}
   ${buildCell((mf.account || '-') + crudActions)}
   </tr>`;
 }
@@ -347,9 +354,12 @@ class TableDetailApp {
     const headers = TABLE_HEADERS[this.tableKey] || [];
     let html = '<tr>';
     headers.forEach(h => {
-      const sortAttrs = h.sortAsc
-        ? ` data-sort-asc="${h.sortAsc}" data-sort-desc="${h.sortDesc}"${h.sortDefault ? ` data-sort-default="${h.sortDefault}"` : ''}`
-        : '';
+      let sortAttrs = '';
+      if (h.sortAsc) {
+        sortAttrs = ` data-sort-asc="${h.sortAsc}" data-sort-desc="${h.sortDesc}"`;
+        if (h.sortDefault) sortAttrs += ` data-sort-default="${h.sortDefault}"`;
+        if (h.sortAsc2) sortAttrs += ` data-sort-asc2="${h.sortAsc2}" data-sort-desc2="${h.sortDesc2}"`;
+      }
       html += `<th${sortAttrs}>${h.label}</th>`;
     });
     html += '</tr>';
@@ -403,9 +413,17 @@ class TableDetailApp {
   _getNextSortOrder(header, currentSortOrder) {
     const ascSort = header.dataset.sortAsc;
     const descSort = header.dataset.sortDesc;
+    const asc2Sort = header.dataset.sortAsc2;
+    const desc2Sort = header.dataset.sortDesc2;
     const defaultDirection = header.dataset.sortDefault || 'desc';
+
+    // Cycle: desc → asc → (desc2 → asc2 →) desc
     if (currentSortOrder === descSort) return ascSort;
-    if (currentSortOrder === ascSort) return descSort;
+    if (currentSortOrder === ascSort) {
+      return desc2Sort ? desc2Sort : descSort;
+    }
+    if (desc2Sort && currentSortOrder === desc2Sort) return asc2Sort;
+    if (asc2Sort && currentSortOrder === asc2Sort) return descSort;
     return defaultDirection === 'asc' ? ascSort : descSort;
   }
 
@@ -416,13 +434,19 @@ class TableDetailApp {
     const currentOrder = this.sortManager[`get${prefix}SortOrder`]();
     const sortableHeaders = table.querySelectorAll('th[data-sort-asc][data-sort-desc]');
     sortableHeaders.forEach(header => {
-      header.classList.remove('sorted-asc', 'sorted-desc');
+      header.classList.remove('sorted-asc', 'sorted-desc', 'sorted-pct-asc', 'sorted-pct-desc');
       header.setAttribute('aria-sort', 'none');
       if (currentOrder === header.dataset.sortAsc) {
         header.classList.add('sorted-asc');
         header.setAttribute('aria-sort', 'ascending');
       } else if (currentOrder === header.dataset.sortDesc) {
         header.classList.add('sorted-desc');
+        header.setAttribute('aria-sort', 'descending');
+      } else if (header.dataset.sortAsc2 && currentOrder === header.dataset.sortAsc2) {
+        header.classList.add('sorted-pct-asc');
+        header.setAttribute('aria-sort', 'ascending');
+      } else if (header.dataset.sortDesc2 && currentOrder === header.dataset.sortDesc2) {
+        header.classList.add('sorted-pct-desc');
         header.setAttribute('aria-sort', 'descending');
       }
     });

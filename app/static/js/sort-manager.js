@@ -214,6 +214,8 @@ class SortManager {
       'latest_rate_asc': this._numericComparator(h => h.latest_ibja_price_per_gm || 0, false),
       'pl_desc': this._numericComparator(h => h.pl || 0, true),
       'pl_asc': this._numericComparator(h => h.pl || 0, false),
+      'pl_pct_desc': this._numericComparator(h => h.pl_pct || 0, true),
+      'pl_pct_asc': this._numericComparator(h => h.pl_pct || 0, false),
       'outlet_asc': this._stringComparator(h => h.retail_outlet, false),
       'outlet_desc': this._stringComparator(h => h.retail_outlet, true),
       'purity_asc': this._stringComparator(h => h.purity, false),
@@ -301,7 +303,9 @@ class SortManager {
       'current_desc': this._numericComparator(s => s.totalCurrentValue, true),
       'current_asc': this._numericComparator(s => s.totalCurrentValue, false),
       'returns_desc': this._numericComparator(s => s.totalReturns, true),
-      'returns_asc': this._numericComparator(s => s.totalReturns, false)
+      'returns_asc': this._numericComparator(s => s.totalReturns, false),
+      'returns_pct_desc': this._numericComparator(s => s.totalDeposited > 0 ? (s.totalReturns / s.totalDeposited * 100) : 0, true),
+      'returns_pct_asc': this._numericComparator(s => s.totalDeposited > 0 ? (s.totalReturns / s.totalDeposited * 100) : 0, false)
     };
 
     const comparator = comparators[sortBy];
