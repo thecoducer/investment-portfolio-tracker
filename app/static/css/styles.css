@@ -1639,7 +1639,10 @@ table {
 
 #mfTable th:first-child,
 #mfTable td:first-child {
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
 }
 
 .mf-expand-icon,
@@ -1657,8 +1660,9 @@ table {
 }
 
 .mf-fund-label {
-  white-space: normal;
-  word-break: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 thead {
@@ -1835,13 +1839,13 @@ body.dark-theme .negative {
   color: #f87171;
 }
 
-/* NAV date sub-text (displayed below NAV value in MF tables) */
+/* NAV date sub-text (displayed inline with NAV value in MF tables) */
 .nav-date-sub {
-  display: block;
+  display: inline;
   font-size: 10px;
   color: #999;
   font-weight: 400;
-  margin-top: 1px;
+  margin-left: 6px;
   line-height: 1.2;
 }
 
