@@ -692,7 +692,7 @@ class TableRenderer {
     const symbol = holding.tradingsymbol;
     const accountDisplay = classes.hasMultipleAccounts ? '> 1' : (holding.account || '-');
     const isManual = holding.source === 'manual';
-    const manualBadge = isManual ? '<span class="crud-manual-badge">Manual</span>' : '';
+    const manualBadge = isManual ? '<span class="source-indicator source-manual" data-tip="Manually added"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 13.5c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5c0 .3-.2.5-.5.5h-9a.5.5 0 0 1-.5-.5Z"/></svg></span>' : '';
     const crudType = (isManual && holding.manual_type === 'etfs') ? 'etfs' : 'stocks';
     const actions = isManual ? buildCrudActions(crudType, holding.row_number, {
       symbol: holding.tradingsymbol, qty: holding.quantity,
@@ -750,7 +750,7 @@ class TableRenderer {
 
     const mfNameCell = `<span class="mf-fund-cell"><span class="mf-fund-label">${fundName}</span></span>`;
     const isManual = mf.source === 'manual';
-    const manualBadge = isManual ? '<span class="crud-manual-badge">Manual</span>' : '';
+    const manualBadge = isManual ? '<span class="source-indicator source-manual" data-tip="Manually added"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 13.5c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5c0 .3-.2.5-.5.5h-9a.5.5 0 0 1-.5-.5Z"/></svg></span>' : '';
     const crudActions = isManual ? buildCrudActions('mutual_funds', mf.row_number, {
       fund: mf.fund || mf.tradingsymbol, qty: mf.quantity,
       avg_nav: mf.average_price, account: mf.account
@@ -819,7 +819,7 @@ class TableRenderer {
     }
     
     const isManual = sip.source === 'manual';
-    const manualBadge = isManual ? ' <span class="crud-manual-badge">Manual</span>' : '';
+    const manualBadge = isManual ? ' <span class="source-indicator source-manual" data-tip="Manually added"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM3 13.5c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5c0 .3-.2.5-.5.5h-9a.5.5 0 0 1-.5-.5Z"/></svg></span>' : '';
     const crudActions = isManual ? buildCrudActions('sips', sip.row_number, {
       fund: sip.fund || sip.tradingsymbol, amount: sip.instalment_amount,
       frequency: sip.frequency || 'MONTHLY',
