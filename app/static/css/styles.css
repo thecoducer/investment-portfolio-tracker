@@ -4180,6 +4180,7 @@ body.dark-theme .setup-guide-footer svg {
   padding: 12px 20px 14px;
   border-top: 1px solid #f0f0f0;
   background: #fafafa;
+  border-radius: 0 0 14px 14px;
 }
 
 .app-tour-progress {
@@ -4264,6 +4265,7 @@ body.dark-theme .app-tour-tooltip-content .tour-tip-desc {
 body.dark-theme .app-tour-tooltip-footer {
   border-top-color: #282828;
   background: #141414;
+  border-radius: 0 0 14px 14px;
 }
 body.dark-theme .app-tour-dot {
   background: #333;
@@ -4301,6 +4303,7 @@ body.dark-theme .app-tour-next:hover {
   }
   .app-tour-tooltip-footer {
     padding: 10px 16px 12px;
+    border-radius: 0 0 12px 12px;
   }
   .setup-guide-footer {
     margin: 0 10px 10px;

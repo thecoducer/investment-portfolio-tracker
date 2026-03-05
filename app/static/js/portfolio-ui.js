@@ -238,7 +238,7 @@ function removeDrawerAccount(name) {
   const STEPS = [
     {
       target: '#combined_summary',
-      icon: '�',
+      icon: '💰',
       title: 'Your net worth',
       desc: 'Total invested value, current value, and overall P&L — all in one place. Updates automatically when markets are open.',
       position: 'bottom',
