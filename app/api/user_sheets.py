@@ -168,7 +168,7 @@ def create_portfolio_sheet(credentials: Credentials,
     sheets_service.spreadsheets().values().batchUpdate(
         spreadsheetId=spreadsheet_id,
         body={
-            "valueInputOption": "RAW",
+            "valueInputOption": "USER_ENTERED",
             "data": [
                 {
                     "range": f"{name}!A1",

@@ -220,7 +220,7 @@ class GoogleSheetsClient:
             result = self.service.spreadsheets().values().append(
                 spreadsheetId=spreadsheet_id,
                 range=f"{sheet_name}!A:Z",
-                valueInputOption="RAW",
+                valueInputOption="USER_ENTERED",
                 insertDataOption="INSERT_ROWS",
                 body={"values": [values]},
             ).execute()
@@ -245,7 +245,7 @@ class GoogleSheetsClient:
             self.service.spreadsheets().values().update(
                 spreadsheetId=spreadsheet_id,
                 range=range_str,
-                valueInputOption="RAW",
+                valueInputOption="USER_ENTERED",
                 body={"values": [values]},
             ).execute()
             logger.info("Updated row %d in %s", row_number, sheet_name)
@@ -317,7 +317,7 @@ class GoogleSheetsClient:
             self.service.spreadsheets().values().update(
                 spreadsheetId=spreadsheet_id,
                 range=f"{sheet_name}!A1",
-                valueInputOption="RAW",
+                valueInputOption="USER_ENTERED",
                 body={"values": [headers]},
             ).execute()
             logger.info("Created sheet tab '%s' with headers", sheet_name)
