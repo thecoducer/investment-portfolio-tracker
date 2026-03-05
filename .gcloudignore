@@ -9,3 +9,5 @@ htmlcov/
 tests/
 config/firebase-credentials.json
 config/google-oauth-credentials.json
+config/zerodha-token-secret.txt
+config/flask-secret-key.txt

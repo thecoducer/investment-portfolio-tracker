@@ -6,6 +6,8 @@ config/config.json
 config/firebase-credentials.json
 config/google-credentials.json
 config/google-oauth-credentials.json
+config/zerodha-token-secret.txt
+config/flask-secret-key.txt
 __pycache__/
 *.pyc
 .DS_Store
