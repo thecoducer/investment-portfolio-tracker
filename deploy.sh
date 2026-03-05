@@ -98,10 +98,18 @@ FIREBASE_CREDENTIALS=firebase-credentials:latest,\
 GOOGLE_OAUTH_CREDENTIALS=google-oauth-credentials:latest" \
     --port=8080
 
-# ─── Output ──────────────────────────────────────────────────
+# ─── Ensure CLOUD_RUN_URL is set (handles first deploy to a new region) ───
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --project="$PROJECT" --region="$REGION" \
     --format='value(status.url)' 2>/dev/null)
+
+if [[ -z "$CLOUD_RUN_URL" || "$CLOUD_RUN_URL" != "$SERVICE_URL" ]]; then
+    info "Updating CLOUD_RUN_URL to ${SERVICE_URL}"
+    gcloud run services update "$SERVICE_NAME" \
+        --project="$PROJECT" \
+        --region="$REGION" \
+        --update-env-vars="CLOUD_RUN_URL=$SERVICE_URL"
+fi
 
 echo ""
 ok "Deployed successfully!"

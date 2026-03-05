@@ -119,6 +119,24 @@ jobs:
             --port=8080 \
             --quiet
 
+      - name: Ensure CLOUD_RUN_URL env var is set
+        run: |
+          DEPLOYED_URL=$(gcloud run services describe "$SERVICE_NAME" \
+            --project="$GCP_PROJECT_ID" \
+            --region="$GCP_REGION" \
+            --format='value(status.url)')
+          PRE_DEPLOY_URL="${{ steps.existing.outputs.url }}"
+          if [[ -z "$PRE_DEPLOY_URL" || "$PRE_DEPLOY_URL" != "$DEPLOYED_URL" ]]; then
+            echo "CLOUD_RUN_URL was '${PRE_DEPLOY_URL}' — updating to '${DEPLOYED_URL}'"
+            gcloud run services update "$SERVICE_NAME" \
+              --project="$GCP_PROJECT_ID" \
+              --region="$GCP_REGION" \
+              --update-env-vars="CLOUD_RUN_URL=$DEPLOYED_URL" \
+              --quiet
+          else
+            echo "CLOUD_RUN_URL already correct: $DEPLOYED_URL"
+          fi
+
       - name: Get deployment info
         id: info
         run: |
