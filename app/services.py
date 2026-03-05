@@ -24,12 +24,19 @@ _loaded_users_lock = threading.Lock()
 _loaded_users: set[str] = set()
 
 
-def ensure_user_loaded(google_id: str) -> None:
-    """Load user's Zerodha sessions from Firestore (idempotent)."""
+def ensure_user_loaded(google_id: str, *, force: bool = False) -> None:
+    """Load user's Zerodha sessions from Firestore (idempotent).
+
+    Args:
+        google_id: The user's Google ID.
+        force: When True, re-run even if the user was previously loaded.
+               Use after PIN verification to load Zerodha sessions that
+               were skipped on the initial PIN-less page load.
+    """
     if not google_id:
         return
     with _loaded_users_lock:
-        if google_id in _loaded_users:
+        if not force and google_id in _loaded_users:
             return
         _loaded_users.add(google_id)
 
@@ -41,9 +48,12 @@ def ensure_user_loaded(google_id: str) -> None:
 def get_user_accounts(google_id: str) -> List[Dict[str, str]]:
     if not google_id:
         return []
+    pin = session_manager.get_pin(google_id)
+    if not pin:
+        return []
     try:
         from .firebase_store import get_zerodha_accounts
-        return get_zerodha_accounts(google_id)
+        return get_zerodha_accounts(google_id, pin)
     except Exception:
         logger.exception("Failed to fetch Zerodha accounts for user %s", google_id)
         return []

@@ -17,7 +17,9 @@ from typing import Any, Optional
 from google.api_core import exceptions as gcp_exceptions
 
 from .logging_config import logger
-from .utils import decrypt_credential, encrypt_credential
+from .utils import (create_pin_check, decrypt_credential,
+                    decrypt_google_credentials, encrypt_credential,
+                    encrypt_google_credentials, verify_pin)
 
 _firestore_client = None
 
@@ -112,16 +114,22 @@ def upsert_user(
     google_credentials: dict,
     spreadsheet_id: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Create or update a user record. Returns the saved document."""
+    """Create or update a user record. Returns the saved document.
+
+    Google OAuth credentials are encrypted at rest using the Flask secret
+    key (Tier 2 encryption — server-side, no user PIN required).
+    """
     ref = _user_ref(google_id)
     now = datetime.now(timezone.utc).isoformat()
+
+    encrypted_google_creds = encrypt_google_credentials(google_credentials)
 
     data: dict[str, Any] = {
         "google_id": google_id,
         "email": email,
         "name": name,
         "picture": picture,
-        "google_credentials": google_credentials,
+        "google_credentials": encrypted_google_creds,
         "last_login": now,
     }
 
@@ -145,19 +153,38 @@ def update_spreadsheet_id(google_id: str, spreadsheet_id: str) -> None:
     logger.info("Stored spreadsheet_id for user %s", google_id)
 
 
+def get_google_credentials(google_id: str) -> Optional[dict]:
+    """Return decrypted Google OAuth credentials, or None."""
+    doc = _user_ref(google_id).get()
+    data = doc.to_dict() if doc.exists else {}
+    encrypted = data.get("google_credentials")
+    if not encrypted:
+        return None
+    try:
+        return decrypt_google_credentials(encrypted)
+    except Exception:
+        logger.warning("Failed to decrypt Google credentials for %s", google_id)
+        return None
+
+
 def update_google_credentials(google_id: str, google_credentials: dict) -> None:
-    """Persist refreshed Google OAuth credentials."""
-    _user_ref(google_id).update({"google_credentials": google_credentials})
+    """Persist refreshed Google OAuth credentials (encrypted)."""
+    encrypted = encrypt_google_credentials(google_credentials)
+    _user_ref(google_id).update({"google_credentials": encrypted})
 
 
 def add_zerodha_account(
-    google_id: str, account_name: str, api_key: str, api_secret: str
+    google_id: str, account_name: str, api_key: str, api_secret: str,
+    pin: str = "",
 ) -> None:
     """Add a Zerodha account to the user's list of connected accounts.
 
     The *api_key* and *api_secret* are encrypted at rest with a per-user
-    Fernet key before being persisted to Firestore.
+    Fernet key derived from ZERODHA_TOKEN_SECRET + PIN.
     """
+    if not pin:
+        raise ValueError("Security PIN is required to store Zerodha credentials")
+
     ref = _user_ref(google_id)
     doc = ref.get()
     data = doc.to_dict() if doc.exists else {}
@@ -169,8 +196,8 @@ def add_zerodha_account(
 
     accounts.append({
         "account_name": account_name,
-        "api_key": encrypt_credential(api_key, google_id),
-        "api_secret": encrypt_credential(api_secret, google_id),
+        "api_key": encrypt_credential(api_key, pin),
+        "api_secret": encrypt_credential(api_secret, pin),
     })
     ref.update({"zerodha_accounts": accounts})
     logger.info("Added Zerodha account '%s' for user %s", account_name, google_id)
@@ -199,14 +226,17 @@ def get_zerodha_account_names(google_id: str) -> list[str]:
     return [a["account_name"] for a in accounts]
 
 
-def get_zerodha_accounts(google_id: str) -> list[dict]:
+def get_zerodha_accounts(google_id: str, pin: str = "") -> list[dict]:
     """Return the user's Zerodha accounts in auth-compatible format.
 
     Each dict has keys: ``name``, ``api_key``, ``api_secret``.
-    Credentials are decrypted with the user's per-user Fernet key.
-    Accounts whose credentials cannot be decrypted are skipped with a
-    warning — the user must re-add them via the UI.
+    Credentials are decrypted with the user's PIN-derived Fernet key.
+    A valid *pin* is required; without it an empty list is returned.
     """
+    if not pin:
+        logger.info("get_zerodha_accounts called without PIN for %s", google_id)
+        return []
+
     doc = _user_ref(google_id).get()
     data = doc.to_dict() if doc.exists else {}
     accounts: list[dict] = data.get("zerodha_accounts", [])
@@ -216,8 +246,8 @@ def get_zerodha_accounts(google_id: str) -> list[dict]:
         try:
             result.append({
                 "name": a["account_name"],
-                "api_key": decrypt_credential(a["api_key"], google_id),
-                "api_secret": decrypt_credential(a["api_secret"], google_id),
+                "api_key": decrypt_credential(a["api_key"], pin),
+                "api_secret": decrypt_credential(a["api_secret"], pin),
             })
         except Exception:
             logger.warning(
@@ -257,3 +287,51 @@ def clear_zerodha_sessions(google_id: str) -> None:
     """Remove all stored Zerodha session tokens for a user."""
     from google.cloud.firestore_v1 import DELETE_FIELD
     _user_ref(google_id).update({"zerodha_sessions": DELETE_FIELD})
+
+
+# --------------------------
+# PIN management
+# --------------------------
+
+
+def has_pin(google_id: str) -> bool:
+    """Return True if the user has set a security PIN."""
+    doc = _user_ref(google_id).get()
+    data = doc.to_dict() if doc.exists else {}
+    return bool(data.get("pin_check"))
+
+
+def store_pin_check(google_id: str, pin: str) -> None:
+    """Generate and persist a PIN verification token.
+
+    The token is a known sentinel encrypted with the user's PIN.  It allows
+    the backend to verify the PIN without storing it.
+    """
+    token = create_pin_check(pin)
+    _user_ref(google_id).update({"pin_check": token})
+    logger.info("Stored pin_check for user %s", google_id)
+
+
+def verify_user_pin(google_id: str, pin: str) -> bool:
+    """Verify a PIN against the stored pin_check token."""
+    doc = _user_ref(google_id).get()
+    data = doc.to_dict() if doc.exists else {}
+    pin_check_token = data.get("pin_check", "")
+    if not pin_check_token:
+        return False
+    return verify_pin(pin_check_token, pin)
+
+
+def reset_zerodha_data(google_id: str) -> None:
+    """Wipe all Zerodha credentials, sessions, and PIN for a user.
+
+    Called when the user forgets their PIN.  They must re-add accounts
+    and choose a new PIN afterward.
+    """
+    from google.cloud.firestore_v1 import DELETE_FIELD
+    _user_ref(google_id).update({
+        "zerodha_accounts": DELETE_FIELD,
+        "zerodha_sessions": DELETE_FIELD,
+        "pin_check": DELETE_FIELD,
+    })
+    logger.info("Reset all Zerodha data for user %s", google_id)

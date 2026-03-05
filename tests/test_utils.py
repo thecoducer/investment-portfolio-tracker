@@ -12,49 +12,80 @@ from zoneinfo import ZoneInfo
 
 from app.constants import STATE_ERROR, STATE_UPDATED, STATE_UPDATING
 from app.utils import (SessionManager, StateManager, encrypt_credential,
-                       decrypt_credential, format_timestamp,
-                       is_market_open_ist, load_config)
+                       decrypt_credential, encrypt_google_credentials,
+                       decrypt_google_credentials, create_pin_check,
+                       verify_pin, format_timestamp,
+                       is_market_open_ist, load_config, PinRateLimiter)
 
-# Default google_id used throughout tests
+# Default PIN used throughout tests
 _GID = "test_google_id_123"
+_PIN = "123456"
 
 
 class TestCredentialEncryption(unittest.TestCase):
-    """Test per-user encrypt/decrypt credential helpers."""
+    """Test per-user + PIN encrypt/decrypt credential helpers."""
 
     def test_round_trip(self):
         """Encrypting then decrypting returns the original value."""
         original = "my_super_secret_api_key"
-        encrypted = encrypt_credential(original, _GID)
+        encrypted = encrypt_credential(original, _PIN)
         self.assertNotEqual(encrypted, original)
-        self.assertEqual(decrypt_credential(encrypted, _GID), original)
+        self.assertEqual(decrypt_credential(encrypted, _PIN), original)
 
     def test_decrypt_plaintext_raises(self):
         """Decrypting a plaintext string raises InvalidToken (no fallback)."""
         from cryptography.fernet import InvalidToken
         with self.assertRaises(InvalidToken):
-            decrypt_credential("not_encrypted_at_all", _GID)
+            decrypt_credential("not_encrypted_at_all", _PIN)
 
     def test_different_values_produce_different_ciphertext(self):
         """Two different plaintexts must not produce the same ciphertext."""
-        a = encrypt_credential("key_aaa", _GID)
-        b = encrypt_credential("key_bbb", _GID)
+        a = encrypt_credential("key_aaa", _PIN)
+        b = encrypt_credential("key_bbb", _PIN)
         self.assertNotEqual(a, b)
 
     def test_empty_string_round_trip(self):
         """Empty string should survive the round trip."""
-        encrypted = encrypt_credential("", _GID)
-        self.assertEqual(decrypt_credential(encrypted, _GID), "")
+        encrypted = encrypt_credential("", _PIN)
+        self.assertEqual(decrypt_credential(encrypted, _PIN), "")
 
-    def test_per_user_isolation(self):
-        """Data encrypted for user A cannot be decrypted by user B."""
+    def test_per_pin_isolation(self):
+        """Data encrypted with PIN A cannot be decrypted with PIN B."""
         from cryptography.fernet import InvalidToken
-        encrypted = encrypt_credential("secret", "userA")
-        # Same user can decrypt
-        self.assertEqual(decrypt_credential(encrypted, "userA"), "secret")
-        # Different user cannot
+        encrypted = encrypt_credential("secret", "111111")
+        self.assertEqual(decrypt_credential(encrypted, "111111"), "secret")
         with self.assertRaises(InvalidToken):
-            decrypt_credential(encrypted, "userB")
+            decrypt_credential(encrypted, "999999")
+
+
+class TestPinCheck(unittest.TestCase):
+    """Test PIN verification via encrypted sentinel token."""
+
+    def test_create_and_verify_pin(self):
+        """create_pin_check + verify_pin round trip succeeds with correct PIN."""
+        token = create_pin_check(_PIN)
+        self.assertTrue(verify_pin(token, _PIN))
+
+    def test_verify_pin_wrong_pin(self):
+        """verify_pin returns False for wrong PIN."""
+        token = create_pin_check("111111")
+        self.assertFalse(verify_pin(token, "999999"))
+
+
+class TestGoogleCredentialsEncryption(unittest.TestCase):
+    """Test server-side Google credentials encryption."""
+
+    def test_round_trip(self):
+        creds = {"token": "abc", "refresh_token": "xyz", "client_id": "id"}
+        encrypted = encrypt_google_credentials(creds)
+        self.assertIsInstance(encrypted, str)
+        decrypted = decrypt_google_credentials(encrypted)
+        self.assertEqual(decrypted, creds)
+
+    def test_decrypt_invalid_raises(self):
+        from cryptography.fernet import InvalidToken
+        with self.assertRaises(InvalidToken):
+            decrypt_google_credentials("not_valid_data")
 
 
 class TestSessionManager(unittest.TestCase):
@@ -62,6 +93,8 @@ class TestSessionManager(unittest.TestCase):
 
     def setUp(self):
         self.sm = SessionManager()
+        # Most tests need a PIN set for encryption/decryption
+        self.sm.set_pin(_GID, _PIN)
 
     def test_get_token_empty_cache(self):
         """Token for unknown user/account returns None."""
@@ -98,6 +131,8 @@ class TestSessionManager(unittest.TestCase):
 
     def test_user_isolation(self):
         """Tokens for different users must not leak."""
+        self.sm.set_pin("userA", _PIN)
+        self.sm.set_pin("userB", _PIN)
         self.sm.set_token("userA", "acc1", "tokA")
         self.sm.set_token("userB", "acc1", "tokB")
         self.assertEqual(self.sm.get_token("userA", "acc1"), "tokA")
@@ -140,6 +175,21 @@ class TestSessionManager(unittest.TestCase):
         self.sm.set_token(_GID, "Acc1", "tok")
         self.sm.save("")  # no crash
 
+    def test_encrypt_without_pin_raises(self):
+        """_encrypt raises ValueError when no PIN is set for user."""
+        sm = SessionManager()
+        with self.assertRaises(ValueError):
+            sm._encrypt("token", "no_pin_user")
+
+    def test_pin_management(self):
+        """set_pin, get_pin, clear_pin work correctly."""
+        sm = SessionManager()
+        self.assertIsNone(sm.get_pin("user1"))
+        sm.set_pin("user1", "654321")
+        self.assertEqual(sm.get_pin("user1"), "654321")
+        sm.clear_pin("user1")
+        self.assertIsNone(sm.get_pin("user1"))
+
     def test_get_validity(self):
         """get_validity returns correct status for all accounts."""
         self.sm.set_token(_GID, "valid_acc", "tok1")
@@ -174,6 +224,7 @@ class TestSessionManager(unittest.TestCase):
     @patch.dict(os.environ, {"ZERODHA_TOKEN_SECRET": "my_production_secret"})
     def test_cipher_uses_env_var(self):
         sm = SessionManager()
+        sm.set_pin(_GID, _PIN)
         encrypted = sm._encrypt("test_token", _GID)
         decrypted = sm._decrypt(encrypted, _GID)
         self.assertEqual(decrypted, "test_token")
@@ -386,6 +437,134 @@ class TestMarketHours(unittest.TestCase):
         mock_now = datetime(2025, 11, 22, 10, 0, 0, tzinfo=ist)  # Saturday
         mock_datetime.now.return_value = mock_now
         self.assertFalse(is_market_open_ist())
+
+
+# ---------------------------------------------------------------------------
+# PinRateLimiter tests
+# ---------------------------------------------------------------------------
+
+class TestPinRateLimiter(unittest.TestCase):
+    """Tests for the escalating PIN rate limiter."""
+
+    def setUp(self):
+        self.limiter = PinRateLimiter()
+
+    def test_initial_state_allows_request(self):
+        """Fresh user should be allowed through."""
+        allowed, retry = self.limiter.check("user1")
+        self.assertTrue(allowed)
+        self.assertIsNone(retry)
+
+    def test_failures_below_threshold_no_lockout(self):
+        """Under 3 failures, no lockout is imposed."""
+        for _ in range(2):
+            attempts, lockout = self.limiter.record_failure("user1")
+            self.assertIsNone(lockout)
+        allowed, _ = self.limiter.check("user1")
+        self.assertTrue(allowed)
+
+    def test_three_failures_triggers_lockout(self):
+        """3rd failure triggers the first lockout tier (15 min)."""
+        for _ in range(3):
+            attempts, lockout = self.limiter.record_failure("user1")
+        self.assertEqual(attempts, 3)
+        self.assertEqual(lockout, 15 * 60)
+
+    def test_locked_user_denied(self):
+        """Once locked, check() should deny with retry_after."""
+        for _ in range(3):
+            self.limiter.record_failure("user1")
+        allowed, retry = self.limiter.check("user1")
+        self.assertFalse(allowed)
+        self.assertIsNotNone(retry)
+        self.assertGreater(retry, 0)
+
+    def test_lockout_expiry(self):
+        """After lockout expires, user should be allowed again."""
+        for _ in range(3):
+            self.limiter.record_failure("user1")
+        # Simulate lockout expiry by manipulating the locked_until time
+        self.limiter._state["user1"]["locked_until"] = 0  # already expired
+        allowed, retry = self.limiter.check("user1")
+        self.assertTrue(allowed)
+
+    def test_six_failures_escalates(self):
+        """6th failure triggers second tier (60 min)."""
+        for _ in range(6):
+            attempts, lockout = self.limiter.record_failure("user1")
+        self.assertEqual(attempts, 6)
+        self.assertEqual(lockout, 60 * 60)
+
+    def test_nine_failures_max_tier(self):
+        """9th failure triggers max tier (4 hours)."""
+        for _ in range(9):
+            attempts, lockout = self.limiter.record_failure("user1")
+        self.assertEqual(attempts, 9)
+        self.assertEqual(lockout, 4 * 60 * 60)
+
+    def test_beyond_max_tier_continues_locking(self):
+        """Failures beyond 9 keep getting the max lockout at every 3rd."""
+        for _ in range(12):
+            attempts, lockout = self.limiter.record_failure("user1")
+        self.assertEqual(attempts, 12)
+        self.assertEqual(lockout, 4 * 60 * 60)
+
+    def test_success_clears_state(self):
+        """Successful verification clears all rate-limit state."""
+        for _ in range(2):
+            self.limiter.record_failure("user1")
+        self.limiter.record_success("user1")
+        # Should be back to zero
+        self.assertEqual(self.limiter.get_attempts("user1"), 0)
+        allowed, _ = self.limiter.check("user1")
+        self.assertTrue(allowed)
+
+    def test_clear_resets_state(self):
+        """clear() (e.g. on PIN reset) wipes user state."""
+        for _ in range(3):
+            self.limiter.record_failure("user1")
+        self.limiter.clear("user1")
+        allowed, _ = self.limiter.check("user1")
+        self.assertTrue(allowed)
+        self.assertEqual(self.limiter.get_attempts("user1"), 0)
+
+    def test_per_user_isolation(self):
+        """Rate-limit state for different users is independent."""
+        for _ in range(3):
+            self.limiter.record_failure("user1")
+        # user2 should be unaffected
+        allowed, _ = self.limiter.check("user2")
+        self.assertTrue(allowed)
+        self.assertEqual(self.limiter.get_attempts("user2"), 0)
+
+    def test_thread_safety(self):
+        """Concurrent failures should not corrupt state."""
+        errors = []
+
+        def hammer():
+            try:
+                for _ in range(10):
+                    self.limiter.record_failure("user_concurrent")
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=hammer) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(errors), 0)
+        self.assertEqual(self.limiter.get_attempts("user_concurrent"), 40)
+
+    def test_attempts_not_reset_after_lockout_expiry(self):
+        """Lockout expiry does not reset the attempt counter (cumulative)."""
+        for _ in range(3):
+            self.limiter.record_failure("user1")
+        # Expire the lockout
+        self.limiter._state["user1"]["locked_until"] = 0
+        self.limiter.check("user1")
+        # Counter stays at 3
+        self.assertEqual(self.limiter.get_attempts("user1"), 3)
 
 
 if __name__ == '__main__':

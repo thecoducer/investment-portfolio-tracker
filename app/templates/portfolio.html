@@ -11,7 +11,7 @@
 <link rel="modulepreload" href="/static/js/app.js">
 <link rel="modulepreload" href="/static/js/crud-manager.js">
 </head>
-<body>
+<body{% if not pin_verified %} style=\"overflow:hidden\"{% endif %}>
 <script>
   // Apply saved theme immediately (before first paint) to prevent flash
   (function() {
@@ -19,7 +19,7 @@
     if (t === 'dark') document.body.classList.add('dark-theme');
   })();
 </script>
-<div class="container">
+<div class="container"{% if not pin_verified %} style="visibility:hidden"{% endif %}>
 <header>
 <div class="nav-menu" id="navMenu">
 <button class="nav-menu-btn" onclick="toggleNavMenu(event)">
@@ -627,6 +627,82 @@ By Bank
 
 <!-- App Tour -->
 <div class="app-tour-overlay" id="appTourOverlay"></div>
+
+<!-- Security PIN Overlay — visible by default, hidden by JS when verified -->
+<div class="pin-overlay" id="pinOverlay" style="{% if pin_verified %}display:none{% else %}display:flex{% endif %}">
+  <div class="pin-card">
+    <div class="pin-header">
+      <div class="pin-icon-circle">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      {% if has_pin %}
+      <h2 class="pin-title" id="pinTitle">Enter Security PIN</h2>
+      <p class="pin-subtitle" id="pinSubtitle">Enter your 6-character PIN to unlock your portfolio data.</p>
+      {% else %}
+      <h2 class="pin-title" id="pinTitle">Create Security PIN</h2>
+      <p class="pin-subtitle" id="pinSubtitle">Choose a 6-character alphanumeric PIN to secure your data. This PIN is never stored &mdash; remember it carefully.</p>
+      {% endif %}
+    </div>
+    <div class="pin-body">
+      <!-- Step indicator (setup mode only) -->
+      <div class="pin-step-indicator" id="pinStepIndicator" style="{% if has_pin %}display:none{% endif %}">
+        <span class="pin-step active" id="pinStep1">1</span>
+        <span class="pin-step-line" id="pinStepLine"></span>
+        <span class="pin-step" id="pinStep2">2</span>
+      </div>
+      <div class="pin-input-row" id="pinInputRow">
+        <input type="password" maxlength="1" class="pin-digit" data-idx="0" autocomplete="off">
+        <input type="password" maxlength="1" class="pin-digit" data-idx="1" autocomplete="off">
+        <input type="password" maxlength="1" class="pin-digit" data-idx="2" autocomplete="off">
+        <span class="pin-digit-sep"></span>
+        <input type="password" maxlength="1" class="pin-digit" data-idx="3" autocomplete="off">
+        <input type="password" maxlength="1" class="pin-digit" data-idx="4" autocomplete="off">
+        <input type="password" maxlength="1" class="pin-digit" data-idx="5" autocomplete="off">
+      </div>
+      <!-- Confirm row for setup mode -->
+      <div class="pin-confirm-group" id="pinConfirmGroup" style="display:none">
+        <label class="pin-confirm-label">Confirm PIN</label>
+        <div class="pin-input-row" id="pinConfirmRow">
+          <input type="password" maxlength="1" class="pin-digit" data-idx="0" autocomplete="off">
+          <input type="password" maxlength="1" class="pin-digit" data-idx="1" autocomplete="off">
+          <input type="password" maxlength="1" class="pin-digit" data-idx="2" autocomplete="off">
+          <span class="pin-digit-sep"></span>
+          <input type="password" maxlength="1" class="pin-digit" data-idx="3" autocomplete="off">
+          <input type="password" maxlength="1" class="pin-digit" data-idx="4" autocomplete="off">
+          <input type="password" maxlength="1" class="pin-digit" data-idx="5" autocomplete="off">
+        </div>
+      </div>
+      <p class="pin-info" id="pinInfo" style="{% if has_pin %}display:none{% endif %}">Letters and numbers allowed (a–z, A–Z, 0–9)</p>
+      <div class="pin-error" id="pinError"></div>
+      <button class="pin-submit-btn" id="pinSubmitBtn" disabled>
+        {% if has_pin %}
+        <span class="pin-submit-text" id="pinSubmitText">Unlock</span>
+        {% else %}
+        <span class="pin-submit-text" id="pinSubmitText">Set PIN</span>
+        {% endif %}
+        <span class="pin-submit-spinner" id="pinSubmitSpinner" style="display:none"></span>
+      </button>
+      <button class="pin-forgot-btn" id="pinForgotBtn" style="{% if not has_pin %}display:none{% endif %}">Forgot PIN?</button>
+    </div>
+  </div>
+</div>
+
+<!-- PIN Reset Confirmation Dialog -->
+<div class="pin-reset-dialog" id="pinResetDialog" style="display:none">
+  <div class="pin-reset-card">
+    <div class="pin-reset-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <h3 class="pin-reset-title">Reset Security PIN?</h3>
+    <p class="pin-reset-desc">This will permanently delete all stored credentials and sessions. You&rsquo;ll need to re-add your accounts and set a new PIN.</p>
+    <p class="pin-reset-prompt">Type <strong>reset</strong> to confirm</p>
+    <input type="text" class="pin-reset-input" id="pinResetInput" placeholder="reset" autocomplete="off" spellcheck="false">
+    <div class="pin-reset-actions">
+      <button class="pin-reset-cancel" id="pinResetCancel">Cancel</button>
+      <button class="pin-reset-confirm" id="pinResetConfirm" disabled>Reset Everything</button>
+    </div>
+  </div>
+</div>
 <div class="app-tour-tooltip" id="appTourTooltip">
   <div class="app-tour-tooltip-content" id="appTourContent"></div>
   <div class="app-tour-tooltip-footer">
@@ -641,11 +717,23 @@ By Bank
 <script src="/static/js/nav.js"></script>
 <script>
 // App fetch wrapper — single source for the API identification header.
-window.metronFetch = function(url, options) {
+// Intercepts 403 pin_required responses and shows PIN overlay.
+window.metronFetch = async function(url, options) {
   options = options || {};
   var h = new Headers(options.headers || {});
   h.set('X-Requested-With', 'MetronApp');
-  return fetch(url, Object.assign({}, options, { headers: h }));
+  var resp = await fetch(url, Object.assign({}, options, { headers: h }));
+  if (resp.status === 403 && url.indexOf('/api/pin/') !== 0) {
+    try {
+      var clone = resp.clone();
+      var body = await clone.json();
+      if (body && body.error === 'pin_required' && typeof window.checkAndPromptPin === 'function') {
+        await window.checkAndPromptPin();
+        return fetch(url, Object.assign({}, options, { headers: h }));
+      }
+    } catch(e) { /* ignore */ }
+  }
+  return resp;
 };
 </script>
 <script src="/static/js/portfolio-ui.js"></script>

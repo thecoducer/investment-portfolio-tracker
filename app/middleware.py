@@ -99,3 +99,25 @@ def protected_api(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+def pin_required(f):
+    """Require authentication, app-origin, *and* a verified security PIN.
+
+    Returns a JSON ``{"error": "pin_required"}`` with status 403 when the
+    user hasn't entered their PIN yet.  The frontend uses this to show the
+    PIN overlay.
+    """
+
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not _is_authenticated():
+            return jsonify({"error": "Authentication required"}), 401
+        denied = _deny_non_app_request()
+        if denied:
+            return denied
+        if not session.get("pin_verified"):
+            return jsonify({"error": "pin_required"}), 403
+        return f(*args, **kwargs)
+
+    return decorated_function

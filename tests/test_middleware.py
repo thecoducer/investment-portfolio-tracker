@@ -35,6 +35,7 @@ def _inject_user(client, user=None):
     """Inject a user into the Flask session for authenticated requests."""
     with client.session_transaction() as sess:
         sess["user"] = user or _TEST_USER
+        sess["pin_verified"] = True
 
 
 class TestLoginRequired(unittest.TestCase):

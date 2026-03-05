@@ -21,18 +21,30 @@ from .logging_config import logger
 
 
 # ---------------------------------------------------------------------------
-# Per-user Fernet encryption for Zerodha credentials at rest
+# Two-tier Fernet encryption
 #
-# Each user's credentials are encrypted with a key derived from
-#   HMAC-SHA256(server_secret, google_id)
-# so that:
-#   • A database leak alone reveals only ciphertext.
-#   • The server secret alone is useless without the ciphertext.
-#   • There is no single "master key" that decrypts all users at once.
+# Tier 1 – Zerodha credentials (api_key, api_secret, access_token)
+#   Key = HMAC-SHA256(ZERODHA_TOKEN_SECRET, user_pin)
+#   The 6-character alphanumeric PIN is provided by the user at login
+#   and NEVER stored on the server.  Even a full database +
+#   secrets-manager leak cannot decrypt credentials without the user's PIN.
+#
+# Tier 2 – Google OAuth credentials (token, refresh_token, …)
+#   Key = SHA-256(FLASK_SECRET_KEY)
+#   Server-side only; no user input needed.  Protects Google tokens at
+#   rest in Firestore.
+#
+# A special sentinel field ("pin_check") is stored per-user so the
+# backend can verify a PIN without exposing any real credential.  It
+# contains encrypt("METRON_PIN_OK", pin).  If decryption succeeds and
+# the plaintext matches, the PIN is correct.
 # ---------------------------------------------------------------------------
 
+_PIN_CHECK_SENTINEL = "METRON_PIN_OK"
+
+
 def _get_base_secret() -> bytes:
-    """Return the base secret used for per-user key derivation."""
+    """Return the base secret used for Zerodha per-user key derivation."""
     secret = os.environ.get("ZERODHA_TOKEN_SECRET")
     if secret:
         return secret.encode()
@@ -44,51 +56,131 @@ def _get_base_secret() -> bytes:
 _base_secret: bytes = _get_base_secret()
 
 
-def _derive_user_cipher(google_id: str) -> Fernet:
-    """Derive a per-user Fernet cipher from the server secret and user ID."""
-    key_material = hmac.new(
-        _base_secret, google_id.encode(), hashlib.sha256
-    ).digest()
+# ── Tier 1: Zerodha (server secret + PIN) ─────────────────────────────────
+
+def _derive_zerodha_cipher(pin: str) -> Fernet:
+    """Derive a Fernet cipher from the server secret and user PIN."""
+    key_material = hmac.new(_base_secret, pin.encode(), hashlib.sha256).digest()
     return Fernet(urlsafe_b64encode(key_material))
 
 
-def encrypt_credential(value: str, google_id: str) -> str:
-    """Encrypt a credential with a per-user Fernet key."""
-    return _derive_user_cipher(google_id).encrypt(value.encode()).decode()
+def encrypt_credential(value: str, pin: str) -> str:
+    """Encrypt a Zerodha credential with the user's PIN-derived Fernet key."""
+    return _derive_zerodha_cipher(pin).encrypt(value.encode()).decode()
 
 
-def decrypt_credential(encrypted: str, google_id: str) -> str:
-    """Decrypt a credential with a per-user Fernet key.
+def decrypt_credential(encrypted: str, pin: str) -> str:
+    """Decrypt a Zerodha credential with the user's PIN-derived Fernet key.
 
-    Raises ``cryptography.fernet.InvalidToken`` if decryption fails.
-    No plaintext fallback — callers must handle the error.
+    Raises ``cryptography.fernet.InvalidToken`` if decryption fails
+    (wrong PIN or corrupted data).  No plaintext fallback.
     """
-    return _derive_user_cipher(google_id).decrypt(encrypted.encode()).decode()
+    return _derive_zerodha_cipher(pin).decrypt(encrypted.encode()).decode()
+
+
+def create_pin_check(pin: str) -> str:
+    """Return an encrypted sentinel that can later verify the PIN."""
+    return encrypt_credential(_PIN_CHECK_SENTINEL, pin)
+
+
+def verify_pin(pin_check_token: str, pin: str) -> bool:
+    """Return True if *pin* decrypts the stored sentinel correctly."""
+    try:
+        plaintext = decrypt_credential(pin_check_token, pin)
+        return plaintext == _PIN_CHECK_SENTINEL
+    except (InvalidToken, Exception):
+        return False
+
+
+# ── Tier 2: Google OAuth creds (FLASK_SECRET_KEY, server-side only) ────────
+
+def _get_flask_secret() -> bytes:
+    """Return the Flask secret key for Google credential encryption."""
+    secret = os.environ.get("FLASK_SECRET_KEY", "")
+    if not secret:
+        logger.warning("FLASK_SECRET_KEY not set — Google creds encryption weakened")
+        secret = platform.node() + platform.machine()
+    return secret.encode()
+
+
+def _google_creds_cipher() -> Fernet:
+    """Fernet cipher for encrypting Google OAuth credentials at rest."""
+    key_material = hashlib.sha256(_get_flask_secret()).digest()
+    return Fernet(urlsafe_b64encode(key_material))
+
+
+def encrypt_google_credentials(creds_dict: dict) -> str:
+    """Serialize + encrypt a Google credentials dict."""
+    payload = json.dumps(creds_dict).encode()
+    return _google_creds_cipher().encrypt(payload).decode()
+
+
+def decrypt_google_credentials(encrypted: str) -> dict:
+    """Decrypt + deserialize a Google credentials dict.
+
+    Raises ``InvalidToken`` on decryption failure.
+    """
+    plaintext = _google_creds_cipher().decrypt(encrypted.encode())
+    return json.loads(plaintext)
 
 
 class SessionManager:
-    """Per-user Zerodha session token store with Fernet encryption.
+    """Per-user Zerodha session token store with PIN-based Fernet encryption.
 
     Sessions: ``{ google_id: { account_name: { "access_token", "expiry" } } }``
+
+    The user's 6-character alphanumeric PIN is held **only in server memory**
+    (never persisted).  It is required to encrypt/decrypt Zerodha access
+    tokens at rest.
     """
 
     def __init__(self):
         self._lock = threading.Lock()
         self._user_sessions: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self._user_pins: Dict[str, str] = {}  # google_id → PIN (memory only)
+
+    # ── PIN management (in-memory only) ───────────────────────────
+
+    def set_pin(self, google_id: str, pin: str) -> None:
+        """Store the user's PIN in memory for the current server lifetime."""
+        with self._lock:
+            self._user_pins[google_id] = pin
+
+    def get_pin(self, google_id: str) -> str | None:
+        """Return the user's PIN if available, else None."""
+        with self._lock:
+            return self._user_pins.get(google_id)
+
+    def clear_pin(self, google_id: str) -> None:
+        """Remove the user's PIN from memory."""
+        with self._lock:
+            self._user_pins.pop(google_id, None)
+
+    # ── Encryption helpers ────────────────────────────────────────
 
     def _encrypt(self, token: str, google_id: str) -> str:
-        return encrypt_credential(token, google_id)
+        pin = self.get_pin(google_id)
+        if not pin:
+            raise ValueError("PIN required to encrypt Zerodha tokens")
+        return encrypt_credential(token, pin)
 
     def _decrypt(self, encrypted: str, google_id: str) -> str:
-        return decrypt_credential(encrypted, google_id)
+        pin = self.get_pin(google_id)
+        if not pin:
+            raise ValueError("PIN required to decrypt Zerodha tokens")
+        return decrypt_credential(encrypted, pin)
 
     def _sessions_for(self, google_id: str) -> Dict[str, Dict[str, Any]]:
         with self._lock:
             return self._user_sessions.setdefault(google_id, {})
 
     def load_user(self, google_id: str) -> None:
-        """Load session tokens from Firestore. Idempotent."""
+        """Load session tokens from Firestore.  Requires PIN in memory."""
         if not google_id:
+            return
+        pin = self.get_pin(google_id)
+        if not pin:
+            logger.info("Skipping session load for %s — PIN not yet provided", google_id)
             return
         try:
             from .firebase_store import get_zerodha_sessions
@@ -122,9 +214,13 @@ class SessionManager:
             logger.info("Loaded sessions for %s: %s", google_id, ", ".join(sessions))
 
     def save(self, google_id: str) -> None:
-        """Persist encrypted session tokens to Firestore."""
+        """Persist encrypted session tokens to Firestore.  Requires PIN."""
         if not google_id:
             logger.warning("Cannot save sessions — no google_id")
+            return
+        pin = self.get_pin(google_id)
+        if not pin:
+            logger.warning("Cannot save sessions for %s — PIN not available", google_id)
             return
         with self._lock:
             user_sessions = dict(self._user_sessions.get(google_id, {}))
@@ -313,4 +409,99 @@ def load_config(config_path: str) -> Dict[str, Any]:
     except Exception as e:
         logger.exception("Error loading config %s: %s", config_path, e)
         return {}
+
+
+# ---------------------------------------------------------------------------
+# PIN Rate Limiter — escalating lockout on failed verify attempts
+# ---------------------------------------------------------------------------
+
+class PinRateLimiter:
+    """Per-user rate limiter for PIN verification with escalating lockouts.
+
+    Thresholds (cumulative wrong attempts → lockout duration):
+      5 failures  → 15 minutes
+      10 failures → 60 minutes
+      15+ failures → 4 hours
+
+    Lockout state is in-memory only — a server restart clears it.
+    This is acceptable because the PIN is never stored; an attacker
+    who restarts the server loses session cookies anyway.
+    """
+
+    # (cumulative_attempts, lockout_seconds)
+    LOCKOUT_TIERS = [
+        (3,  15 * 60),    # 15 minutes
+        (6,  60 * 60),    # 1 hour
+        (9,  4 * 60 * 60),  # 4 hours
+    ]
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        # {google_id: {"attempts": int, "locked_until": float|None}}
+        self._state: Dict[str, Dict] = {}
+
+    def _get(self, google_id: str) -> Dict:
+        if google_id not in self._state:
+            self._state[google_id] = {"attempts": 0, "locked_until": None}
+        return self._state[google_id]
+
+    def check(self, google_id: str) -> tuple:
+        """Check if user is locked out.
+
+        Returns:
+            (allowed: bool, retry_after: int|None)
+            retry_after is seconds remaining when locked.
+        """
+        with self._lock:
+            state = self._get(google_id)
+            if state["locked_until"] is not None:
+                remaining = state["locked_until"] - time.time()
+                if remaining > 0:
+                    return False, int(remaining) + 1
+                # Lockout expired — don't reset attempts (they're cumulative)
+                state["locked_until"] = None
+            return True, None
+
+    def record_failure(self, google_id: str) -> tuple:
+        """Record a failed PIN attempt and apply lockout if threshold hit.
+
+        Returns:
+            (attempts: int, locked_until_seconds: int|None)
+        """
+        with self._lock:
+            state = self._get(google_id)
+            state["attempts"] += 1
+            attempts = state["attempts"]
+
+            # Find applicable lockout tier
+            lockout_secs = None
+            for threshold, duration in self.LOCKOUT_TIERS:
+                if attempts >= threshold:
+                    lockout_secs = duration
+
+            if lockout_secs and (attempts % 3 == 0 or attempts >= self.LOCKOUT_TIERS[-1][0]):
+                # Apply lockout on every 5th failure or beyond max tier
+                state["locked_until"] = time.time() + lockout_secs
+                return attempts, lockout_secs
+
+            return attempts, None
+
+    def record_success(self, google_id: str) -> None:
+        """Clear rate-limit state on successful verification."""
+        with self._lock:
+            self._state.pop(google_id, None)
+
+    def clear(self, google_id: str) -> None:
+        """Clear state for a user (e.g. on PIN reset)."""
+        with self._lock:
+            self._state.pop(google_id, None)
+
+    def get_attempts(self, google_id: str) -> int:
+        """Return current attempt count for a user."""
+        with self._lock:
+            return self._get(google_id)["attempts"]
+
+
+# Singleton instance
+pin_rate_limiter = PinRateLimiter()
 

@@ -51,7 +51,14 @@ class PortfolioApp {
       this._renderEmptyStates();
       this._hasInitialData = false;
     }
-    
+
+    // Check if a security PIN is required before connecting SSE and
+    // fetching broker data.  The overlay blocks until the user enters
+    // their PIN (or sets one up for the first time).
+    if (typeof window.checkAndPromptPin === 'function') {
+      await window.checkAndPromptPin();
+    }
+
     // Connect SSE for live status updates
     this.connectEventSource();
     

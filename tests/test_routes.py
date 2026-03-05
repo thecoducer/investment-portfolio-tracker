@@ -27,6 +27,7 @@ def _inject_user(client, user=None):
     """Inject a user into the Flask session for authenticated requests."""
     with client.session_transaction() as sess:
         sess["user"] = user or _TEST_USER
+        sess["pin_verified"] = True
 
 
 class TestUIServerRoutes(unittest.TestCase):
@@ -324,3 +325,92 @@ class TestJsonResponse(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# PIN Verify Rate Limiting Integration Tests
+# ---------------------------------------------------------------------------
+
+class TestPinVerifyRateLimiting(unittest.TestCase):
+    """Integration tests for the rate-limited /api/pin/verify endpoint."""
+
+    def setUp(self):
+        self.client = app_ui.test_client()
+        app_ui.testing = True
+
+    def _inject_user(self, pin_verified=False):
+        with self.client.session_transaction() as sess:
+            sess["user"] = _TEST_USER
+            if pin_verified:
+                sess["pin_verified"] = True
+
+    def _verify(self, pin="abc123"):
+        return self.client.post(
+            "/api/pin/verify",
+            headers={**_APP_HEADERS, "Content-Type": "application/json"},
+            data=json.dumps({"pin": pin}),
+        )
+
+    @patch("app.routes.verify_user_pin", return_value=False)
+    @patch("app.routes.pin_rate_limiter")
+    def test_lockout_returns_429(self, mock_limiter, mock_verify_pin):
+        """When user is locked out, endpoint returns 429 with retry_after."""
+        mock_limiter.check.return_value = (False, 900)
+        self._inject_user()
+        resp = self._verify()
+        self.assertEqual(resp.status_code, 429)
+        data = json.loads(resp.data)
+        self.assertTrue(data["locked"])
+        self.assertEqual(data["retry_after"], 900)
+        self.assertEqual(resp.headers.get("Retry-After"), "900")
+
+    @patch("app.routes.ensure_user_loaded")
+    @patch("app.routes.session_manager")
+    @patch("app.routes.verify_user_pin", return_value=True)
+    @patch("app.routes.pin_rate_limiter")
+    def test_success_clears_limiter(self, mock_limiter, mock_verify_pin,
+                                     mock_sm, mock_eul):
+        """Successful verify calls record_success to clear rate state."""
+        mock_limiter.check.return_value = (True, None)
+        self._inject_user()
+        resp = self._verify()
+        self.assertEqual(resp.status_code, 200)
+        mock_limiter.record_success.assert_called_once_with(_TEST_USER["google_id"])
+
+    @patch("app.routes.verify_user_pin", return_value=False)
+    @patch("app.routes.pin_rate_limiter")
+    def test_failure_records_attempt(self, mock_limiter, mock_verify_pin):
+        """Failed verify calls record_failure."""
+        mock_limiter.check.return_value = (True, None)
+        mock_limiter.record_failure.return_value = (3, None)
+        self._inject_user()
+        resp = self._verify()
+        self.assertEqual(resp.status_code, 401)
+        data = json.loads(resp.data)
+        self.assertEqual(data["attempts"], 3)
+        mock_limiter.record_failure.assert_called_once_with(_TEST_USER["google_id"])
+
+    @patch("app.routes.verify_user_pin", return_value=False)
+    @patch("app.routes.pin_rate_limiter")
+    def test_failure_at_threshold_returns_429(self, mock_limiter, mock_verify_pin):
+        """When record_failure returns a lockout, endpoint returns 429."""
+        mock_limiter.check.return_value = (True, None)
+        mock_limiter.record_failure.return_value = (5, 900)
+        self._inject_user()
+        resp = self._verify()
+        self.assertEqual(resp.status_code, 429)
+        data = json.loads(resp.data)
+        self.assertTrue(data["locked"])
+        self.assertEqual(data["retry_after"], 900)
+
+    @patch("app.routes.reset_zerodha_data")
+    @patch("app.routes.pin_rate_limiter")
+    @patch("app.routes.session_manager")
+    @patch("app.routes.portfolio_cache")
+    def test_pin_reset_clears_rate_limiter(self, mock_pcache, mock_sm,
+                                            mock_limiter, mock_reset):
+        """PIN reset must clear the rate limiter for the user."""
+        self._inject_user(pin_verified=True)
+        resp = self.client.post("/api/pin/reset", headers=_APP_HEADERS)
+        self.assertEqual(resp.status_code, 200)
+        mock_limiter.clear.assert_called_once_with(_TEST_USER["google_id"])

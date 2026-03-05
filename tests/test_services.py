@@ -157,8 +157,10 @@ class TestEnsureUserLoaded(unittest.TestCase):
 class TestGetUserAccounts(unittest.TestCase):
     """Test get_user_accounts helper."""
 
+    @patch('app.services.session_manager')
     @patch('app.services.get_zerodha_accounts', create=True)
-    def test_returns_accounts_for_user(self, mock_get):
+    def test_returns_accounts_for_user(self, mock_get, mock_sm):
+        mock_sm.get_pin.return_value = "123456"
         mock_get.return_value = [{"name": "Acc1"}, {"name": "Acc2"}]
         with patch('app.firebase_store.get_zerodha_accounts', mock_get):
             result = get_user_accounts("user123")

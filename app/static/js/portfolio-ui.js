@@ -170,6 +170,18 @@ function removeDrawerAccount(name) {
     status.textContent = '';
     status.className = 'drawer-save-status';
     try {
+      // Ensure user has a security PIN before saving credentials.
+      // If no PIN is set up, the setup overlay will show first.
+      if (typeof window.checkAndPromptPin === 'function') {
+        const pinOk = await window.checkAndPromptPin();
+        // checkAndPromptPin returns false when no accounts exist AND no
+        // PIN has been set.  In that case, prompt for PIN setup explicitly
+        // before the first save (the save needs a PIN on the backend).
+        if (!pinOk && typeof window.showPinSetup === 'function') {
+          await window.showPinSetup();
+        }
+      }
+
       const resp = await window.metronFetch('/api/settings/zerodha', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -486,4 +498,394 @@ function removeDrawerAccount(name) {
     const tourDelay = window.__INITIAL_DATA__ ? 2500 : 4500;
     setTimeout(() => showStep(0), tourDelay);
   }
+})();
+
+// ─── Security PIN Management ──────────────────────────────────
+
+(function() {
+  const overlay  = document.getElementById('pinOverlay');
+  const title    = document.getElementById('pinTitle');
+  const subtitle = document.getElementById('pinSubtitle');
+  const inputRow = document.getElementById('pinInputRow');
+  const confirmGroup = document.getElementById('pinConfirmGroup');
+  const confirmRow = document.getElementById('pinConfirmRow');
+  const errorEl  = document.getElementById('pinError');
+  const submitBtn = document.getElementById('pinSubmitBtn');
+  const submitText = document.getElementById('pinSubmitText');
+  const submitSpinner = document.getElementById('pinSubmitSpinner');
+  const forgotBtn = document.getElementById('pinForgotBtn');
+  const infoEl   = document.getElementById('pinInfo');
+  const stepIndicator = document.getElementById('pinStepIndicator');
+  const step1 = document.getElementById('pinStep1');
+  const step2 = document.getElementById('pinStep2');
+  const stepLine = document.getElementById('pinStepLine');
+  const resetDialog = document.getElementById('pinResetDialog');
+  const resetCancel = document.getElementById('pinResetCancel');
+  const resetConfirm = document.getElementById('pinResetConfirm');
+  const resetInput = document.getElementById('pinResetInput');
+
+  if (!overlay) return;
+
+  let mode = 'verify'; // 'verify' | 'setup'
+  let _onComplete = null;
+  let _wrongAttempts = 0;
+
+  const _wrongPinMessages = [
+    'Hmm, that\'s not it.',
+    'Nope — give it another shot.',
+    'Still not right. Think carefully…',
+    'That PIN doesn\'t ring a bell.',
+    'Three strikes? Keep trying.',
+    'The vault remains sealed.',
+    'Not quite. You\'ve got this.',
+    'Wrong key, wrong door.',
+  ];
+
+  // ── Helpers ──
+
+  function getDigits(row) {
+    return Array.from(row.querySelectorAll('.pin-digit')).map(i => i.value).join('');
+  }
+
+  function clearRow(row) {
+    row.querySelectorAll('.pin-digit').forEach(i => {
+      i.value = '';
+      i.classList.remove('pin-digit-filled');
+    });
+  }
+
+  function clearAll() {
+    clearRow(inputRow);
+    if (confirmRow) clearRow(confirmRow);
+    errorEl.textContent = '';
+    submitBtn.disabled = true;
+  }
+
+  function flashError(row) {
+    // Shake the row
+    row.classList.add('pin-shake');
+    // Red-flash each digit
+    row.querySelectorAll('.pin-digit').forEach(d => d.classList.add('pin-digit-error'));
+    // Remove classes after animation completes so it can re-trigger
+    setTimeout(() => {
+      row.classList.remove('pin-shake');
+      row.querySelectorAll('.pin-digit').forEach(d => d.classList.remove('pin-digit-error'));
+    }, 600);
+  }
+
+  function wireDigitInputs(row, { onRowComplete } = {}) {
+    const inputs = row.querySelectorAll('.pin-digit');
+    inputs.forEach((inp, i) => {
+      inp.addEventListener('input', () => {
+        inp.value = inp.value.replace(/[^a-zA-Z0-9]/g, '').slice(-1);
+        // Toggle filled-state styling
+        inp.classList.toggle('pin-digit-filled', !!inp.value);
+        if (inp.value && i < inputs.length - 1) {
+          inputs[i + 1].focus();
+        } else if (inp.value && i === inputs.length - 1 && onRowComplete) {
+          onRowComplete();
+        }
+        updateSubmitState();
+      });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !inp.value && i > 0) {
+          inputs[i - 1].focus();
+          inputs[i - 1].value = '';
+          updateSubmitState();
+        }
+        if (e.key === 'Enter') submitBtn.click();
+      });
+      inp.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const paste = (e.clipboardData.getData('text') || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6);
+        for (let j = 0; j < paste.length && (i + j) < inputs.length; j++) {
+          inputs[i + j].value = paste[j];
+        }
+        const nextEmpty = Array.from(inputs).findIndex(el => !el.value);
+        if (nextEmpty >= 0) {
+          inputs[nextEmpty].focus();
+        } else {
+          inputs[inputs.length - 1].focus();
+          if (onRowComplete) onRowComplete();
+        }
+        updateSubmitState();
+      });
+    });
+  }
+
+  function revealConfirmGroup() {
+    if (mode !== 'setup' || confirmGroup.style.display !== 'none') return;
+    confirmGroup.style.display = '';
+    confirmGroup.classList.remove('pin-confirm-reveal');
+    void confirmGroup.offsetWidth; // reflow
+    confirmGroup.classList.add('pin-confirm-reveal');
+    // Mark first row as complete in step indicator
+    if (step1) step1.classList.add('done');
+    if (stepLine) stepLine.classList.add('active');
+    if (step2) step2.classList.add('active');
+    // Give completed row a subtle glow
+    inputRow.classList.add('pin-row-done');
+    // Focus first confirm input after the animation starts
+    setTimeout(() => {
+      const first = confirmRow.querySelector('.pin-digit');
+      if (first) first.focus();
+    }, 120);
+  }
+
+  wireDigitInputs(inputRow, { onRowComplete: revealConfirmGroup });
+  if (confirmRow) wireDigitInputs(confirmRow);
+
+  function updateSubmitState() {
+    if (_lockoutTimer) return; // locked out — keep disabled
+    const pin = getDigits(inputRow);
+    if (mode === 'setup') {
+      const confirm = getDigits(confirmRow);
+      submitBtn.disabled = pin.length !== 6 || confirm.length !== 6;
+    } else {
+      submitBtn.disabled = pin.length !== 6;
+    }
+  }
+
+  let _lockoutTimer = null;
+
+  function startLockout(seconds) {
+    // Disable all inputs during lockout
+    inputRow.querySelectorAll('.pin-digit').forEach(d => d.disabled = true);
+    submitBtn.disabled = true;
+    forgotBtn.style.display = '';
+
+    function tick() {
+      if (seconds <= 0) {
+        clearInterval(_lockoutTimer);
+        _lockoutTimer = null;
+        inputRow.querySelectorAll('.pin-digit').forEach(d => d.disabled = false);
+        errorEl.textContent = '';
+        clearAll();
+        inputRow.querySelector('.pin-digit')?.focus();
+        return;
+      }
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      const timeStr = mins > 0
+        ? `${mins}m ${secs.toString().padStart(2, '0')}s`
+        : `${secs}s`;
+      errorEl.innerHTML = '<span class="pin-lockout-msg">Try again in <strong>' + timeStr + '</strong></span>';
+      seconds--;
+    }
+
+    tick();
+    _lockoutTimer = setInterval(tick, 1000);
+  }
+
+  function setLoading(loading) {
+    submitBtn.disabled = loading;
+    submitText.style.display = loading ? 'none' : '';
+    submitSpinner.style.display = loading ? 'inline-block' : 'none';
+  }
+
+  // ── Show / Hide ──
+
+  function showOverlay(overlayMode, onComplete) {
+    mode = overlayMode;
+    _onComplete = onComplete;
+    clearAll();
+
+    if (mode === 'setup') {
+      title.textContent = 'Create Security PIN';
+      subtitle.textContent = 'Choose a 6-character alphanumeric PIN to secure your data. This PIN is never stored — remember it carefully.';
+      submitText.textContent = 'Set PIN';
+      if (infoEl) infoEl.style.display = '';
+      // Don't reveal confirm group yet — it slides in after first row is complete
+      confirmGroup.style.display = 'none';
+      confirmGroup.classList.remove('pin-confirm-reveal');
+      inputRow.classList.remove('pin-row-done');
+      forgotBtn.style.display = 'none';
+      // Show step indicator
+      if (stepIndicator) stepIndicator.style.display = '';
+      if (step1) { step1.classList.add('active'); step1.classList.remove('done'); }
+      if (step2) step2.classList.remove('active');
+      if (stepLine) stepLine.classList.remove('active');
+    } else {
+      title.textContent = 'Enter Security PIN';
+      subtitle.textContent = 'Enter your 6-character PIN to unlock your portfolio data.';
+      submitText.textContent = 'Unlock';
+      confirmGroup.style.display = 'none';
+      forgotBtn.style.display = '';
+      if (infoEl) infoEl.style.display = 'none';
+      _wrongAttempts = 0;
+      // Hide step indicator for verify mode
+      if (stepIndicator) stepIndicator.style.display = 'none';
+    }
+
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+    // Focus first input after transition
+    requestAnimationFrame(() => {
+      const first = inputRow.querySelector('.pin-digit');
+      if (first) first.focus();
+    });
+  }
+
+  function hideOverlay() {
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+    // Reveal the dashboard content that was hidden to prevent flash
+    const container = document.querySelector('.container');
+    if (container) container.style.visibility = '';
+    if (_lockoutTimer) { clearInterval(_lockoutTimer); _lockoutTimer = null; }
+    inputRow.querySelectorAll('.pin-digit').forEach(d => d.disabled = false);
+    clearAll();
+  }
+
+  // ── Submit ──
+
+  submitBtn.addEventListener('click', async () => {
+    errorEl.textContent = '';
+    const pin = getDigits(inputRow);
+
+    if (pin.length !== 6) return; // button should be disabled — guard only
+
+    if (mode === 'setup') {
+      const confirm = getDigits(confirmRow);
+      if (confirm.length !== 6) return; // guard only
+      if (pin !== confirm) {
+        errorEl.innerHTML = '<span class="pin-mismatch-msg">PINs do not match — try again</span>';
+        flashError(confirmRow);
+        clearRow(confirmRow);
+        confirmRow.querySelector('.pin-digit').focus();
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      const endpoint = mode === 'setup' ? '/api/pin/setup' : '/api/pin/verify';
+      const resp = await window.metronFetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        if (data.locked && data.retry_after) {
+          // Server-enforced lockout — start countdown
+          flashError(inputRow);
+          clearAll();
+          startLockout(data.retry_after);
+          return;
+        }
+        if (mode === 'verify') {
+          _wrongAttempts = data.attempts || (_wrongAttempts + 1);
+          const msg = _wrongPinMessages[(_wrongAttempts - 1) % _wrongPinMessages.length];
+          errorEl.innerHTML = msg + (_wrongAttempts >= 2
+            ? ' <span class="pin-attempt-count">' + _wrongAttempts + ' attempt' + (_wrongAttempts !== 1 ? 's' : '') + '</span>'
+            : '');
+        } else {
+          errorEl.textContent = data.error || 'Setup failed';
+        }
+        flashError(inputRow);
+        clearAll();
+        inputRow.querySelector('.pin-digit').focus();
+        return;
+      }
+      _wrongAttempts = 0;
+      hideOverlay();
+      if (_onComplete) _onComplete();
+    } catch {
+      errorEl.textContent = 'Network error — try again';
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  // ── Forgot PIN ──
+
+  forgotBtn.addEventListener('click', () => {
+    resetInput.value = '';
+    resetConfirm.disabled = true;
+    resetDialog.style.display = 'flex';
+    requestAnimationFrame(() => resetInput.focus());
+  });
+
+  resetInput.addEventListener('input', () => {
+    const matched = resetInput.value.trim().toLowerCase() === 'reset';
+    resetConfirm.disabled = !matched;
+    resetInput.classList.toggle('matched', matched);
+  });
+
+  resetInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !resetConfirm.disabled) resetConfirm.click();
+  });
+
+  resetCancel.addEventListener('click', () => {
+    resetDialog.style.display = 'none';
+  });
+
+  resetConfirm.addEventListener('click', async () => {
+    resetConfirm.disabled = true;
+    resetConfirm.textContent = 'Resetting…';
+    try {
+      const resp = await window.metronFetch('/api/pin/reset', { method: 'POST' });
+      if (!resp.ok) throw new Error();
+      // Close reset dialog and transition directly to setup mode
+      // (no reload — avoids dashboard flash)
+      resetDialog.style.display = 'none';
+      showOverlay('setup', () => {
+        // After new PIN is set, reload to fetch fresh data
+        window.location.reload();
+      });
+    } catch {
+      alert('Reset failed — please try again.');
+    } finally {
+      resetConfirm.disabled = false;
+      resetConfirm.textContent = 'Reset Everything';
+    }
+  });
+
+  // ── Keyboard: close reset dialog on Escape ──
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && resetDialog.style.display !== 'none') {
+      resetDialog.style.display = 'none';
+    }
+  });
+
+  // ── Global API: check PIN and show overlay if needed ──
+
+  /**
+   * Check PIN status and show the overlay if needed.
+   * Returns a promise that resolves when the user is either:
+   *  a) already PIN-verified, or
+   *  b) has just completed PIN entry/setup via the overlay
+   * Returns false if no PIN is needed (no Zerodha accounts).
+   */
+  window.checkAndPromptPin = async function() {
+    try {
+      const resp = await window.metronFetch('/api/pin/status');
+      if (!resp.ok) return false;
+      const data = await resp.json();
+
+      if (data.pin_verified) {
+        hideOverlay();
+        return true;
+      }
+
+      return new Promise((resolve) => {
+        const overlayMode = data.has_pin ? 'verify' : 'setup';
+        showOverlay(overlayMode, () => resolve(true));
+      });
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * Show the PIN setup overlay for newly added accounts.
+   * Called from the settings drawer when adding the first Zerodha account
+   * without a PIN set up yet.
+   */
+  window.showPinSetup = function() {
+    return new Promise((resolve) => {
+      showOverlay('setup', () => resolve(true));
+    });
+  };
 })();

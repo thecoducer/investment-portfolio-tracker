@@ -167,7 +167,9 @@ class TestIntegration(unittest.TestCase):
     def test_session_token_workflow(self):
         """Test session token caching workflow via Firestore"""
         google_id = "test_user_123"
+        pin = "123456"
         session_manager = SessionManager()
+        session_manager.set_pin(google_id, pin)
 
         # Save token
         session_manager.set_token(google_id, "Account1", "token123")
@@ -180,6 +182,7 @@ class TestIntegration(unittest.TestCase):
 
         # New instance loads the stored data
         new_session_manager = SessionManager()
+        new_session_manager.set_pin(google_id, pin)
         with patch('app.firebase_store.get_zerodha_sessions', return_value=stored):
             new_session_manager.load_user(google_id)
 

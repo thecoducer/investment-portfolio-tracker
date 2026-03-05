@@ -372,11 +372,29 @@ function isETFInstrument(symbol, isin, manualType) {
 /**
  * Fetch wrapper that attaches the app identification header.
  * Use this for every API call instead of raw ``fetch()``.
+ *
+ * Also intercepts 403 "pin_required" responses and triggers the PIN
+ * overlay so the user can re-enter their PIN.
  */
-function metronFetch(url, options = {}) {
+async function metronFetch(url, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set('X-Requested-With', 'MetronApp');
-  return fetch(url, { ...options, headers });
+  const resp = await fetch(url, { ...options, headers });
+
+  // Intercept PIN-required 403 (but only for API calls, not the PIN
+  // endpoints themselves, to avoid infinite loops).
+  if (resp.status === 403 && !url.startsWith('/api/pin/')) {
+    try {
+      const clone = resp.clone();
+      const body = await clone.json();
+      if (body && body.error === 'pin_required' && typeof window.checkAndPromptPin === 'function') {
+        await window.checkAndPromptPin();
+        // Retry the original request after PIN entry
+        return fetch(url, { ...options, headers });
+      }
+    } catch { /* not JSON or network error — fall through */ }
+  }
+  return resp;
 }
 
 window.metronFetch = metronFetch;

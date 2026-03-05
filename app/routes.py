@@ -18,11 +18,13 @@ from .constants import (HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL,
                          PORTFOLIO_TABLE_ROW_LIMIT,
                          SSE_KEEPALIVE_INTERVAL, SSE_TOKEN_MAX_AGE)
 from .logging_config import logger
-from .middleware import app_only, login_required, protected_api
+from .middleware import app_only, login_required, pin_required, protected_api
 from .services import (_build_status_response, broadcast_state_change,
                        ensure_user_loaded, get_authenticated_accounts,
                        get_user_accounts, session_manager, sse_manager)
 from .sse import EVICT_SENTINEL, SSE_MAX_CONNECTION_AGE, SSE_QUEUE_SIZE, SSE_RETRY_MS
+from .firebase_store import reset_zerodha_data, verify_user_pin
+from .utils import pin_rate_limiter
 
 # ---------------------------------------------------------------------------
 # Cloud Run direct URL for SSE (bypasses Firebase Hosting CDN buffering)
@@ -177,6 +179,28 @@ def _current_user() -> Optional[Dict[str, Any]]:
     return session.get("user")
 
 
+def _get_google_creds_dict(user: Optional[Dict[str, Any]] = None) -> Optional[dict]:
+    """Return decrypted Google OAuth credentials for the current/given user.
+
+    Checks the session first (populated at OAuth callback) and falls back
+    to the encrypted copy in Firestore when the session value is missing or
+    is already an encrypted string.
+    """
+    if user is None:
+        user = _current_user()
+    if not user:
+        return None
+
+    creds = user.get("google_credentials")
+    # The session stores creds as a plain dict right after OAuth login.
+    if isinstance(creds, dict):
+        return creds
+
+    # Fallback: fetch & decrypt from Firestore
+    from .firebase_store import get_google_credentials
+    return get_google_credentials(user.get("google_id", ""))
+
+
 _user_fetch_locks: Dict[str, threading.Lock] = {}
 _user_fetch_locks_guard = threading.Lock()
 _USER_FETCH_LOCKS_MAX = 500  # prevent unbounded growth
@@ -197,7 +221,7 @@ def _fetch_user_sheets_data(user):
     """Return (physical_gold, fixed_deposits) with TTL caching and per-user locking."""
     google_id = user.get("google_id", "")
     spreadsheet_id = user.get("spreadsheet_id")
-    creds_dict = user.get("google_credentials")
+    creds_dict = _get_google_creds_dict(user)
     if not spreadsheet_id or not creds_dict:
         return None, None
 
@@ -223,7 +247,7 @@ def _fetch_manual_entries(user, sheet_type):
 
     google_id = user.get("google_id", "")
     spreadsheet_id = user.get("spreadsheet_id")
-    creds_dict = user.get("google_credentials")
+    creds_dict = _get_google_creds_dict(user)
     if not spreadsheet_id or not creds_dict:
         return []
 
@@ -245,7 +269,7 @@ def _prefetch_all_user_sheets(user):
     """
     google_id = user.get("google_id", "")
     spreadsheet_id = user.get("spreadsheet_id")
-    creds_dict = user.get("google_credentials")
+    creds_dict = _get_google_creds_dict(user)
     if not spreadsheet_id or not creds_dict:
         return
 
@@ -409,6 +433,8 @@ def google_callback():
             "spreadsheet_id": spreadsheet_id,
             "google_credentials": creds_dict,
         }
+        # PIN is not yet verified at this point — the frontend will prompt
+        session.pop("pin_verified", None)
 
         return redirect("/")
 
@@ -435,9 +461,140 @@ def auth_me():
 @app_ui.route("/api/auth/logout", methods=["POST"])
 @app_only
 def auth_logout():
-    """Sign out the current user."""
+    """Sign out the current user and clear PIN from memory."""
+    user = _current_user()
+    if user:
+        session_manager.clear_pin(user.get("google_id", ""))
     session.clear()
     return jsonify({"status": "logged_out"})
+
+
+# ---------------------------------------------------------------------------
+# Security PIN endpoints
+# ---------------------------------------------------------------------------
+
+@app_ui.route("/api/pin/status", methods=["GET"])
+@protected_api
+def pin_status():
+    """Return whether the user has set a PIN and whether it's verified this session."""
+    from .firebase_store import get_zerodha_account_names, has_pin
+
+    user = _current_user()
+    google_id = user["google_id"]
+    has_setup_pin = has_pin(google_id)
+    has_accounts = len(get_zerodha_account_names(google_id)) > 0
+    pin_verified = session.get("pin_verified", False)
+    # PIN needed when user has accounts or has set up a PIN previously
+    needs_pin = has_setup_pin and not pin_verified
+
+    return jsonify({
+        "has_pin": has_setup_pin,
+        "has_zerodha_accounts": has_accounts,
+        "pin_verified": pin_verified,
+        "needs_pin": needs_pin,
+    })
+
+
+@app_ui.route("/api/pin/verify", methods=["POST"])
+@protected_api
+def pin_verify():
+    """Verify the user's security PIN.  Stores PIN in memory on success."""
+    user = _current_user()
+    google_id = user["google_id"]
+
+    # ── Rate-limit check ──
+    allowed, retry_after = pin_rate_limiter.check(google_id)
+    if not allowed:
+        resp = jsonify({
+            "error": "Too many failed attempts",
+            "retry_after": retry_after,
+            "locked": True,
+        })
+        resp.status_code = 429
+        resp.headers["Retry-After"] = str(retry_after)
+        return resp
+
+    data = request.get_json(silent=True) or {}
+    pin = (data.get("pin") or "").strip()
+
+    if not pin or len(pin) != 6 or not pin.isalnum():
+        return jsonify({"error": "PIN must be exactly 6 alphanumeric characters"}), 400
+
+    if not verify_user_pin(google_id, pin):
+        attempts, lockout_secs = pin_rate_limiter.record_failure(google_id)
+        resp_data = {"error": "Incorrect PIN", "attempts": attempts}
+        if lockout_secs:
+            resp_data["retry_after"] = lockout_secs
+            resp_data["locked"] = True
+            resp = jsonify(resp_data)
+            resp.status_code = 429
+            resp.headers["Retry-After"] = str(lockout_secs)
+            return resp
+        return jsonify(resp_data), 401
+
+    # Success — clear rate-limit state
+    pin_rate_limiter.record_success(google_id)
+
+    # Store PIN in server memory and mark session as verified
+    session_manager.set_pin(google_id, pin)
+    session["pin_verified"] = True
+    session.modified = True
+
+    # Now that we have the PIN, load Zerodha sessions from Firestore
+    # (force=True because the initial page load skipped this)
+    ensure_user_loaded(google_id, force=True)
+
+    return jsonify({"status": "verified"})
+
+
+@app_ui.route("/api/pin/setup", methods=["POST"])
+@protected_api
+def pin_setup():
+    """Set up a new security PIN.  Only allowed when user has no PIN yet."""
+    from .firebase_store import has_pin, store_pin_check
+
+    user = _current_user()
+    google_id = user["google_id"]
+    data = request.get_json(silent=True) or {}
+    pin = (data.get("pin") or "").strip()
+
+    if not pin or len(pin) != 6 or not pin.isalnum():
+        return jsonify({"error": "PIN must be exactly 6 alphanumeric characters"}), 400
+
+    if has_pin(google_id):
+        return jsonify({"error": "PIN already set. Use reset to change it."}), 409
+
+    store_pin_check(google_id, pin)
+    session_manager.set_pin(google_id, pin)
+    session["pin_verified"] = True
+    session.modified = True
+
+    # Trigger background data loading now that PIN is available
+    ensure_user_loaded(google_id, force=True)
+
+    return jsonify({"status": "pin_created"})
+
+
+@app_ui.route("/api/pin/reset", methods=["POST"])
+@protected_api
+def pin_reset():
+    """Reset the user's PIN.  Wipes all Zerodha credentials and sessions.
+
+    The user must re-add Zerodha accounts and set a new PIN afterward.
+    """
+    user = _current_user()
+    google_id = user["google_id"]
+
+    reset_zerodha_data(google_id)
+
+    # Clear in-memory state (including rate limiter)
+    session_manager.clear_pin(google_id)
+    pin_rate_limiter.clear(google_id)
+    session.pop("pin_verified", None)
+    session.modified = True
+    portfolio_cache.clear(google_id)
+
+    return jsonify({"status": "reset_complete"})
 
 
 @app_ui.route("/api/sse-token", methods=["GET"])
@@ -468,6 +625,13 @@ def zerodha_callback():
         return render_template("callback_error.html")
 
     google_id = user["google_id"]
+
+    # PIN must be available to decrypt account credentials
+    pin = session_manager.get_pin(google_id)
+    if not pin:
+        logger.warning("Zerodha callback without PIN in memory for %s", google_id)
+        return render_template("callback_error.html")
+
     ensure_user_loaded(google_id)
 
     accounts = get_user_accounts(google_id)
@@ -791,21 +955,21 @@ def _build_fd_data(user):
 
 
 @app_ui.route("/api/stocks_data", methods=["GET"])
-@protected_api
+@pin_required
 def stocks_data():
     user = _current_user()
     return _json_response(_build_stocks_data(user))
 
 
 @app_ui.route("/api/mf_holdings_data", methods=["GET"])
-@protected_api
+@pin_required
 def mf_holdings_data():
     user = _current_user()
     return _json_response(_build_mf_data(user))
 
 
 @app_ui.route("/api/sips_data", methods=["GET"])
-@protected_api
+@pin_required
 def sips_data():
     user = _current_user()
     return _json_response(_build_sips_data(user))
@@ -818,21 +982,21 @@ def nifty50_data():
 
 
 @app_ui.route("/api/physical_gold_data", methods=["GET"])
-@protected_api
+@pin_required
 def physical_gold_data():
     user = _current_user()
     return _json_response(_build_gold_data(user))
 
 
 @app_ui.route("/api/fixed_deposits_data", methods=["GET"])
-@protected_api
+@pin_required
 def fixed_deposits_data():
     user = _current_user()
     return _json_response(_build_fd_data(user))
 
 
 @app_ui.route("/api/all_data", methods=["GET"])
-@protected_api
+@pin_required
 def all_data():
     """Return all portfolio data in a single response.
 
@@ -860,7 +1024,7 @@ def all_data():
 
 
 @app_ui.route("/api/fd_summary_data", methods=["GET"])
-@protected_api
+@pin_required
 def fd_summary_data():
     return _json_response([])
 
@@ -888,7 +1052,7 @@ def market_indices():
 
 
 @app_ui.route("/api/refresh", methods=["POST"])
-@protected_api
+@pin_required
 def refresh_route():
     """Trigger manual data refresh for the signed-in user."""
     from .fetchers import run_background_fetch, collect_manual_symbols
@@ -930,24 +1094,25 @@ def portfolio_page():
         return render_template("landing.html")
 
     google_id = user.get("google_id", "")
+    pin_verified = session.get("pin_verified", False)
 
-    # Kick off user loading + background fetch in a non-blocking way.
-    # For return visits this is a fast no-op (idempotent).  For first
-    # login it loads Firestore sessions and starts portfolio fetch in
-    # background threads so the page renders instantly.
-    threading.Thread(
-        target=ensure_user_loaded,
-        args=(google_id,),
-        name=f"EnsureLoaded-{google_id[:8]}",
-        daemon=True,
-    ).start()
+    # Only kick off background fetches if PIN is already verified
+    # (return visit with session cookie).  For first login / unverified
+    # sessions the frontend shows the PIN overlay first, and the
+    # pin_verify / pin_setup endpoints trigger the load afterward.
+    if pin_verified:
+        threading.Thread(
+            target=ensure_user_loaded,
+            args=(google_id,),
+            name=f"EnsureLoaded-{google_id[:8]}",
+            daemon=True,
+        ).start()
 
-    # Try to serve inlined data from warm caches (return visits).
-    # If caches are cold (first login), skip the expensive Google Sheets
-    # batch-fetch and render immediately — the frontend will fetch data
-    # asynchronously via SSE status updates + /api/all_data.
+    # Try to serve inlined data from warm caches (return visits with PIN).
+    # Without PIN verification the overlay blocks the UI anyway, so skip
+    # the expensive Google Sheets batch-fetch.
     initial_data = None
-    if user_sheets_cache.is_fully_cached(google_id):
+    if pin_verified and user_sheets_cache.is_fully_cached(google_id):
         try:
             initial_data = {
                 "stocks": _build_stocks_data(user),
@@ -967,6 +1132,9 @@ def portfolio_page():
     # Cloud Run directly, relative /events works fine with session cookies.
     sse_base_url = CLOUD_RUN_URL if _is_firebase_hosting_request() else ""
 
+    from .firebase_store import has_pin as _has_pin
+    user_has_pin = _has_pin(google_id)
+
     return render_template(
         "portfolio.html",
         physical_gold_enabled=True,
@@ -975,6 +1143,8 @@ def portfolio_page():
         initial_data_json=json.dumps(initial_data, default=str) if initial_data else None,
         sse_base_url=sse_base_url,
         table_row_limit=PORTFOLIO_TABLE_ROW_LIMIT,
+        pin_verified=session.get("pin_verified", False),
+        has_pin=user_has_pin,
     )
 
 
@@ -1042,12 +1212,13 @@ def contact_page():
 
 
 @app_ui.route("/api/settings", methods=["GET"])
-@protected_api
+@pin_required
 def get_settings():
     user = _current_user()
     from .firebase_store import get_zerodha_accounts
     google_id = user["google_id"]
-    accounts = get_zerodha_accounts(google_id)
+    pin = session_manager.get_pin(google_id) or ""
+    accounts = get_zerodha_accounts(google_id, pin)
     names = [acc["name"] for acc in accounts]
     validity = session_manager.get_validity(google_id, names)
 
@@ -1064,7 +1235,7 @@ def get_settings():
 
 
 @app_ui.route("/api/settings/zerodha", methods=["POST"])
-@protected_api
+@pin_required
 def add_zerodha():
     """Add a new Zerodha account for the signed-in user."""
     user = _current_user()
@@ -1076,9 +1247,14 @@ def add_zerodha():
     if not account_name or not api_key or not api_secret:
         return jsonify({"error": "account_name, api_key, and api_secret are required"}), 400
 
+    google_id = user["google_id"]
+    pin = session_manager.get_pin(google_id) or ""
+    if not pin:
+        return jsonify({"error": "pin_required"}), 403
+
     from .firebase_store import add_zerodha_account
     try:
-        add_zerodha_account(user["google_id"], account_name, api_key, api_secret)
+        add_zerodha_account(google_id, account_name, api_key, api_secret, pin=pin)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 409
 
@@ -1086,7 +1262,7 @@ def add_zerodha():
 
 
 @app_ui.route("/api/settings/zerodha/<account_name>", methods=["DELETE"])
-@protected_api
+@pin_required
 def remove_zerodha(account_name):
     """Remove a Zerodha account by name."""
     user = _current_user()
@@ -1114,7 +1290,7 @@ def _get_sheets_client():
     from .api.google_sheets_client import GoogleSheetsClient
 
     user = _current_user()
-    creds_dict = user.get("google_credentials")
+    creds_dict = _get_google_creds_dict(user)
     if not creds_dict:
         return None, None, "Google credentials not available"
     creds = credentials_from_dict(creds_dict)
