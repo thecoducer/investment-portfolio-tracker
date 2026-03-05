@@ -298,6 +298,60 @@ class TestProtectedEndpoints(unittest.TestCase):
             )
 
 
+class TestPinRequired(unittest.TestCase):
+    """Tests for the @pin_required decorator."""
+
+    def setUp(self):
+        self.app = app_ui
+        self.app.testing = True
+        self.client = self.app.test_client()
+
+    def test_unauthenticated_returns_401(self):
+        """pin_required returns 401 when user not in session."""
+        response = self.client.get(
+            "/api/stocks_data",
+            headers=_APP_HEADERS,
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_non_app_request_returns_403(self):
+        """pin_required returns 403 for direct browser access."""
+        _inject_user(self.client)
+        # No app header → direct access
+        response = self.client.get("/api/stocks_data")
+        self.assertEqual(response.status_code, 403)
+
+    def test_pin_not_verified_returns_403(self):
+        """pin_required returns 403 when pin_verified is False."""
+        with self.client.session_transaction() as sess:
+            sess["user"] = _TEST_USER
+            sess["pin_verified"] = False
+        response = self.client.get(
+            "/api/stocks_data",
+            headers=_APP_HEADERS,
+        )
+        self.assertEqual(response.status_code, 403)
+        data = json.loads(response.data)
+        self.assertEqual(data["error"], "pin_required")
+
+    def test_in_memory_pin_lost_clears_flag(self):
+        """When the server restarts and in-memory PIN is gone,
+        pin_required should clear the session flag and return 403."""
+        from app.services import session_manager
+        _inject_user(self.client)
+        # Simulate server restart: remove the in-memory PIN
+        session_manager._user_pins.pop("test123", None)
+        response = self.client.get(
+            "/api/stocks_data",
+            headers=_APP_HEADERS,
+        )
+        self.assertEqual(response.status_code, 403)
+        data = json.loads(response.data)
+        self.assertEqual(data["error"], "pin_required")
+        # Restore PIN for other tests
+        session_manager.set_pin("test123", "test01")
+
+
 class TestPublicEndpoints(unittest.TestCase):
     """Verify public endpoints remain accessible without authentication."""
 
@@ -368,6 +422,59 @@ class TestIsAuthenticated(unittest.TestCase):
     def test_without_user_in_session(self):
         with app_ui.test_request_context("/test"):
             self.assertFalse(_is_authenticated())
+
+
+class TestLoginRequiredDirect(unittest.TestCase):
+    """Direct unit test for @login_required decorator to hit lines 70-71."""
+
+    def test_unauthenticated_via_decorator(self):
+        from app.middleware import login_required
+
+        @login_required
+        def dummy_view():
+            return "ok"
+
+        with app_ui.test_request_context("/test", method="GET"):
+            resp = dummy_view()
+            self.assertEqual(resp[1], 401)
+
+
+class TestAppOnlyDirect(unittest.TestCase):
+    """Direct unit test for @app_only decorator to hit line 99."""
+
+    def test_non_app_request_via_decorator(self):
+        from app.middleware import app_only
+        from app.config import app_config
+
+        app_config.features['allow_browser_api_access'] = False
+
+        @app_only
+        def dummy_view():
+            return "ok"
+
+        with app_ui.test_request_context("/test", method="GET"):
+            resp = dummy_view()
+            self.assertEqual(resp[1], 403)
+
+
+class TestProtectedApiDenyNonApp(unittest.TestCase):
+    """Test protected_api rejects authenticated but non-app request (line 99)."""
+
+    def test_authenticated_but_non_app_request(self):
+        from app.middleware import protected_api
+        from app.config import app_config
+        from flask import session as flask_session
+
+        app_config.features['allow_browser_api_access'] = False
+
+        @protected_api
+        def dummy_view():
+            return "ok"
+
+        with app_ui.test_request_context("/test", method="GET"):
+            flask_session["user"] = _TEST_USER
+            resp = dummy_view()
+            self.assertEqual(resp[1], 403)
 
 
 if __name__ == "__main__":

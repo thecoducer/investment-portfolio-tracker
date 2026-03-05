@@ -1461,7 +1461,7 @@ def _build_data_for_type(user, sheet_type):
         "fixedDeposits": _build_fd_data,
     }
     builder = builders.get(data_key)
-    if not builder:
+    if not builder:  # pragma: no cover – all valid data_keys have builders
         return {}
 
     try:

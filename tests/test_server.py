@@ -1,10 +1,11 @@
 """
 Unit tests for server.py (application entry point).
 """
+import signal
 import threading
 import time
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from app.server import start_server
 
@@ -31,6 +32,56 @@ class TestStartServer(unittest.TestCase):
             debug=False,
             use_reloader=False,
         )
+
+
+class TestHandleShutdown(unittest.TestCase):
+    def test_sets_shutdown_event(self):
+        from app.server import _handle_shutdown, _shutdown_event
+        import signal
+        _shutdown_event.clear()
+        _handle_shutdown(signal.SIGTERM, None)
+        self.assertTrue(_shutdown_event.is_set())
+        _shutdown_event.clear()  # reset for other tests
+
+
+class TestStartAutoRefreshService(unittest.TestCase):
+    @patch("app.server.threading.Thread")
+    def test_starts_daemon_thread(self, mock_thread):
+        from app.server import _start_auto_refresh_service
+        mock_thread.return_value = Mock()
+        _start_auto_refresh_service()
+        mock_thread.assert_called_once()
+        self.assertTrue(mock_thread.call_args[1]["daemon"])
+
+
+class TestMain(unittest.TestCase):
+    @patch("app.server._shutdown_event")
+    @patch("app.server._start_auto_refresh_service")
+    @patch("app.server.fetch_nifty50_data")
+    @patch("app.server.start_server")
+    @patch("app.server.configure")
+    @patch("app.server.signal.signal")
+    def test_main_runs(self, mock_sig, mock_configure, mock_start, mock_n50,
+                       mock_auto, mock_event):
+        from app.server import main
+        mock_event.wait.return_value = None  # simulate immediate shutdown
+        main()
+        mock_configure.assert_called_once()
+        mock_start.assert_called_once()
+        mock_n50.assert_called_once()
+        mock_auto.assert_called_once()
+
+    @patch("app.server._shutdown_event")
+    @patch("app.server.configure", side_effect=KeyboardInterrupt)
+    def test_main_keyboard_interrupt(self, mock_configure, mock_event):
+        from app.server import main
+        main()  # should not raise
+
+    @patch("app.server._shutdown_event")
+    @patch("app.server.configure", side_effect=RuntimeError("fatal"))
+    def test_main_fatal_error(self, mock_configure, mock_event):
+        from app.server import main
+        main()  # should not raise
 
 
 if __name__ == '__main__':

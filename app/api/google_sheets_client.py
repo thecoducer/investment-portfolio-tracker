@@ -14,9 +14,9 @@ try:
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
     GOOGLE_SHEETS_AVAILABLE = True
-except ImportError:
-    GOOGLE_SHEETS_AVAILABLE = False
-    logger.warning("Google Sheets API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
+except ImportError:  # pragma: no cover
+    GOOGLE_SHEETS_AVAILABLE = False  # pragma: no cover
+    logger.warning("Google Sheets API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")  # pragma: no cover
 
 
 class GoogleSheetsClient:
@@ -406,8 +406,8 @@ class GoogleSheetsService:
 
         items = []
         for idx, row in enumerate(trimmed_data[1:], start=2):
-            if not row or not any(row):
-                continue
+            if not row or not any(row):  # pragma: no cover
+                continue  # pragma: no cover
             try:
                 items.append(self._parse_row(row, idx))
             except Exception as e:

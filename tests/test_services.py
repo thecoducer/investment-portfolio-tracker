@@ -153,6 +153,18 @@ class TestEnsureUserLoaded(unittest.TestCase):
         ensure_user_loaded("")
         ensure_user_loaded(None)
 
+    def test_force_reloads(self):
+        """force=True should reload even if user was previously loaded."""
+        import app.services as svc
+        original = svc._loaded_users.copy()
+        svc._loaded_users.add("forceuser")
+        try:
+            with patch('app.services.session_manager') as mock_sm:
+                ensure_user_loaded("forceuser", force=True)
+                mock_sm.load_user.assert_called_once()
+        finally:
+            svc._loaded_users = original
+
 
 class TestGetUserAccounts(unittest.TestCase):
     """Test get_user_accounts helper."""
@@ -169,6 +181,69 @@ class TestGetUserAccounts(unittest.TestCase):
     def test_returns_empty_for_no_google_id(self):
         self.assertEqual(get_user_accounts(""), [])
         self.assertEqual(get_user_accounts(None), [])
+
+    @patch('app.services.session_manager')
+    def test_returns_empty_when_no_pin(self, mock_sm):
+        mock_sm.get_pin.return_value = None
+        result = get_user_accounts("user123")
+        self.assertEqual(result, [])
+
+    @patch('app.services.session_manager')
+    def test_returns_empty_on_exception(self, mock_sm):
+        mock_sm.get_pin.return_value = "123456"
+        with patch('app.firebase_store.get_zerodha_accounts', side_effect=Exception("db error")):
+            result = get_user_accounts("user123")
+            self.assertEqual(result, [])
+
+
+class TestBuildStatusResponseUnauthenticated(unittest.TestCase):
+    """Test _build_status_response with unauthenticated accounts (KiteConnect)."""
+
+    @patch('kiteconnect.KiteConnect')
+    @patch('app.services.state_manager')
+    @patch('app.services.session_manager')
+    @patch('app.services.format_timestamp', return_value=None)
+    @patch('app.services.is_market_open_ist', return_value=True)
+    @patch('app.services.get_user_accounts')
+    def test_unauthenticated_shows_login_url(self, mock_accs, mock_mkt,
+                                              mock_fmt, mock_sm, mock_state,
+                                              mock_kite_cls):
+        mock_accs.return_value = [{"name": "Acc1", "api_key": "k1"}]
+        mock_sm.is_valid.return_value = False
+        mock_kite_cls.return_value.login_url.return_value = "https://kite.zerodha.com/login"
+        mock_state.last_error = None
+        mock_state.get_portfolio_state.return_value = None
+        mock_state.get_portfolio_last_updated.return_value = None
+        mock_state.get_user_last_error.return_value = None
+        mock_state.nifty50_state = None
+        mock_state.nifty50_last_updated = None
+        mock_state.physical_gold_state = None
+        mock_state.physical_gold_last_updated = None
+        mock_state.fixed_deposits_state = None
+        mock_state.fixed_deposits_last_updated = None
+
+        result = _build_status_response("user1")
+        self.assertEqual(len(result["unauthenticated_accounts"]), 1)
+        self.assertIn("login_url", result["unauthenticated_accounts"][0])
+
+
+class TestBroadcastError(unittest.TestCase):
+    """Test broadcast_state_change error handling."""
+
+    @patch('app.services.sse_manager')
+    @patch('app.services._build_status_response', side_effect=Exception("boom"))
+    def test_per_user_error_is_caught(self, mock_build, mock_sse):
+        mock_sse.connected_user_ids.return_value = {"u1"}
+        mock_sse.broadcast_to_user.side_effect = Exception("sse fail")
+        # Should not raise
+        broadcast_state_change()
+
+    @patch('app.services.sse_manager')
+    def test_global_broadcast_per_user_error(self, mock_sse):
+        mock_sse.connected_user_ids.return_value = {"u1"}
+        mock_sse.broadcast_to_user.side_effect = Exception("sse fail")
+        with patch('app.services._build_status_response', return_value={"status": "ok"}):
+            broadcast_state_change()  # should not raise
 
 
 class TestGetAuthenticatedAccounts(unittest.TestCase):
@@ -187,6 +262,68 @@ class TestGetAuthenticatedAccounts(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["name"], "Acc1")
+
+
+class TestEnsureUserLoadedAlreadyLoaded(unittest.TestCase):
+    """Test ensure_user_loaded skips when user already loaded and force=False."""
+
+    def test_already_loaded_skips(self):
+        import app.services as svc
+        original = svc._loaded_users.copy()
+        svc._loaded_users.add("existinguser")
+        try:
+            with patch('app.services.session_manager') as mock_sm:
+                ensure_user_loaded("existinguser", force=False)
+                mock_sm.load_user.assert_not_called()
+        finally:
+            svc._loaded_users = original
+
+
+class TestBuildStatusKiteConnectException(unittest.TestCase):
+    """Test _build_status_response when KiteConnect() raises an exception."""
+
+    @patch('app.services.state_manager')
+    @patch('app.services.session_manager')
+    @patch('app.services.format_timestamp', return_value=None)
+    @patch('app.services.is_market_open_ist', return_value=True)
+    @patch('app.services.get_user_accounts')
+    def test_kiteconnect_exception_gives_none_url(self, mock_accs, mock_mkt,
+                                                   mock_fmt, mock_sm, mock_state):
+        mock_accs.return_value = [{"name": "Acc1", "api_key": "k1"}]
+        mock_sm.is_valid.return_value = False
+        mock_state.last_error = None
+        mock_state.get_portfolio_state.return_value = None
+        mock_state.get_portfolio_last_updated.return_value = None
+        mock_state.get_user_last_error.return_value = None
+        mock_state.nifty50_state = None
+        mock_state.nifty50_last_updated = None
+        mock_state.physical_gold_state = None
+        mock_state.physical_gold_last_updated = None
+        mock_state.fixed_deposits_state = None
+        mock_state.fixed_deposits_last_updated = None
+
+        with patch('kiteconnect.KiteConnect', side_effect=Exception("import fail")):
+            result = _build_status_response("user1")
+        self.assertEqual(len(result["unauthenticated_accounts"]), 1)
+        self.assertIsNone(result["unauthenticated_accounts"][0]["login_url"])
+        self.assertIsNone(result["login_urls"]["Acc1"])
+
+
+class TestBroadcastGlobalPerUserBuildException(unittest.TestCase):
+    """Test broadcast_state_change outer exception handler (lines 124-125)."""
+
+    @patch('app.services.sse_manager')
+    def test_outer_exception_from_single_user_broadcast(self, mock_sse):
+        """When google_id is given and broadcast fails, outer except catches it."""
+        with patch('app.services._build_status_response', side_effect=RuntimeError("build boom")):
+            broadcast_state_change(google_id="u1")  # should not raise
+        # The outer except at line 124 caught RuntimeError
+
+    @patch('app.services.sse_manager')
+    def test_outer_exception_from_connected_user_ids(self, mock_sse):
+        """When connected_user_ids() itself fails, outer except catches it."""
+        mock_sse.connected_user_ids.side_effect = RuntimeError("SSE boom")
+        broadcast_state_change()  # should not raise
 
 
 if __name__ == '__main__':

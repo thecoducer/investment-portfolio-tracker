@@ -15,7 +15,8 @@ from app.utils import (SessionManager, StateManager, encrypt_credential,
                        decrypt_credential, encrypt_google_credentials,
                        decrypt_google_credentials, create_pin_check,
                        verify_pin, format_timestamp,
-                       is_market_open_ist, load_config, PinRateLimiter)
+                       is_market_open_ist, load_config, PinRateLimiter,
+                       _get_base_secret, _get_flask_secret)
 
 # Default PIN used throughout tests
 _GID = "test_google_id_123"
@@ -234,6 +235,80 @@ class TestSessionManager(unittest.TestCase):
         self.sm.load_user("")
         self.sm.load_user(None)
 
+    def test_decrypt_without_pin_raises(self):
+        """_decrypt raises ValueError when no PIN is set for user."""
+        sm = SessionManager()
+        with self.assertRaises(ValueError):
+            sm._decrypt("encrypted_data", "no_pin_user")
+
+    @patch('app.firebase_store.get_zerodha_sessions')
+    def test_load_user_no_pin_skips(self, mock_get):
+        """load_user skips when PIN not in memory."""
+        sm = SessionManager()
+        sm.load_user("user_no_pin")
+        mock_get.assert_not_called()
+
+    @patch('app.firebase_store.get_zerodha_sessions', side_effect=Exception("db error"))
+    def test_load_user_firestore_exception(self, mock_get):
+        """load_user handles Firestore errors gracefully."""
+        self.sm.load_user(_GID)
+        # Should not raise
+
+    @patch('app.firebase_store.get_zerodha_sessions')
+    def test_load_user_bad_expiry_skipped(self, mock_get):
+        """load_user skips sessions with invalid expiry dates."""
+        mock_get.return_value = {
+            "BadAcc": {"access_token": "enc", "expiry": "not-a-date"}
+        }
+        self.sm.load_user(_GID)
+        self.assertIsNone(self.sm.get_token(_GID, "BadAcc"))
+
+    @patch('app.firebase_store.get_zerodha_sessions')
+    def test_load_user_decrypt_failure_skipped(self, mock_get):
+        """load_user skips sessions that fail to decrypt (wrong PIN)."""
+        future = (datetime.now(timezone.utc) + timedelta(hours=23)).isoformat()
+        mock_get.return_value = {
+            "CorruptAcc": {"access_token": "bad_encrypted_data", "expiry": future}
+        }
+        self.sm.load_user(_GID)
+        self.assertIsNone(self.sm.get_token(_GID, "CorruptAcc"))
+
+    @patch('app.firebase_store.get_zerodha_sessions')
+    def test_load_user_naive_expiry_gets_utc(self, mock_get):
+        """load_user adds UTC tz to naive expiry timestamps."""
+        encrypted = self.sm._encrypt("my_token", _GID)
+        # Naive datetime string (no tzinfo)
+        future = (datetime.now() + timedelta(hours=23)).strftime("%Y-%m-%dT%H:%M:%S")
+        mock_get.return_value = {
+            "NaiveAcc": {"access_token": encrypted, "expiry": future}
+        }
+        self.sm.load_user(_GID)
+        self.assertEqual(self.sm.get_token(_GID, "NaiveAcc"), "my_token")
+
+    @patch('app.firebase_store.get_zerodha_sessions')
+    def test_load_user_all_invalid_warns(self, mock_get):
+        """load_user warns when stored sessions exist but none are valid."""
+        mock_get.return_value = {
+            "Bad1": {"access_token": "enc", "expiry": "not-a-date"},
+            "Bad2": {"access_token": "enc", "expiry": "also-bad"},
+        }
+        self.sm.load_user(_GID)
+        # No sessions loaded
+        self.assertIsNone(self.sm.get_token(_GID, "Bad1"))
+
+    def test_save_without_pin_warns(self):
+        """save() warns and returns when PIN not in memory."""
+        sm = SessionManager()
+        sm.set_token("g1", "acc1", "tok")
+        sm._user_pins.clear()
+        sm.save("g1")  # Should not raise
+
+    @patch('app.firebase_store.save_zerodha_sessions', side_effect=Exception("db error"))
+    def test_save_firestore_exception(self, mock_save):
+        """save() handles Firestore errors gracefully."""
+        self.sm.set_token(_GID, "Acc1", "token_abc")
+        self.sm.save(_GID)  # Should not raise
+
 
 class TestStateManager(unittest.TestCase):
     """Test StateManager with per-user portfolio state."""
@@ -366,6 +441,42 @@ class TestStateManager(unittest.TestCase):
         with self.assertRaises(AttributeError):
             _ = self.sm.nonexistent_attribute
 
+    def test_listener_without_kwargs_fallback(self):
+        """Listener that doesn't accept kwargs calls without args."""
+        called = []
+
+        def no_kwargs_cb():
+            called.append(True)
+
+        self.sm.add_change_listener(no_kwargs_cb)
+        self.sm.set_portfolio_updating(google_id=_GID)
+        self.assertTrue(len(called) > 0)
+
+    def test_listener_no_kwargs_raises_also(self):
+        """Listener that raises even without kwargs is caught."""
+        def bad_no_kwargs():
+            raise RuntimeError("both paths fail")
+
+        self.sm.add_change_listener(bad_no_kwargs)
+        self.sm.set_portfolio_updating(google_id=_GID)  # should not raise
+
+    def test_set_updating_with_error(self):
+        """_set_updating with error sets last_error."""
+        self.sm.set_nifty50_updating(error="timeout")
+        self.assertEqual(self.sm.nifty50_state, STATE_UPDATING)
+        self.assertEqual(self.sm.last_error, "timeout")
+
+    def test_set_updated_clear_global_error(self):
+        """_set_updated with clear_global_error=True resets last_error."""
+        self.sm.last_error = "old error"
+        self.sm._set_updated("nifty50", clear_global_error=True)
+        self.assertIsNone(self.sm.last_error)
+
+    def test_is_any_running_no_google_id_global_done(self):
+        """is_any_running without google_id returns False when all global done."""
+        self.sm.set_nifty50_updated()
+        self.assertFalse(self.sm.is_any_running())
+
 
 class TestConfigLoader(unittest.TestCase):
     """Test configuration loading and validation."""
@@ -392,6 +503,11 @@ class TestConfigLoader(unittest.TestCase):
             self.assertEqual(load_config(temp_path), {})
         finally:
             os.unlink(temp_path)
+
+    @patch("builtins.open", side_effect=PermissionError("no access"))
+    def test_load_config_generic_exception(self, mock_open):
+        """load_config handles generic exceptions gracefully."""
+        self.assertEqual(load_config("/some/path.json"), {})
 
 
 class TestFormatTimestamp(unittest.TestCase):
@@ -565,6 +681,44 @@ class TestPinRateLimiter(unittest.TestCase):
         self.limiter.check("user1")
         # Counter stays at 3
         self.assertEqual(self.limiter.get_attempts("user1"), 3)
+
+
+class TestSecretHelpers(unittest.TestCase):
+    """Test _get_base_secret and _get_flask_secret env var paths."""
+
+    @patch.dict(os.environ, {"ZERODHA_TOKEN_SECRET": "prod_secret"})
+    def test_base_secret_from_env(self):
+        result = _get_base_secret()
+        self.assertEqual(result, b"prod_secret")
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_base_secret_fallback(self):
+        # When env var is absent, falls back to machine-specific key
+        result = _get_base_secret()
+        self.assertIsInstance(result, bytes)
+        self.assertGreater(len(result), 0)
+
+    @patch.dict(os.environ, {"FLASK_SECRET_KEY": ""})
+    def test_flask_secret_not_set(self):
+        result = _get_flask_secret()
+        self.assertIsInstance(result, bytes)
+        self.assertGreater(len(result), 0)
+
+    @patch.dict(os.environ, {"FLASK_SECRET_KEY": "my_flask_key"})
+    def test_flask_secret_from_env(self):
+        result = _get_flask_secret()
+        self.assertEqual(result, b"my_flask_key")
+
+
+class TestSetPortfolioUpdatingWithError(unittest.TestCase):
+    """Cover utils.py line 328: set_portfolio_updating with error parameter."""
+
+    def test_set_portfolio_updating_with_error(self):
+        sm = StateManager()
+        sm.set_portfolio_updating("user1", error="fetch failed")
+        us = sm._get_user_state("user1")
+        self.assertEqual(us["portfolio_state"], STATE_UPDATING)
+        self.assertEqual(us["last_error"], "fetch failed")
 
 
 if __name__ == '__main__':

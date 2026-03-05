@@ -1,13 +1,13 @@
 """
-Unit tests for cache.py (per-user PortfolioCacheManager, MarketCache, UserSheetsCache).
+Unit tests for cache.py (per-user PortfolioCacheManager, MarketCache, UserSheetsCache, ManualLTPCache).
 """
 import time
 import unittest
 
-from app.cache import (MarketCache, PortfolioCacheManager, UserPortfolioData,
-                       UserSheetsCache, market_cache,
-                       nifty50_fetch_in_progress, portfolio_cache,
-                       user_sheets_cache)
+from app.cache import (ManualLTPCache, MarketCache, PortfolioCacheManager,
+                       UserPortfolioData, UserSheetsCache, manual_ltp_cache,
+                       market_cache, nifty50_fetch_in_progress,
+                       portfolio_cache, user_sheets_cache)
 
 
 class TestUserPortfolioData(unittest.TestCase):
@@ -221,6 +221,112 @@ class TestGlobalThreadEvents(unittest.TestCase):
 
     def test_nifty50_fetch_in_progress_default_unset(self):
         self.assertFalse(nifty50_fetch_in_progress.is_set())
+
+
+class TestManualLTPCache(unittest.TestCase):
+    """Test ManualLTPCache for manual stock/ETF LTP caching."""
+
+    def setUp(self):
+        self.cache = ManualLTPCache()
+
+    def test_get_returns_none_initially(self):
+        self.assertIsNone(self.cache.get("INFY"))
+
+    def test_put_and_get(self):
+        self.cache.put("INFY", {"ltp": 1500, "change": 10})
+        result = self.cache.get("INFY")
+        self.assertEqual(result["ltp"], 1500)
+
+    def test_put_removes_negative_cache(self):
+        self.cache.put_negative_batch(["INFY"])
+        self.assertTrue(self.cache.is_negative("INFY"))
+        self.cache.put("INFY", {"ltp": 100})
+        self.assertFalse(self.cache.is_negative("INFY"))
+
+    def test_put_batch(self):
+        data = {
+            "INFY": {"ltp": 1500},
+            "TCS": {"ltp": 3500},
+        }
+        self.cache.put_batch(data)
+        self.assertEqual(self.cache.get("INFY")["ltp"], 1500)
+        self.assertEqual(self.cache.get("TCS")["ltp"], 3500)
+
+    def test_put_batch_removes_negatives(self):
+        self.cache.put_negative_batch(["INFY"])
+        self.cache.put_batch({"INFY": {"ltp": 1500}})
+        self.assertFalse(self.cache.is_negative("INFY"))
+
+    def test_put_negative_batch(self):
+        self.cache.put_negative_batch(["UNKNOWN1", "UNKNOWN2"])
+        self.assertTrue(self.cache.is_negative("UNKNOWN1"))
+        self.assertTrue(self.cache.is_negative("UNKNOWN2"))
+
+    def test_is_negative_false_initially(self):
+        self.assertFalse(self.cache.is_negative("INFY"))
+
+    def test_is_negative_expires_after_ttl(self):
+        self.cache._NEGATIVE_TTL = 0  # expire immediately
+        self.cache.put_negative_batch(["EXPIRED"])
+        time.sleep(0.01)
+        self.assertFalse(self.cache.is_negative("EXPIRED"))
+
+    def test_cancel_flag_is_event(self):
+        import threading
+        self.assertIsInstance(self.cache.cancel_flag, threading.Event)
+
+    def test_invalidate_clears_all(self):
+        self.cache.put("INFY", {"ltp": 100})
+        self.cache.put_negative_batch(["BAD"])
+        self.cache.invalidate()
+        self.assertIsNone(self.cache.get("INFY"))
+        self.assertFalse(self.cache.is_negative("BAD"))
+
+    def test_global_manual_ltp_cache_is_instance(self):
+        self.assertIsInstance(manual_ltp_cache, ManualLTPCache)
+
+
+class TestUserSheetsCacheManual(unittest.TestCase):
+    """Test UserSheetsCache get_manual/put_manual methods."""
+
+    def test_get_manual_unknown_type(self):
+        usc = UserSheetsCache(ttl=60)
+        self.assertIsNone(usc.get_manual("user1", "unknown_type"))
+
+    def test_put_manual_unknown_type_noop(self):
+        usc = UserSheetsCache(ttl=60)
+        usc.put_manual("user1", "unknown_type", [{"a": 1}])
+        self.assertIsNone(usc.get_manual("user1", "unknown_type"))
+
+    def test_get_manual_not_fetched_returns_none(self):
+        """get_manual returns None when the sheet type hasn't been fetched yet."""
+        usc = UserSheetsCache(ttl=60)
+        usc.put("user1", physical_gold=[{"g": 1}])  # only gold
+        self.assertIsNone(usc.get_manual("user1", "stocks"))
+
+    def test_put_manual_and_get_manual(self):
+        usc = UserSheetsCache(ttl=60)
+        usc.put_manual("user1", "stocks", [{"symbol": "INFY"}])
+        result = usc.get_manual("user1", "stocks")
+        self.assertEqual(result, [{"symbol": "INFY"}])
+
+    def test_get_manual_expired_returns_none(self):
+        usc = UserSheetsCache(ttl=0)
+        usc.put_manual("user1", "etfs", [{"x": 1}])
+        time.sleep(0.01)
+        self.assertIsNone(usc.get_manual("user1", "etfs"))
+
+    def test_put_all_with_unknown_manual_type_ignored(self):
+        usc = UserSheetsCache(ttl=60)
+        usc.put_all("user1", manual={"unknown": [{"a": 1}], "stocks": [{"s": 1}]})
+        self.assertIsNone(usc.get_manual("user1", "unknown"))
+        self.assertEqual(usc.get_manual("user1", "stocks"), [{"s": 1}])
+
+    def test_put_all_without_optional_args(self):
+        usc = UserSheetsCache(ttl=60)
+        usc.put_all("user1")
+        entry = usc.get("user1")
+        self.assertIsNotNone(entry)
 
 
 if __name__ == '__main__':

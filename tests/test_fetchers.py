@@ -1,12 +1,21 @@
 """
 Unit tests for fetchers.py (data fetching and auto-refresh logic).
 """
+import threading
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+from requests.exceptions import Timeout, ConnectionError
 
-from app.fetchers import (_should_auto_refresh,
-                          fetch_nifty50_data, fetch_portfolio_data,
-                          run_background_fetch)
+from app.fetchers import (_should_auto_refresh, _should_fetch_gold_prices,
+                          _filter_symbols_to_fetch, _nse_batch_fetch,
+                          _update_ltp_cache, _wait_for_symbols,
+                          _bg_fetch_and_broadcast_ltps,
+                          _process_pending_ltp_retries,
+                          _start_ltp_fetch_thread, _fetch_all_data,
+                          collect_manual_symbols, fetch_manual_ltps,
+                          fetch_gold_prices, fetch_nifty50_data,
+                          fetch_portfolio_data, run_background_fetch,
+                          run_auto_refresh)
 
 
 class TestFetchPortfolioData(unittest.TestCase):
@@ -204,3 +213,487 @@ class TestZerodhaClientFetchAccountData(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# Manual LTP helpers
+# ---------------------------------------------------------------------------
+
+
+class TestCollectManualSymbols(unittest.TestCase):
+    @patch('app.fetchers.user_sheets_cache')
+    def test_collects_symbols(self, mock_usc):
+        mock_usc.get_manual.side_effect = [
+            [{"symbol": "INFY"}, {"symbol": "TCS"}],  # stocks
+            [{"symbol": "GOLDBEES"}],                    # etfs
+        ]
+        result = collect_manual_symbols("user1")
+        self.assertIn("INFY", result)
+        self.assertIn("TCS", result)
+        self.assertIn("GOLDBEES", result)
+
+    @patch('app.fetchers.user_sheets_cache')
+    def test_collects_empty(self, mock_usc):
+        mock_usc.get_manual.return_value = None
+        result = collect_manual_symbols("user1")
+        self.assertEqual(result, [])
+
+
+class TestFilterSymbolsToFetch(unittest.TestCase):
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_filters_cached(self, mock_cache):
+        mock_cache.is_negative.return_value = False
+        mock_cache.get.side_effect = [{"ltp": 100}, None]
+        result = _filter_symbols_to_fetch(["INFY", "TCS"], force=False)
+        self.assertEqual(result, ["TCS"])
+
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_force_refetch(self, mock_cache):
+        mock_cache.is_negative.return_value = False
+        mock_cache.get.return_value = {"ltp": 100}
+        result = _filter_symbols_to_fetch(["INFY"], force=True)
+        self.assertEqual(result, ["INFY"])
+
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_skips_negative(self, mock_cache):
+        mock_cache.is_negative.return_value = True
+        result = _filter_symbols_to_fetch(["BAD"], force=True)
+        self.assertEqual(result, [])
+
+
+class TestNseBatchFetch(unittest.TestCase):
+    @patch('app.fetchers.MarketDataClient')
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_success(self, mock_cache, mock_client_cls):
+        mock_client_cls.return_value.fetch_stock_quotes.return_value = {"INFY": {"ltp": 100}}
+        result = _nse_batch_fetch(["INFY"])
+        self.assertEqual(result["INFY"]["ltp"], 100)
+
+    @patch('app.fetchers.MarketDataClient')
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_error_returns_empty(self, mock_cache, mock_client_cls):
+        mock_client_cls.return_value.fetch_stock_quotes.side_effect = Exception("err")
+        result = _nse_batch_fetch(["INFY"])
+        self.assertEqual(result, {})
+
+
+class TestUpdateLtpCache(unittest.TestCase):
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_updates_cache(self, mock_cache):
+        _update_ltp_cache(["INFY", "TCS"], {"INFY": {"ltp": 100}})
+        mock_cache.put_batch.assert_called_once_with({"INFY": {"ltp": 100}})
+        mock_cache.put_negative_batch.assert_called_once_with(["TCS"])
+
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_all_fetched(self, mock_cache):
+        _update_ltp_cache(["INFY"], {"INFY": {"ltp": 100}})
+        mock_cache.put_negative_batch.assert_not_called()
+
+    @patch('app.fetchers.manual_ltp_cache')
+    def test_empty_fetched(self, mock_cache):
+        _update_ltp_cache(["INFY"], {})
+        mock_cache.put_batch.assert_not_called()
+        mock_cache.put_negative_batch.assert_called_once()
+
+
+class TestFetchManualLtps(unittest.TestCase):
+    @patch('app.fetchers._update_ltp_cache')
+    @patch('app.fetchers._nse_batch_fetch', return_value={"INFY": {"ltp": 100}})
+    @patch('app.fetchers._filter_symbols_to_fetch', return_value=["INFY"])
+    def test_fetches(self, mock_filter, mock_fetch, mock_update):
+        fetch_manual_ltps(["INFY"])
+        mock_fetch.assert_called_once_with(["INFY"])
+
+    @patch('app.fetchers._filter_symbols_to_fetch', return_value=[])
+    def test_all_cached(self, mock_filter):
+        fetch_manual_ltps(["INFY"])  # no NSE call made
+
+    def test_empty_symbols(self):
+        fetch_manual_ltps([])  # no error
+
+
+class TestWaitForSymbols(unittest.TestCase):
+    @patch('app.fetchers.time')
+    @patch('app.fetchers.collect_manual_symbols')
+    def test_finds_symbols(self, mock_collect, mock_time):
+        mock_collect.return_value = ["INFY"]
+        result = _wait_for_symbols("user1")
+        self.assertEqual(result, ["INFY"])
+
+    @patch('app.fetchers.time')
+    @patch('app.fetchers.collect_manual_symbols', return_value=[])
+    def test_timeout(self, mock_collect, mock_time):
+        result = _wait_for_symbols("user1")
+        self.assertEqual(result, [])
+
+
+class TestBgFetchAndBroadcastLtps(unittest.TestCase):
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.fetch_manual_ltps')
+    def test_with_symbols(self, mock_fetch, mock_state):
+        _bg_fetch_and_broadcast_ltps("user1", ["INFY"], False)
+        mock_fetch.assert_called_once()
+        mock_state.set_portfolio_updated.assert_called_once()
+
+    @patch('app.fetchers._wait_for_symbols', return_value=[])
+    @patch('app.fetchers._pending_ltp_retries', set())
+    def test_no_symbols_queues_retry(self, mock_wait):
+        import app.fetchers as f
+        _bg_fetch_and_broadcast_ltps("user1", None, False)
+        self.assertIn("user1", f._pending_ltp_retries)
+
+
+class TestProcessPendingLtpRetries(unittest.TestCase):
+    @patch('app.fetchers.threading.Thread')
+    @patch('app.fetchers.collect_manual_symbols', return_value=["INFY"])
+    @patch('app.fetchers.sse_manager')
+    def test_retries_connected_user(self, mock_sse, mock_collect, mock_thread):
+        import app.fetchers as f
+        f._pending_ltp_retries.add("user1")
+        mock_sse.connected_user_ids.return_value = {"user1"}
+        mock_thread.return_value = Mock()
+        _process_pending_ltp_retries()
+        mock_thread.assert_called_once()
+
+    @patch('app.fetchers.sse_manager')
+    def test_discards_disconnected(self, mock_sse):
+        import app.fetchers as f
+        f._pending_ltp_retries.add("user1")
+        mock_sse.connected_user_ids.return_value = set()
+        _process_pending_ltp_retries()
+        self.assertNotIn("user1", f._pending_ltp_retries)
+
+
+class TestStartLtpFetchThread(unittest.TestCase):
+    @patch('app.fetchers.threading.Thread')
+    def test_starts_thread(self, mock_thread):
+        mock_thread.return_value = Mock()
+        _start_ltp_fetch_thread("user1", ["INFY"], False)
+        mock_thread.assert_called_once()
+        mock_thread.return_value.start.assert_called_once()
+
+
+class TestShouldFetchGoldPrices(unittest.TestCase):
+    @patch('app.fetchers.market_cache')
+    def test_first_fetch(self, mock_mc):
+        mock_mc.gold_prices_last_fetch = None
+        self.assertTrue(_should_fetch_gold_prices())
+
+    @patch('app.fetchers.market_cache')
+    def test_different_date(self, mock_mc):
+        from datetime import datetime
+        mock_mc.gold_prices_last_fetch = datetime(2024, 1, 1, 10, 0)
+        with patch('app.fetchers.datetime') as mock_dt:
+            mock_dt.now.return_value = datetime(2024, 1, 2, 10, 0)
+            self.assertTrue(_should_fetch_gold_prices())
+
+    @patch('app.fetchers.market_cache')
+    def test_same_hour(self, mock_mc):
+        from datetime import datetime
+        mock_mc.gold_prices_last_fetch = datetime(2024, 1, 1, 10, 30)
+        with patch('app.fetchers.datetime') as mock_dt:
+            mock_dt.now.return_value = datetime(2024, 1, 1, 10, 45)
+            self.assertFalse(_should_fetch_gold_prices())
+
+
+class TestFetchGoldPrices(unittest.TestCase):
+    @patch('app.fetchers._should_fetch_gold_prices', return_value=False)
+    def test_skips_when_not_needed(self, mock_should):
+        fetch_gold_prices()  # no error
+
+    @patch('app.fetchers.get_gold_price_service')
+    @patch('app.fetchers._should_fetch_gold_prices', return_value=True)
+    @patch('app.fetchers.market_cache')
+    def test_success(self, mock_mc, mock_should, mock_gold_svc):
+        mock_gold_svc.return_value.fetch_gold_prices.return_value = {"24K": {"price": 7000}}
+        fetch_gold_prices(force=True)
+        self.assertEqual(mock_mc.gold_prices, {"24K": {"price": 7000}})
+
+    @patch('app.fetchers.get_gold_price_service')
+    @patch('app.fetchers.market_cache')
+    def test_all_retries_fail(self, mock_mc, mock_gold_svc):
+        mock_gold_svc.return_value.fetch_gold_prices.side_effect = Exception("err")
+        fetch_gold_prices(force=True)  # should not raise
+
+
+class TestFetchAllData(unittest.TestCase):
+    @patch('app.fetchers.fetch_gold_prices')
+    @patch('app.fetchers.fetch_nifty50_data')
+    @patch('app.fetchers.fetch_portfolio_data')
+    @patch('app.fetchers.get_authenticated_accounts', return_value=[{"name": "A"}])
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.portfolio_cache')
+    def test_with_accounts(self, mock_pc, mock_state, mock_auth, mock_fetch_pf,
+                           mock_fetch_n, mock_fetch_g):
+        _fetch_all_data("user1", None, False)
+        mock_fetch_pf.assert_called_once()
+
+    @patch('app.fetchers.fetch_gold_prices')
+    @patch('app.fetchers.fetch_nifty50_data')
+    @patch('app.fetchers.get_authenticated_accounts', return_value=[])
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.portfolio_cache')
+    def test_no_accounts(self, mock_pc, mock_state, mock_auth, mock_fetch_n, mock_fetch_g):
+        _fetch_all_data("user1", None, False)
+        mock_state.set_portfolio_updating.assert_called()
+        mock_state.set_portfolio_updated.assert_called()
+        mock_pc.clear.assert_called_with("user1")
+
+
+class TestBgFetchBroadcastException(unittest.TestCase):
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.fetch_manual_ltps', side_effect=Exception("boom"))
+    @patch('app.fetchers._wait_for_symbols', return_value=["INFY"])
+    @patch('app.fetchers._pending_ltp_lock', new_callable=lambda: threading.Lock)
+    def test_exception_caught(self, mock_lock, mock_wait, mock_fetch, mock_state):
+        from app.fetchers import _bg_fetch_and_broadcast_ltps
+        _bg_fetch_and_broadcast_ltps("user1", None, False)
+        # Should not raise
+
+
+class TestProcessPendingDisconnected(unittest.TestCase):
+    @patch('app.fetchers.collect_manual_symbols')
+    @patch('app.fetchers.sse_manager')
+    def test_disconnected_user_removed(self, mock_sse, mock_collect):
+        from app.fetchers import _process_pending_ltp_retries, _pending_ltp_retries, _pending_ltp_lock
+        with _pending_ltp_lock:
+            _pending_ltp_retries.add("disconnected_user")
+        mock_sse.connected_user_ids.return_value = set()
+        _process_pending_ltp_retries()
+        with _pending_ltp_lock:
+            self.assertNotIn("disconnected_user", _pending_ltp_retries)
+        mock_collect.assert_not_called()
+
+
+class TestFetchPortfolioPartialError(unittest.TestCase):
+    @patch('app.fetchers.portfolio_cache')
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.zerodha_client')
+    def test_partial_error_preserves(self, mock_zc, mock_state, mock_pc):
+        mock_zc.fetch_all_accounts_data.return_value = ([], [], [], "partial error")
+        mock_data = Mock()
+        mock_data.stocks = [1, 2]
+        mock_data.mf_holdings = [3]
+        mock_data.sips = []
+        mock_pc.get.return_value = mock_data
+        fetch_portfolio_data("user1", [{"name": "A"}])
+        mock_state.set_portfolio_updated.assert_called()
+
+    @patch('app.fetchers.portfolio_cache')
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.zerodha_client')
+    def test_exception_in_fetch(self, mock_zc, mock_state, mock_pc):
+        mock_zc.fetch_all_accounts_data.side_effect = Exception("api error")
+        fetch_portfolio_data("user1", [{"name": "A"}])
+        mock_state.set_portfolio_updated.assert_called()
+        args = mock_state.set_portfolio_updated.call_args
+        self.assertIsNotNone(args.kwargs.get("error") or args[1].get("error"))
+
+
+class TestFetchGoldPricesRetries(unittest.TestCase):
+    @patch('app.fetchers.get_gold_price_service')
+    @patch('app.fetchers.market_cache')
+    def test_empty_prices_retries(self, mock_mc, mock_svc):
+        """Empty prices retries up to max_retries."""
+        mock_mc.gold_prices_last_fetch = None
+        mock_svc.return_value.fetch_gold_prices.return_value = {}
+        fetch_gold_prices(force=True)
+        self.assertEqual(mock_svc.return_value.fetch_gold_prices.call_count, 3)
+
+    @patch('app.fetchers.get_gold_price_service')
+    @patch('app.fetchers.market_cache')
+    def test_exception_retries(self, mock_mc, mock_svc):
+        """Exceptions retry up to max_retries."""
+        mock_mc.gold_prices_last_fetch = None
+        mock_svc.return_value.fetch_gold_prices.side_effect = Exception("timeout")
+        fetch_gold_prices(force=True)
+        self.assertEqual(mock_svc.return_value.fetch_gold_prices.call_count, 3)
+
+
+class TestFetchNifty50Errors(unittest.TestCase):
+    @patch('app.fetchers.nifty50_fetch_in_progress')
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.market_cache')
+    @patch('app.fetchers.MarketDataClient')
+    def test_timeout_error(self, mock_mdc, mock_mc, mock_state, mock_flag):
+        mock_flag.is_set.return_value = False
+        mock_mdc.return_value.fetch_nifty50_symbols.side_effect = Timeout("timeout")
+        # The actual fetch runs in a thread; we test _fetch directly
+        from app.fetchers import fetch_nifty50_data, nifty50_fetch_in_progress
+        import app.fetchers as f
+        # Patch threading to run synchronously
+        with patch('threading.Thread') as mock_thread:
+            mock_thread.return_value.start = Mock()
+            fetch_nifty50_data()
+            # Get the target function and call it
+            call_args = mock_thread.call_args
+            target = call_args.kwargs.get('target') or call_args[1].get('target')
+            target()
+        mock_state.set_nifty50_updated.assert_called()
+
+    @patch('app.fetchers.nifty50_fetch_in_progress')
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.market_cache')
+    @patch('app.fetchers.MarketDataClient')
+    def test_connection_error(self, mock_mdc, mock_mc, mock_state, mock_flag):
+        mock_flag.is_set.return_value = False
+        mock_mdc.return_value.fetch_nifty50_symbols.side_effect = ConnectionError("no net")
+        with patch('threading.Thread') as mock_thread:
+            mock_thread.return_value.start = Mock()
+            fetch_nifty50_data()
+            target = mock_thread.call_args.kwargs.get('target') or mock_thread.call_args[1].get('target')
+            target()
+        mock_state.set_nifty50_updated.assert_called()
+
+    @patch('app.fetchers.nifty50_fetch_in_progress')
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.market_cache')
+    @patch('app.fetchers.MarketDataClient')
+    def test_generic_exception(self, mock_mdc, mock_mc, mock_state, mock_flag):
+        mock_flag.is_set.return_value = False
+        mock_mdc.return_value.fetch_nifty50_symbols.side_effect = RuntimeError("bad")
+        with patch('threading.Thread') as mock_thread:
+            mock_thread.return_value.start = Mock()
+            fetch_nifty50_data()
+            target = mock_thread.call_args.kwargs.get('target') or mock_thread.call_args[1].get('target')
+            target()
+        mock_state.set_nifty50_updated.assert_called()
+
+
+class TestRunAutoRefresh(unittest.TestCase):
+    @patch('app.fetchers._start_ltp_fetch_thread')
+    @patch('app.fetchers.get_authenticated_accounts', return_value=[])
+    @patch('app.fetchers.user_sheets_cache')
+    @patch('app.fetchers.collect_manual_symbols', return_value=[])
+    @patch('app.fetchers.fetch_gold_prices')
+    @patch('app.fetchers.fetch_nifty50_data')
+    @patch('app.fetchers._process_pending_ltp_retries')
+    @patch('app.fetchers.broadcast_state_change')
+    @patch('app.fetchers.is_market_open_ist', return_value=True)
+    @patch('app.fetchers.sse_manager')
+    @patch('app.fetchers.app_config')
+    @patch('time.sleep', side_effect=[None, StopIteration])
+    def test_one_cycle(self, mock_sleep, mock_config, mock_sse, mock_market,
+                        mock_broadcast, mock_retries, mock_n50, mock_gold,
+                        mock_collect, mock_usc, mock_auth, mock_ltp):
+        mock_config.auto_refresh_interval = 1
+        mock_config.auto_refresh_outside_market_hours = False
+        mock_sse.connected_user_ids.return_value = {"user1"}
+        with self.assertRaises(StopIteration):
+            run_auto_refresh()
+        mock_retries.assert_called()
+        mock_n50.assert_called()
+
+    @patch('app.fetchers._start_ltp_fetch_thread')
+    @patch('app.fetchers.fetch_portfolio_data')
+    @patch('app.fetchers.get_authenticated_accounts', return_value=[{"name": "A"}])
+    @patch('app.fetchers.user_sheets_cache')
+    @patch('app.fetchers.collect_manual_symbols', return_value=["INFY"])
+    @patch('app.fetchers.fetch_gold_prices')
+    @patch('app.fetchers.fetch_nifty50_data')
+    @patch('app.fetchers._process_pending_ltp_retries')
+    @patch('app.fetchers.broadcast_state_change')
+    @patch('app.fetchers.is_market_open_ist', return_value=True)
+    @patch('app.fetchers.sse_manager')
+    @patch('app.fetchers.app_config')
+    @patch('app.fetchers.portfolio_cache')
+    @patch('time.sleep', side_effect=[None, StopIteration])
+    def test_with_auth_accounts_and_symbols(self, mock_sleep, mock_pc, mock_config,
+                                             mock_sse, mock_market, mock_broadcast,
+                                             mock_retries, mock_n50, mock_gold,
+                                             mock_collect, mock_usc, mock_auth,
+                                             mock_fetch_pf, mock_ltp):
+        mock_config.auto_refresh_interval = 1
+        mock_config.auto_refresh_outside_market_hours = False
+        mock_sse.connected_user_ids.return_value = {"user1"}
+        mock_pc.is_fetch_in_progress.return_value = False
+        with self.assertRaises(StopIteration):
+            run_auto_refresh()
+        mock_ltp.assert_called()
+
+    @patch('app.fetchers._process_pending_ltp_retries')
+    @patch('app.fetchers.broadcast_state_change')
+    @patch('app.fetchers.is_market_open_ist')
+    @patch('app.fetchers.sse_manager')
+    @patch('app.fetchers.app_config')
+    @patch('time.sleep', side_effect=[None, None, StopIteration])
+    def test_market_state_transition(self, mock_sleep, mock_config, mock_sse,
+                                      mock_market, mock_broadcast, mock_retries):
+        mock_config.auto_refresh_interval = 1
+        mock_config.auto_refresh_outside_market_hours = False
+        mock_sse.connected_user_ids.return_value = set()
+        # First cycle: market open, second: market closed => transition
+        mock_market.side_effect = [True, False, False]
+        with self.assertRaises(StopIteration):
+            run_auto_refresh()
+        mock_broadcast.assert_called()
+
+    @patch('app.fetchers._process_pending_ltp_retries')
+    @patch('app.fetchers.is_market_open_ist', return_value=False)
+    @patch('app.fetchers.sse_manager')
+    @patch('app.fetchers.app_config')
+    @patch('time.sleep', side_effect=[None, StopIteration])
+    def test_skipped_market_closed(self, mock_sleep, mock_config, mock_sse,
+                                    mock_market, mock_retries):
+        """Auto-refresh skips when market is closed and no SSE connections."""
+        mock_config.auto_refresh_interval = 1
+        mock_config.auto_refresh_outside_market_hours = False
+        mock_sse.connected_user_ids.return_value = set()
+        with self.assertRaises(StopIteration):
+            run_auto_refresh()
+
+
+class TestProcessPendingLtpRetryEmpty(unittest.TestCase):
+    """Cover fetchers.py line 174: user connected but no manual symbols."""
+
+    @patch('app.fetchers.collect_manual_symbols', return_value=[])
+    @patch('app.fetchers.sse_manager')
+    def test_connected_no_symbols_continues(self, mock_sse, mock_collect):
+        from app.fetchers import _process_pending_ltp_retries, _pending_ltp_retries, _pending_ltp_lock
+        mock_sse.connected_user_ids.return_value = {"u1"}
+        with _pending_ltp_lock:
+            _pending_ltp_retries.add("u1")
+        _process_pending_ltp_retries()
+        mock_collect.assert_called_once_with("u1")
+
+
+class TestFetchNifty50Success(unittest.TestCase):
+    """Cover fetchers.py line 284: nifty50 fetch success path."""
+
+    @patch('app.fetchers.nifty50_fetch_in_progress')
+    @patch('app.fetchers.state_manager')
+    @patch('app.fetchers.market_cache')
+    @patch('app.fetchers.MarketDataClient')
+    @patch('threading.Thread')
+    def test_nifty50_success(self, mock_thread, mock_client_cls, mock_cache,
+                              mock_state, mock_flag):
+        from app.fetchers import fetch_nifty50_data
+        mock_flag.is_set.return_value = False
+        fetch_nifty50_data()
+        # Extract the _fetch function and run it directly
+        call_args = mock_thread.call_args
+        fetch_fn = call_args[1].get('target') or call_args[0][0] if call_args[0] else call_args[1]['target']
+        client = mock_client_cls.return_value
+        client.fetch_nifty50_symbols.return_value = ["INFY", "TCS"]
+        session = client._create_session.return_value
+        client.fetch_stock_quote.return_value = {"symbol": "INFY"}
+        fetch_fn()
+        self.assertEqual(mock_cache.nifty50, [{"symbol": "INFY"}, {"symbol": "INFY"}])
+        mock_state.set_nifty50_updated.assert_called_once()
+
+
+class TestRunBackgroundFetchOnComplete(unittest.TestCase):
+    """Cover fetchers.py line 335: on_complete callback."""
+
+    @patch('app.fetchers._start_ltp_fetch_thread')
+    @patch('app.fetchers._fetch_all_data')
+    @patch('threading.Thread')
+    def test_on_complete_called(self, mock_thread, mock_fetch_all, mock_ltp):
+        from app.fetchers import run_background_fetch
+        callback = Mock()
+        run_background_fetch(google_id="u1", on_complete=callback)
+        # Extract the _run function and run it directly
+        call_args = mock_thread.call_args
+        run_fn = call_args[1].get('target') or call_args[0][0] if call_args[0] else call_args[1]['target']
+        run_fn()
+        callback.assert_called_once()

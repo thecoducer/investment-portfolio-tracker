@@ -220,6 +220,22 @@ class TestGoldPriceService(unittest.TestCase):
         
         self.assertIs(service1, service2)
 
+    @patch('app.api.ibja_gold_price.requests.get')
+    def test_parse_price_failure(self, mock_get):
+        """Cover lines 62-63: ValueError when parsing gold price text."""
+        html = '<html><body>'
+        for purity in self.service.PURITIES:
+            html += f'<span id="GoldRatesCompare{purity}">not_a_number</span>'
+        html += '</body></html>'
+        mock_resp = Mock()
+        mock_resp.content = html.encode()
+        mock_resp.raise_for_status = Mock()
+        mock_get.return_value = mock_resp
+
+        result = self.service._fetch_gold_prices_impl()
+        # All prices failed to parse → returns None
+        self.assertIsNone(result)
+
 
 if __name__ == '__main__':
     unittest.main()

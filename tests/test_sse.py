@@ -226,6 +226,38 @@ class TestSSEClientManager(unittest.TestCase):
         manager.add_client(q2, google_id="user1")
         self.assertEqual(manager.total_client_count, 1)
 
+    def test_remove_user_client_queue_not_in_list(self):
+        """remove_client when google_id has clients but the given queue is not one of them."""
+        manager = SSEClientManager()
+        q_real = Queue()
+        q_stranger = Queue()
+        manager.add_client(q_real, google_id="user1")
+        # q_stranger was never added — should trigger ValueError path (caught)
+        manager.remove_client(q_stranger, google_id="user1")
+        # user1 should still be connected (q_real remains)
+        self.assertIn("user1", manager.connected_user_ids())
+
+    def test_send_to_queues_generic_exception(self):
+        """_send_to_queues handles generic Exception (not Full) on put_nowait."""
+        manager = SSEClientManager()
+        bad_q = Queue()
+        bad_q.put_nowait = lambda msg: (_ for _ in ()).throw(RuntimeError("broken"))
+        manager.add_client(bad_q, google_id="user1")
+        # broadcast_to_user calls _send_to_queues internally
+        manager.broadcast_to_user("user1", "test_msg")
+        # Bad client should have been removed
+        self.assertNotIn("user1", manager.connected_user_ids())
+
+    def test_broadcast_all_anonymous_failure(self):
+        """broadcast_all removes anonymous clients whose queues overflow."""
+        manager = SSEClientManager(max_per_user=10, max_total=100, queue_size=1)
+        q_anon = Queue(maxsize=1)
+        q_anon.put("fill")  # fill it
+        manager.add_client(q_anon)
+        # broadcast_all should try sending to anonymous client, fail, and remove it
+        manager.broadcast_all("msg")
+        self.assertEqual(len(manager._anonymous_clients), 0)
+
 
 if __name__ == '__main__':
     unittest.main()

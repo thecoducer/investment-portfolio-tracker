@@ -4,6 +4,8 @@ Unit tests for API services
 import unittest
 from unittest.mock import Mock, patch
 
+from requests.exceptions import ConnectionError, ReadTimeout
+
 from app.api.auth import AuthenticationManager
 from app.api.holdings import HoldingsService
 
@@ -487,6 +489,110 @@ class TestSIPService(unittest.TestCase):
         merged = self.service.merge_items(all_sips)
         
         self.assertEqual(len(merged), 0)
+
+
+class TestAuthValidateTokenNetworkError(unittest.TestCase):
+    """Test _validate_token re-raises ReadTimeout/ConnectionError (line 25)."""
+
+    def setUp(self):
+        self.session_manager = Mock()
+        self.auth_manager = AuthenticationManager(self.session_manager)
+
+    def test_validate_token_read_timeout(self):
+        mock_kite = Mock()
+        mock_kite.profile.side_effect = ReadTimeout("timeout")
+        with self.assertRaises(ReadTimeout):
+            self.auth_manager._validate_token(mock_kite, "user1", "Acc1")
+
+    def test_validate_token_connection_error(self):
+        mock_kite = Mock()
+        mock_kite.profile.side_effect = ConnectionError("conn fail")
+        with self.assertRaises(ConnectionError):
+            self.auth_manager._validate_token(mock_kite, "user1", "Acc1")
+
+
+class TestAuthTryRenewTokenEdgeCases(unittest.TestCase):
+    """Test _try_renew_token edge cases (lines 52, 57)."""
+
+    def setUp(self):
+        self.session_manager = Mock()
+        self.auth_manager = AuthenticationManager(self.session_manager)
+
+    def test_renew_token_returns_empty(self):
+        """renew_access_token returns dict without access_token → False (line 52)."""
+        mock_kite = Mock()
+        self.session_manager.get_token.return_value = "old_token"
+        mock_kite.renew_access_token.return_value = {"access_token": None}
+        result = self.auth_manager._try_renew_token(mock_kite, "user1", "Acc1", "secret")
+        self.assertFalse(result)
+
+    def test_renew_token_network_error(self):
+        """ReadTimeout during renewal is re-raised (line 57)."""
+        mock_kite = Mock()
+        self.session_manager.get_token.return_value = "old_token"
+        mock_kite.renew_access_token.side_effect = ReadTimeout("timeout")
+        with self.assertRaises(ReadTimeout):
+            self.auth_manager._try_renew_token(mock_kite, "user1", "Acc1", "secret")
+
+
+class TestAuthenticateViaRenewal(unittest.TestCase):
+    """Test authenticate success via renewal after cached token fails (line 74)."""
+
+    def setUp(self):
+        self.session_manager = Mock()
+        self.auth_manager = AuthenticationManager(self.session_manager)
+
+    @patch('app.api.auth.KiteConnect')
+    def test_authenticate_via_renewal(self, mock_kite_cls):
+        mock_kite = Mock()
+        mock_kite_cls.return_value = mock_kite
+        # Cached token fails (no token)
+        self.session_manager.get_token.side_effect = [None, "old_token"]
+        self.session_manager.is_valid.return_value = False
+        # Renewal succeeds
+        mock_kite.renew_access_token.return_value = {"access_token": "new_token"}
+        account = {"name": "Acc1", "api_key": "k1", "api_secret": "s1", "google_id": "u1"}
+        result = self.auth_manager.authenticate(account)
+        self.assertEqual(result, mock_kite)
+
+
+class TestHoldingsGenericException(unittest.TestCase):
+    """Test fetch_holdings generic Exception path (lines 41-42)."""
+
+    def test_fetch_holdings_generic_exception(self):
+        service = HoldingsService()
+        mock_kite = Mock()
+        mock_kite.holdings.side_effect = ValueError("unexpected")
+        with self.assertRaises(ValueError):
+            service.fetch_holdings(mock_kite)
+
+    def test_fetch_holdings_read_timeout(self):
+        """ReadTimeout/ConnectionError re-raised (lines 41-42)."""
+        service = HoldingsService()
+        mock_kite = Mock()
+        mock_kite.holdings.side_effect = ReadTimeout("timeout")
+        with self.assertRaises(ReadTimeout):
+            service.fetch_holdings(mock_kite)
+
+
+class TestSIPServiceTimeout(unittest.TestCase):
+    """Test fetch_sips ReadTimeout/ConnectionError path (lines 31-32)."""
+
+    def test_fetch_sips_read_timeout(self):
+        from app.api.sips import SIPService
+        service = SIPService()
+        mock_kite = Mock()
+        mock_kite.mf_sips.side_effect = ReadTimeout("timeout")
+        result = service.fetch_sips(mock_kite)
+        self.assertEqual(result, [])
+
+    def test_fetch_sips_connection_error(self):
+        from app.api.sips import SIPService
+        service = SIPService()
+        mock_kite = Mock()
+        mock_kite.mf_sips.side_effect = ConnectionError("conn fail")
+        result = service.fetch_sips(mock_kite)
+        self.assertEqual(result, [])
 
 
 if __name__ == '__main__':

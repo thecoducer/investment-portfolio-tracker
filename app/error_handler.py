@@ -190,7 +190,7 @@ def retry_on_transient_error(
                         raise
             
             # Should not reach here, but just in case
-            if last_error:
+            if last_error:  # pragma: no cover
                 raise last_error
             
         return wrapper
