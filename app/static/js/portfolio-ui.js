@@ -493,10 +493,25 @@ function removeDrawerAccount(name) {
     setTimeout(() => showStep(0), 400);
   };
 
-  // Auto-start for first-time visitors — generous delay so UI settles
+  // Auto-start for first-time visitors — generous delay so UI settles.
+  // If the PIN overlay is active, wait for it to close before starting.
   if (isFirstVisit) {
     const tourDelay = window.__INITIAL_DATA__ ? 2500 : 4500;
-    setTimeout(() => showStep(0), tourDelay);
+    setTimeout(() => {
+      const pinOverlay = document.getElementById('pinOverlay');
+      if (pinOverlay && pinOverlay.style.display !== 'none' && pinOverlay.style.display !== '') {
+        // PIN flow is active — observe until it's dismissed, then start tour
+        const obs = new MutationObserver(() => {
+          if (pinOverlay.style.display === 'none' || pinOverlay.style.display === '') {
+            obs.disconnect();
+            setTimeout(() => showStep(0), 600);
+          }
+        });
+        obs.observe(pinOverlay, { attributes: true, attributeFilter: ['style'] });
+      } else {
+        showStep(0);
+      }
+    }, tourDelay);
   }
 })();
 
