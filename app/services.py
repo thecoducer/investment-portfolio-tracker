@@ -37,9 +37,11 @@ def ensure_user_loaded(google_id: str, *, force: bool = False) -> None:
         return
     with _loaded_users_lock:
         if not force and google_id in _loaded_users:
+            logger.debug("ensure_user_loaded: already loaded user=%s", google_id[:8])
             return
         _loaded_users.add(google_id)
 
+    logger.info("ensure_user_loaded: loading user=%s force=%s", google_id[:8], force)
     session_manager.load_user(google_id)
     from .fetchers import run_background_fetch
     run_background_fetch(google_id=google_id)
@@ -55,7 +57,7 @@ def get_user_accounts(google_id: str) -> List[Dict[str, str]]:
         from .firebase_store import get_zerodha_accounts
         return get_zerodha_accounts(google_id, pin)
     except Exception:
-        logger.exception("Failed to fetch Zerodha accounts for user %s", google_id)
+        logger.exception("Failed to fetch Zerodha accounts for user %s", google_id[:8])
         return []
 
 
@@ -112,7 +114,9 @@ def broadcast_state_change(google_id: str = None) -> None:
         if google_id:
             sse_manager.broadcast_to_user(google_id, json.dumps(_build_status_response(google_id)))
         else:
-            for gid in sse_manager.connected_user_ids():
+            connected = sse_manager.connected_user_ids()
+            logger.debug("broadcast_state_change: global broadcast to %d users", len(connected))
+            for gid in connected:
                 try:
                     sse_manager.broadcast_to_user(gid, json.dumps(_build_status_response(gid)))
                 except Exception:

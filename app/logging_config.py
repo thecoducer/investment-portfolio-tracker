@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Optional
 
 # Shared logger for the project. Modules can import this `logger` to avoid
@@ -8,18 +9,45 @@ from typing import Optional
 logger = logging.getLogger("metron")
 
 
+class _UTCFormatter(logging.Formatter):
+    """Formatter that always emits timestamps in UTC."""
+
+    converter = time.gmtime  # force UTC regardless of server timezone
+
+
 def configure(level: int = logging.INFO, fmt: Optional[str] = None) -> None:
     """Configure root logging for the application.
 
     Call this once from the entry point (e.g., `server.main()`).
+    All timestamps are emitted in UTC for consistency across deployments.
     """
     if fmt is None:
-        # Use comma-separated milliseconds to match the example format:
-        # 2025-11-29 20:34:42,819 INFO metron: message
-        fmt = "%(asctime)s,%(msecs)03d %(levelname)s %(name)s: %(message)s"
-    # Provide a datefmt so asctime contains the date/time without msecs;
-    # msecs are inserted via %(msecs)03d in the format above.
-    logging.basicConfig(level=level, format=fmt, datefmt="%Y-%m-%d %H:%M:%S")
+        fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    datefmt = "%Y-%m-%dT%H:%M:%S.%%03dZ"  # placeholder; msecs handled below
+
+    # Build a UTC-aware formatter with millisecond precision
+    formatter = _UTCFormatter(fmt=fmt, datefmt="%Y-%m-%dT%H:%M:%SZ")
+    # Override formatTime to include milliseconds in ISO-8601 UTC
+    _orig_formatTime = formatter.formatTime
+
+    def _utc_format_time(record, datefmt=None):
+        ct = time.gmtime(record.created)
+        t = time.strftime("%Y-%m-%dT%H:%M:%S", ct)
+        return f"{t}.{int(record.msecs):03d}Z"
+
+    formatter.formatTime = _utc_format_time
+
+    # Apply to root logger
+    root = logging.getLogger()
+    root.setLevel(level)
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+    else:
+        for handler in root.handlers:
+            handler.setFormatter(formatter)
+
     # Ensure our shared logger inherits configuration
     logger.setLevel(level)
     # Reduce noisy HTTP request logs from Flask's development server (Werkzeug)

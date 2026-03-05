@@ -1,5 +1,6 @@
 """Zerodha API client for fetching portfolio data."""
 import threading
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..logging_config import logger
@@ -55,6 +56,7 @@ class ZerodhaAPIClient:
             error_message is None if no errors occurred
         """
         account_name = account_config["name"]
+        t0 = time.monotonic()
         try:
             stock_holdings, mf_holdings, sips = self.fetch_account_data(
                 account_config
@@ -62,9 +64,15 @@ class ZerodhaAPIClient:
             self.holdings_service.add_account_info(stock_holdings, account_name)
             self.holdings_service.add_account_info(mf_holdings, account_name)
             self.sip_service.add_account_info(sips, account_name)
+            logger.info(
+                "Account %s fetched in %.2fs: stocks=%d mf=%d sips=%d",
+                account_name, time.monotonic() - t0,
+                len(stock_holdings), len(mf_holdings), len(sips),
+            )
             return stock_holdings, mf_holdings, sips, None
         except Exception as e:
-            logger.error("Error fetching holdings for %s: %s", account_name, e)
+            logger.error("Error fetching holdings for %s in %.2fs: %s",
+                         account_name, time.monotonic() - t0, e)
             return [], [], [], str(e)
 
     def fetch_all_accounts_data(
@@ -88,6 +96,7 @@ class ZerodhaAPIClient:
 
         n = len(accounts_config)
         results = [None] * n  # Each slot: (stocks, mfs, sips, error)
+        t0 = time.monotonic()
 
         def _fetch_one(idx: int, account_config: Dict[str, Any]):
             results[idx] = self._process_account(account_config)
@@ -113,17 +122,26 @@ class ZerodhaAPIClient:
         all_mf_holdings = []
         all_sips = []
         first_error = None
+        error_count = 0
 
         for stocks, mfs, sips, err in results:
             all_stock_holdings.append(stocks)
             all_mf_holdings.append(mfs)
             all_sips.append(sips)
-            if err and not first_error:
-                first_error = err
+            if err:
+                error_count += 1
+                if not first_error:
+                    first_error = err
 
         merged_stocks, merged_mfs = self.holdings_service.merge_holdings(
             all_stock_holdings, all_mf_holdings
         )
         merged_sips = self.sip_service.merge_items(all_sips)
+
+        logger.info(
+            "fetch_all_accounts: %d accounts in %.2fs → stocks=%d mf=%d sips=%d errors=%d",
+            n, time.monotonic() - t0,
+            len(merged_stocks), len(merged_mfs), len(merged_sips), error_count,
+        )
 
         return merged_stocks, merged_mfs, merged_sips, first_error

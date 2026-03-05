@@ -275,12 +275,17 @@ def _prefetch_all_user_sheets(user):
 
     # Fast path — everything already in cache.
     if user_sheets_cache.is_fully_cached(google_id):
+        logger.debug("Sheets cache hit for user=%s", google_id[:8])
         return
 
     with _get_user_fetch_lock(google_id):
         # Double-check after acquiring lock.
         if user_sheets_cache.is_fully_cached(google_id):
             return
+
+        import time as _time
+        _t0 = _time.monotonic()
+        logger.info("Sheets batch-fetch started for user=%s", google_id[:8])
 
         try:
             from .api.google_auth import credentials_from_dict
@@ -341,8 +346,19 @@ def _prefetch_all_user_sheets(user):
                 fixed_deposits=deposits,
                 manual=manual,
             )
+            _elapsed = _time.monotonic() - _t0
+            manual_counts = {k: len(v) for k, v in manual.items() if v}
+            logger.info(
+                "Sheets batch-fetch done for user=%s in %.1fs: "
+                "gold=%d fds=%d manual=%s",
+                google_id[:8], _elapsed, len(gold), len(deposits), manual_counts,
+            )
         except Exception:
-            logger.exception("Error batch-fetching all Sheets data")
+            _elapsed = _time.monotonic() - _t0
+            logger.exception(
+                "Sheets batch-fetch FAILED for user=%s after %.1fs",
+                google_id[:8], _elapsed,
+            )
 
 @app_ui.route("/api/auth/google/login", methods=["GET"])
 def google_login():
@@ -351,7 +367,8 @@ def google_login():
 
     try:
         redirect_uri = request.url_root.rstrip("/") + "/api/auth/google/callback"
-        logger.info("OAuth redirect_uri: %s", redirect_uri)
+        logger.info("OAuth login initiated from ip=%s redirect_uri=%s",
+                    request.remote_addr, redirect_uri)
         flow = build_oauth_flow(redirect_uri)
         authorization_url, state = flow.authorization_url(
             access_type="offline",
@@ -401,6 +418,11 @@ def google_callback():
 
         existing = get_user(google_id)
         spreadsheet_id = existing.get("spreadsheet_id", "") if existing else ""
+        is_new_user = existing is None
+        logger.info(
+            "OAuth callback success: user=%s email=%s new_user=%s",
+            google_id[:8], email, is_new_user,
+        )
 
         user_doc = upsert_user(
             google_id=google_id,
@@ -464,7 +486,9 @@ def auth_logout():
     """Sign out the current user and clear PIN from memory."""
     user = _current_user()
     if user:
-        session_manager.clear_pin(user.get("google_id", ""))
+        gid = user.get("google_id", "")
+        logger.info("User logout: user=%s", gid[:8])
+        session_manager.clear_pin(gid)
     session.clear()
     return jsonify({"status": "logged_out"})
 
@@ -505,6 +529,10 @@ def pin_verify():
     # ── Rate-limit check ──
     allowed, retry_after = pin_rate_limiter.check(google_id)
     if not allowed:
+        logger.warning(
+            "PIN verify rate-limited: user=%s retry_after=%ds",
+            google_id[:8], retry_after,
+        )
         resp = jsonify({
             "error": "Too many failed attempts",
             "retry_after": retry_after,
@@ -518,10 +546,15 @@ def pin_verify():
     pin = (data.get("pin") or "").strip()
 
     if not pin or len(pin) != 6 or not pin.isalnum():
+        logger.info("PIN verify: invalid format from user=%s", google_id[:8])
         return jsonify({"error": "PIN must be exactly 6 alphanumeric characters"}), 400
 
     if not verify_user_pin(google_id, pin):
         attempts, lockout_secs = pin_rate_limiter.record_failure(google_id)
+        logger.warning(
+            "PIN verify failed: user=%s attempts=%d lockout=%s",
+            google_id[:8], attempts, f"{lockout_secs}s" if lockout_secs else "none",
+        )
         resp_data = {"error": "Incorrect PIN", "attempts": attempts}
         if lockout_secs:
             resp_data["retry_after"] = lockout_secs
@@ -534,6 +567,7 @@ def pin_verify():
 
     # Success — clear rate-limit state
     pin_rate_limiter.record_success(google_id)
+    logger.info("PIN verified successfully: user=%s", google_id[:8])
 
     # Store PIN in server memory and mark session as verified
     session_manager.set_pin(google_id, pin)
@@ -562,12 +596,14 @@ def pin_setup():
         return jsonify({"error": "PIN must be exactly 6 alphanumeric characters"}), 400
 
     if has_pin(google_id):
+        logger.warning("PIN setup rejected: user=%s already has PIN", google_id[:8])
         return jsonify({"error": "PIN already set. Use reset to change it."}), 409
 
     store_pin_check(google_id, pin)
     session_manager.set_pin(google_id, pin)
     session["pin_verified"] = True
     session.modified = True
+    logger.info("PIN created for user=%s", google_id[:8])
 
     # Trigger background data loading now that PIN is available
     ensure_user_loaded(google_id, force=True)
@@ -593,6 +629,7 @@ def pin_reset():
     session.pop("pin_verified", None)
     session.modified = True
     portfolio_cache.clear(google_id)
+    logger.info("PIN reset complete: user=%s (all Zerodha data wiped)", google_id[:8])
 
     return jsonify({"status": "reset_complete"})
 
@@ -605,7 +642,8 @@ def sse_token():
     The token lets the browser open an EventSource directly to Cloud Run
     (bypassing Firebase Hosting CDN, which buffers streaming responses).
     """
-    user = _current_user()
+    google_id = user["google_id"]
+    logger.debug("SSE token requested: user=%s", google_id[:8])
     token = _generate_sse_token(user["google_id"])
     resp = jsonify({"token": token, "ttl": SSE_TOKEN_MAX_AGE})
     resp.headers["Cache-Control"] = "no-store"
@@ -617,19 +655,21 @@ def zerodha_callback():
     """Handle Zerodha KiteConnect OAuth callback."""
     req_token = request.args.get("request_token")
     if not req_token:
+        logger.warning("Zerodha callback missing request_token")
         return render_template("callback_error.html")
 
     user = session.get("user")
     if not user or not user.get("google_id"):
-        logger.warning("No active Google user in session during Zerodha callback")
+        logger.warning("Zerodha callback without active session from ip=%s", request.remote_addr)
         return render_template("callback_error.html")
 
     google_id = user["google_id"]
+    logger.info("Zerodha callback started: user=%s", google_id[:8])
 
     # PIN must be available to decrypt account credentials
     pin = session_manager.get_pin(google_id)
     if not pin:
-        logger.warning("Zerodha callback without PIN in memory for %s", google_id)
+        logger.warning("Zerodha callback: PIN not in memory for user=%s", google_id[:8])
         return render_template("callback_error.html")
 
     ensure_user_loaded(google_id)
@@ -638,6 +678,7 @@ def zerodha_callback():
     authenticated_account = None
     for acc in accounts:
         if session_manager.is_valid(google_id, acc["name"]):
+            logger.debug("Zerodha callback: skipping already-valid account=%s", acc["name"])
             continue
         try:
             from kiteconnect import KiteConnect
@@ -649,13 +690,17 @@ def zerodha_callback():
                 session_manager.save(google_id)
                 authenticated_account = acc["name"]
                 break
-        except Exception:
+        except Exception as e:
+            logger.warning("Zerodha callback: session generation failed for account=%s: %s",
+                          acc["name"], e)
             continue
 
     if not authenticated_account:
+        logger.warning("Zerodha callback: no account authenticated for user=%s (tried %d)",
+                      google_id[:8], len(accounts))
         return render_template("callback_error.html")
 
-    logger.info("Login succeeded for %s/%s", google_id, authenticated_account)
+    logger.info("Zerodha login succeeded: user=%s account=%s", google_id[:8], authenticated_account)
 
     # Immediately broadcast updated auth state so the banner hides right away
     broadcast_state_change(google_id)
@@ -713,6 +758,7 @@ def events():
             google_id = _validate_sse_token(token)
 
     if not google_id:
+        logger.debug("SSE rejected: no auth (ip=%s)", request.remote_addr)
         resp = jsonify({"error": "Authentication required"})
         resp.status_code = 401
         return _add_cors_headers(resp)
@@ -722,22 +768,25 @@ def events():
         accepted = sse_manager.add_client(client_queue, google_id)
         if not accepted:
             # Limit exceeded — yield an error event and stop.
+            logger.warning("SSE rejected (limit): user=%s", google_id[:8])
             yield f"retry: {SSE_RETRY_MS}\ndata: {{\"error\": \"too_many_connections\"}}\n\n"
             return
 
         started = _time.monotonic()
+        msg_count = 0
         try:
             # Send retry hint so browsers reconnect at a controlled interval
             yield f"retry: {SSE_RETRY_MS}\n"
             # Send initial state immediately
             yield f"data: {json.dumps(_build_status_response(google_id))}\n\n"
+            msg_count += 1
             while True:
                 # Enforce max connection age (GCloud / load balancer timeouts)
                 elapsed = _time.monotonic() - started
                 if elapsed >= SSE_MAX_CONNECTION_AGE:
                     logger.info(
-                        "SSE connection aged out for user=%s after %ds",
-                        google_id, int(elapsed),
+                        "SSE connection aged out: user=%s duration=%ds messages=%d",
+                        google_id[:8], int(elapsed), msg_count,
                     )
                     # Send a reconnect hint before closing
                     yield f"data: {{\"reconnect\": true}}\n\n"
@@ -747,24 +796,29 @@ def events():
                     message = client_queue.get(timeout=SSE_KEEPALIVE_INTERVAL)
                     if message is EVICT_SENTINEL:
                         logger.info(
-                            "SSE connection evicted for user=%s (newer connection arrived)",
-                            google_id,
+                            "SSE connection evicted: user=%s duration=%ds messages=%d",
+                            google_id[:8], int(_time.monotonic() - started), msg_count,
                         )
                         # Tell client to reconnect immediately
                         yield f"data: {{\"reconnect\": true}}\n\n"
                         break
                     yield f"data: {message}\n\n"
+                    msg_count += 1
                 except Empty:
                     # SSE keepalive comment to prevent proxy/LB idle timeouts
                     yield ": keepalive\n\n"
         except GeneratorExit:
             # Client disconnected normally
-            pass
+            duration = int(_time.monotonic() - started)
+            logger.info("SSE client disconnected: user=%s duration=%ds messages=%d",
+                       google_id[:8], duration, msg_count)
         except (BrokenPipeError, ConnectionResetError, OSError):
             # Client disconnected abnormally (common in production)
-            logger.debug("SSE client disconnected (broken pipe) user=%s", google_id)
+            duration = int(_time.monotonic() - started)
+            logger.info("SSE broken pipe: user=%s duration=%ds messages=%d",
+                       google_id[:8], duration, msg_count)
         except Exception:
-            logger.exception("Unexpected error in SSE stream for user=%s", google_id)
+            logger.exception("SSE unexpected error: user=%s", google_id[:8])
         finally:
             sse_manager.remove_client(client_queue, google_id)
 
@@ -1004,6 +1058,8 @@ def all_data():
     The backend batch-fetches all Google Sheets tabs in one API call,
     then assembles and returns the combined payload.
     """
+    import time as _t
+    _t0 = _t.monotonic()
     user = _current_user()
     google_id = user["google_id"]
 
@@ -1011,14 +1067,24 @@ def all_data():
     # individual _build_*_data helpers all hit cache.
     _prefetch_all_user_sheets(user)
 
-    resp = jsonify({
+    payload = {
         "stocks": _build_stocks_data(user),
         "mfHoldings": _build_mf_data(user),
         "sips": _build_sips_data(user),
         "physicalGold": _build_gold_data(user),
         "fixedDeposits": _build_fd_data(user),
         "status": _build_status_response(google_id),
-    })
+    }
+    _elapsed = _t.monotonic() - _t0
+    logger.info(
+        "all_data served: user=%s in %.2fs stocks=%d mf=%d sips=%d gold=%d fd=%d",
+        google_id[:8], _elapsed,
+        len(payload["stocks"]), len(payload["mfHoldings"]),
+        len(payload["sips"]), len(payload["physicalGold"]),
+        len(payload["fixedDeposits"]),
+    )
+
+    resp = jsonify(payload)
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     return resp
 
@@ -1061,6 +1127,7 @@ def refresh_route():
     google_id = user["google_id"]
 
     if portfolio_cache.is_fetch_in_progress(google_id):
+        logger.info("Manual refresh rejected: already in progress for user=%s", google_id[:8])
         return make_response(jsonify({"error": "Fetch already in progress"}), HTTP_CONFLICT)
 
     ensure_user_loaded(google_id)
@@ -1072,6 +1139,10 @@ def refresh_route():
     manual_ltp_cache.invalidate()
 
     authenticated = get_authenticated_accounts(google_id)
+    logger.info(
+        "Manual refresh started: user=%s accounts=%d manual_symbols=%d",
+        google_id[:8], len(authenticated), len(manual_symbols),
+    )
     run_background_fetch(
         is_manual=True, accounts=authenticated, google_id=google_id,
         manual_symbols=manual_symbols,
@@ -1134,6 +1205,11 @@ def portfolio_page():
 
     from .firebase_store import has_pin as _has_pin
     user_has_pin = _has_pin(google_id)
+
+    logger.info(
+        "portfolio_page: user=%s pin_verified=%s inlined=%s has_pin=%s",
+        google_id[:8], pin_verified, initial_data is not None, user_has_pin,
+    )
 
     return render_template(
         "portfolio.html",
@@ -1256,8 +1332,10 @@ def add_zerodha():
     try:
         add_zerodha_account(google_id, account_name, api_key, api_secret, pin=pin)
     except ValueError as exc:
+        logger.warning("add_zerodha conflict: user=%s account=%s reason=%s", google_id[:8], account_name, exc)
         return jsonify({"error": str(exc)}), 409
 
+    logger.info("add_zerodha: user=%s account=%s", google_id[:8], account_name)
     return jsonify({"status": "saved", "account_name": account_name})
 
 
@@ -1271,11 +1349,13 @@ def remove_zerodha(account_name):
     try:
         remove_zerodha_account(google_id, account_name)
     except ValueError as exc:
+        logger.warning("remove_zerodha not found: user=%s account=%s", google_id[:8], account_name)
         return jsonify({"error": str(exc)}), 404
 
     # Clean up session token and cached portfolio data for the removed account
     session_manager.invalidate(google_id, account_name)
     portfolio_cache.clear(google_id)
+    logger.info("remove_zerodha: user=%s account=%s (session+cache cleared)", google_id[:8], account_name)
 
     return jsonify({"status": "removed"})
 
@@ -1464,6 +1544,7 @@ def sheets_add(sheet_type):
         logger.exception("Error adding %s row", sheet_type)
         return jsonify({"error": str(e)}), 500
 
+    logger.info("sheets_add: user=%s type=%s row=%d", google_id[:8], sheet_type, row_num)
     result = {"status": "added", "row_number": row_num}
     refreshed = _build_data_for_type(user, sheet_type)
     if refreshed:

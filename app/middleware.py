@@ -67,6 +67,7 @@ def login_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         if not _is_authenticated():
+            logger.debug("login_required: rejected %s %s", request.method, request.path)
             return jsonify({"error": "Authentication required"}), 401
         return f(*args, **kwargs)
 
@@ -112,11 +113,13 @@ def pin_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
         if not _is_authenticated():
+            logger.debug("pin_required: auth rejected %s %s", request.method, request.path)
             return jsonify({"error": "Authentication required"}), 401
         denied = _deny_non_app_request()
         if denied:
             return denied
         if not session.get("pin_verified"):
+            logger.debug("pin_required: PIN not verified for %s %s", request.method, request.path)
             return jsonify({"error": "pin_required"}), 403
         return f(*args, **kwargs)
 

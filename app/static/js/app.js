@@ -10,6 +10,7 @@ import SSEConnectionManager from './sse-manager.js';
 import { Formatter } from './utils.js';
 import IndexTicker from './index-ticker.js';
 import CrudManager from './crud-manager.js';
+import { Log } from './logger.js';
 
 class PortfolioApp {
   constructor() {
@@ -47,9 +48,11 @@ class PortfolioApp {
       delete window.__INITIAL_DATA__;
       this._applyData(inlined);
       this._hasInitialData = true;
+      Log.info('App', 'Rendered inlined data (warm cache)');
     } else {
       this._renderEmptyStates();
       this._hasInitialData = false;
+      Log.info('App', 'Cold start — waiting for SSE + fetch');
     }
 
     // Check if a security PIN is required before connecting SSE and
@@ -522,6 +525,8 @@ class PortfolioApp {
                            hasNewerData;
 
     if (shouldFetchData) {
+      const reason = isFirstSSE ? 'firstSSE' : hasNewerData ? 'newerTimestamp' : 'updateComplete';
+      Log.debug('SSE', `Fetching data: reason=${reason} portfolio=${status.portfolio_state}`);
       const isRealRefresh = !isFirstSSE && !isUpdating && this._wasUpdating;
       if (isRealRefresh || hasNewerData) {
         // Keep refresh button and status tag in "updating" state until data is loaded
@@ -693,7 +698,9 @@ class PortfolioApp {
 
   async updateData() {
     try {
+      Log.time('Data', 'fetchAllData');
       const data = await this.dataManager.fetchAllData();
+      Log.timeEnd('Data', 'fetchAllData');
       this._hideLoadingIndicators();
       this._applyData(data);
 
@@ -711,7 +718,7 @@ class PortfolioApp {
         }
       }
     } catch (error) {
-      console.error('Error updating data:', error);
+      Log.error('Data', 'Error updating data:', error);
     }
   }
 
@@ -802,7 +809,7 @@ class PortfolioApp {
       // ensure_user_loaded already started a background fetch.
       // Don't use alert() — it blocks the JS thread and freezes
       // SSE event processing, preventing state transitions.
-      console.warn('[Refresh] Request failed:', error.message);
+      Log.warn('Refresh', 'Request failed:', error.message);
       this._updateRefreshButton(false);
     }
   }

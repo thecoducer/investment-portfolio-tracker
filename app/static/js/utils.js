@@ -388,12 +388,18 @@ async function metronFetch(url, options = {}) {
       const clone = resp.clone();
       const body = await clone.json();
       if (body && body.error === 'pin_required' && typeof window.checkAndPromptPin === 'function') {
+        console.debug('[Auth] PIN required for', url, '— prompting');
         await window.checkAndPromptPin();
         // Retry the original request after PIN entry
         return fetch(url, { ...options, headers });
       }
     } catch { /* not JSON or network error — fall through */ }
   }
+
+  if (resp.status === 401) {
+    console.warn('[Auth] 401 on', url, '— session may be expired');
+  }
+
   return resp;
 }
 

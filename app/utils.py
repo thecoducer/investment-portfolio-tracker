@@ -180,8 +180,9 @@ class SessionManager:
             return
         pin = self.get_pin(google_id)
         if not pin:
-            logger.info("Skipping session load for %s — PIN not yet provided", google_id)
+            logger.info("Skipping session load for %s — PIN not yet provided", google_id[:8])
             return
+        t0 = time.monotonic()
         try:
             from .firebase_store import get_zerodha_sessions
             stored = get_zerodha_sessions(google_id)
@@ -190,18 +191,21 @@ class SessionManager:
             return
 
         sessions: Dict[str, Dict[str, Any]] = {}
+        skipped = 0
         for name, info in stored.items():
             try:
                 expiry = datetime.fromisoformat(info.get("expiry", ""))
                 if expiry.tzinfo is None:
                     expiry = expiry.replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
+                skipped += 1
                 continue
             try:
                 access_token = self._decrypt(info.get("access_token", ""), google_id)
             except (InvalidToken, Exception):
                 logger.warning("Failed to decrypt session for %s/%s — skipping",
-                               google_id, name)
+                               google_id[:8], name)
+                skipped += 1
                 continue
             sessions[name] = {
                 "access_token": access_token,
@@ -210,8 +214,14 @@ class SessionManager:
 
         with self._lock:
             self._user_sessions[google_id] = sessions
+        elapsed = time.monotonic() - t0
         if sessions:
-            logger.info("Loaded sessions for %s: %s", google_id, ", ".join(sessions))
+            logger.info("Loaded %d sessions for %s in %.2fs (skipped=%d): %s",
+                        len(sessions), google_id[:8], elapsed, skipped,
+                        ", ".join(sessions))
+        elif stored:
+            logger.warning("No valid sessions loaded for %s (stored=%d skipped=%d) in %.2fs",
+                           google_id[:8], len(stored), skipped, elapsed)
 
     def save(self, google_id: str) -> None:
         """Persist encrypted session tokens to Firestore.  Requires PIN."""
@@ -220,8 +230,9 @@ class SessionManager:
             return
         pin = self.get_pin(google_id)
         if not pin:
-            logger.warning("Cannot save sessions for %s — PIN not available", google_id)
+            logger.warning("Cannot save sessions for %s — PIN not available", google_id[:8])
             return
+        t0 = time.monotonic()
         with self._lock:
             user_sessions = dict(self._user_sessions.get(google_id, {}))
 
@@ -233,7 +244,8 @@ class SessionManager:
         try:
             from .firebase_store import save_zerodha_sessions
             save_zerodha_sessions(google_id, stored)
-            logger.info("Saved sessions for %s: %s", google_id, ", ".join(stored))
+            logger.info("Saved %d sessions for %s in %.2fs",
+                        len(stored), google_id[:8], time.monotonic() - t0)
         except Exception as e:
             logger.exception("Error saving sessions to Firestore: %s", e)
 
@@ -255,7 +267,7 @@ class SessionManager:
         sessions = self._sessions_for(google_id)
         if account_name in sessions:
             del sessions[account_name]
-            logger.info("Invalidated session for %s/%s", google_id, account_name)
+            logger.info("Invalidated session for %s/%s", google_id[:8], account_name)
             self.save(google_id)
 
     def get_validity(self, google_id: str, all_accounts: List[str] = None) -> Dict[str, bool]:

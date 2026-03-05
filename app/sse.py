@@ -81,15 +81,20 @@ class SSEClientManager:
                     oldest = user_queues.pop(0)
                     logger.info(
                         "SSE evicting oldest connection for user=%s (had %d)",
-                        google_id, len(user_queues) + 1,
+                        google_id[:8], len(user_queues) + 1,
                     )
                     try:
                         oldest.put_nowait(EVICT_SENTINEL)
                     except Full:
                         pass  # queue is full — generator will clean up anyway
                 user_queues.append(client_queue)
+                logger.info(
+                    "SSE client connected: user=%s tabs=%d total=%d users=%d",
+                    google_id[:8], len(user_queues), total + 1, len(self._user_clients),
+                )
             else:
                 self._anonymous_clients.append(client_queue)
+                logger.info("SSE anonymous client connected: total=%d", total + 1)
             return True
 
     def remove_client(self, client_queue: Queue, google_id: Optional[str] = None) -> None:
@@ -99,8 +104,18 @@ class SSEClientManager:
                     self._user_clients[google_id].remove(client_queue)
                 except ValueError:
                     pass
-                if not self._user_clients[google_id]:
-                    del self._user_clients[google_id]
+                remaining_tabs = len(self._user_clients.get(google_id, []))
+                if not self._user_clients.get(google_id):
+                    self._user_clients.pop(google_id, None)
+                    logger.info(
+                        "SSE last client disconnected: user=%s total_users=%d",
+                        google_id[:8], len(self._user_clients),
+                    )
+                else:
+                    logger.debug(
+                        "SSE client disconnected: user=%s remaining_tabs=%d",
+                        google_id[:8], remaining_tabs,
+                    )
             else:
                 try:
                     self._anonymous_clients.remove(client_queue)
@@ -128,7 +143,13 @@ class SSEClientManager:
     def broadcast_to_user(self, google_id: str, message: str) -> None:
         with self.lock:
             queues = self._user_clients.get(google_id, [])
+            num_targets = len(queues)
             failed = self._send_to_queues(queues, message, google_id)
+        if failed:
+            logger.warning(
+                "SSE broadcast to user=%s: %d/%d failed",
+                google_id[:8], len(failed), num_targets,
+            )
         for q, gid in failed:
             self.remove_client(q, gid)
 

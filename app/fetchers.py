@@ -204,7 +204,7 @@ def fetch_portfolio_data(google_id: str, accounts: Optional[list] = None) -> Non
     if accounts is None:
         accounts = get_authenticated_accounts(google_id)
     if not accounts:
-        logger.info("No authenticated Zerodha accounts for %s", google_id)
+        logger.info("No authenticated Zerodha accounts for %s", google_id[:8])
         return
 
     accounts = [{**acc, "google_id": google_id} for acc in accounts]
@@ -217,13 +217,13 @@ def fetch_portfolio_data(google_id: str, accounts: Optional[list] = None) -> Non
         if not error:
             portfolio_cache.set(google_id, stocks=stocks, mf_holdings=mfs, sips=sips)
             logger.info("Portfolio updated for %s: %d stocks, %d MFs, %d SIPs",
-                        google_id, len(stocks), len(mfs), len(sips))
+                        google_id[:8], len(stocks), len(mfs), len(sips))
         else:
             data = portfolio_cache.get(google_id)
             logger.info("Preserved %d stocks, %d MFs, %d SIPs for %s after partial failure",
-                        len(data.stocks), len(data.mf_holdings), len(data.sips), google_id)
+                        len(data.stocks), len(data.mf_holdings), len(data.sips), google_id[:8])
     except Exception as e:
-        logger.exception("Error fetching portfolio for %s: %s", google_id, e)
+        logger.exception("Error fetching portfolio for %s: %s", google_id[:8], e)
         error = str(e)
     finally:
         state_manager.set_portfolio_updated(google_id=google_id, error=error)
@@ -315,7 +315,17 @@ def run_background_fetch(
     that will SSE-broadcast when done.
     """
     def _run():
+        t0 = time.monotonic()
+        logger.info(
+            "background_fetch start: user=%s manual=%s accounts=%d",
+            (google_id or "")[:8], is_manual,
+            len(accounts) if accounts else 0,
+        )
         _fetch_all_data(google_id, accounts, is_manual)
+        logger.info(
+            "background_fetch done: user=%s in %.2fs",
+            (google_id or "")[:8], time.monotonic() - t0,
+        )
 
         # Non-blocking: fetch manual LTPs and broadcast via SSE when ready.
         if google_id:
@@ -342,6 +352,7 @@ def _fetch_all_data(google_id: Optional[str], accounts: Optional[list],
                 target=fetch_portfolio_data, args=(google_id, auth_accs),
                 name=f"PortfolioFetch-{google_id[:8]}", daemon=True))
         else:
+            logger.info("_fetch_all_data: no auth accounts for user=%s, skipping portfolio", google_id[:8])
             state_manager.set_portfolio_updating(google_id=google_id)
 
     threads.append(threading.Thread(
@@ -402,12 +413,13 @@ def run_auto_refresh() -> None:
         # 3. Check if full refresh should run
         should_run, reason = _should_auto_refresh()
         if not should_run:
-            logger.info("Auto-refresh skipped: %s", reason)
+            logger.debug("Auto-refresh skipped: %s", reason)
             continue
 
-        logger.info("Auto-refresh at %s (%s)",
-                    datetime.now().strftime('%H:%M:%S'),
-                    "market open" if current_market_open else "outside hours")
+        connected = list(sse_manager.connected_user_ids())
+        logger.info("Auto-refresh cycle: %d connected users, market=%s",
+                    len(connected),
+                    "open" if current_market_open else "closed")
 
         # 4. Global market data
         fetch_nifty50_data()

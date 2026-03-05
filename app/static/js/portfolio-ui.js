@@ -772,6 +772,7 @@ function removeDrawerAccount(name) {
       if (!resp.ok) {
         if (data.locked && data.retry_after) {
           // Server-enforced lockout — start countdown
+          console.debug('[PIN] Locked out for', data.retry_after, 's');
           flashError(inputRow);
           clearAll();
           startLockout(data.retry_after);
@@ -779,6 +780,7 @@ function removeDrawerAccount(name) {
         }
         if (mode === 'verify') {
           _wrongAttempts = data.attempts || (_wrongAttempts + 1);
+          console.debug('[PIN] Verify failed: attempt', _wrongAttempts);
           const msg = _wrongPinMessages[(_wrongAttempts - 1) % _wrongPinMessages.length];
           errorEl.innerHTML = msg + (_wrongAttempts >= 2
             ? ' <span class="pin-attempt-count">' + _wrongAttempts + ' attempt' + (_wrongAttempts !== 1 ? 's' : '') + '</span>'
@@ -792,6 +794,7 @@ function removeDrawerAccount(name) {
         return;
       }
       _wrongAttempts = 0;
+      console.debug('[PIN]', mode === 'setup' ? 'PIN created' : 'PIN verified OK');
       hideOverlay();
       if (_onComplete) _onComplete();
     } catch {
@@ -833,6 +836,7 @@ function removeDrawerAccount(name) {
     try {
       const resp = await window.metronFetch('/api/pin/reset', { method: 'POST' });
       if (!resp.ok) throw new Error();
+      console.debug('[PIN] Reset complete — switching to setup mode');
       // Close reset dialog and transition directly to setup mode
       // (no reload — avoids dashboard flash)
       resetDialog.style.display = 'none';
@@ -871,6 +875,7 @@ function removeDrawerAccount(name) {
       const data = await resp.json();
 
       if (data.pin_verified) {
+        console.debug('[PIN] Already verified');
         hideOverlay();
         return true;
       }

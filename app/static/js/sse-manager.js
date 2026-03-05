@@ -11,6 +11,8 @@
  *    via short-lived signed tokens
  */
 
+import { Log } from './logger.js';
+
 class SSEConnectionManager {
   constructor(eventUrl = '/api/events', {
     baseReconnectDelay = 1000,   // initial reconnect delay (ms)
@@ -72,11 +74,11 @@ class SSEConnectionManager {
       // accessed directly on Cloud Run, won't work through Firebase CDN)
     }
 
-    console.log('[SSE] Connecting to', url === this.eventUrl ? this.eventUrl : 'direct Cloud Run');
+    console.debug('[SSE] Connecting to', url === this.eventUrl ? this.eventUrl : 'direct Cloud Run');
     this.eventSource = new EventSource(url);
 
     this.eventSource.onopen = () => {
-      console.log('[SSE] Connection established');
+      Log.info('SSE', 'Connected (attempt', this._retryCount || 0, '→ reset)');
       this._retryCount = 0; // reset backoff on successful connect
     };
 
@@ -86,7 +88,7 @@ class SSEConnectionManager {
 
         // Server asks us to reconnect (connection age limit reached)
         if (data.reconnect) {
-          console.log('[SSE] Server requested reconnect');
+          Log.info('SSE', 'Server requested reconnect (age limit)');
           this.eventSource.close();
           this._scheduleReconnect();
           return;
@@ -94,7 +96,7 @@ class SSEConnectionManager {
 
         // Server-side client limit exceeded
         if (data.error === 'too_many_connections') {
-          console.warn('[SSE] Too many connections — will retry later');
+          Log.warn('SSE', 'Too many connections — will retry');
           this.eventSource.close();
           this._scheduleReconnect();
           return;
@@ -104,11 +106,11 @@ class SSEConnectionManager {
           try {
             handler(data);
           } catch (err) {
-            console.error('[SSE] Handler error:', err);
+            Log.error('SSE', 'Handler error:', err);
           }
         });
       } catch (err) {
-        console.error('[SSE] Parse error:', err);
+        Log.error('SSE', 'Parse error:', err);
       }
     };
 
@@ -118,12 +120,12 @@ class SSEConnectionManager {
       const isClosed = this.eventSource.readyState === EventSource.CLOSED;
 
       if (isClosed) {
-        console.warn('[SSE] Connection closed');
+        Log.warn('SSE', 'Connection closed by server');
         this._handleAuthCheck();
       } else {
         // CONNECTING — browser is auto-retrying, but we layer our own
         // backoff on top in case the browser's retry is too aggressive.
-        console.warn('[SSE] Connection error — scheduling reconnect');
+        Log.debug('SSE', 'Connection error — scheduling reconnect');
         this.eventSource.close();
         this._scheduleReconnect();
       }
@@ -142,7 +144,7 @@ class SSEConnectionManager {
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
-      console.log('[SSE] Disconnected');
+      Log.info('SSE', 'Disconnected (destroyed)');
     }
   }
 
@@ -156,14 +158,15 @@ class SSEConnectionManager {
       if (resp.ok) {
         const data = await resp.json();
         this._sseToken = data.token || '';
+        Log.debug('SSE', 'Token refreshed');
       } else if (resp.status === 401) {
-        console.warn('[SSE] Token refresh failed — not authenticated');
+        Log.warn('SSE', 'Token refresh failed — not authenticated');
         this._sseToken = '';
       } else {
-        console.warn('[SSE] Token refresh failed — status', resp.status);
+        Log.warn('SSE', 'Token refresh failed — status', resp.status);
       }
     } catch (err) {
-      console.warn('[SSE] Token refresh network error:', err.message);
+      Log.warn('SSE', 'Token refresh network error:', err.message);
       // Keep existing token (may still be valid)
     }
   }
@@ -173,7 +176,7 @@ class SSEConnectionManager {
     this._retryCount++;
 
     if (this._retryCount > this.maxRetries) {
-      console.error(`[SSE] Max retries (${this.maxRetries}) exceeded — giving up`);
+      Log.error('SSE', `Max retries (${this.maxRetries}) exceeded — giving up`);
       this._emitError('max_retries', 'Unable to establish real-time connection. Please reload the page.');
       return;
     }
@@ -183,7 +186,7 @@ class SSEConnectionManager {
     const jitter = Math.random() * 1000;
     const delay = Math.round(exp + jitter);
 
-    console.log(`[SSE] Reconnecting in ${delay}ms (attempt ${this._retryCount}/${this.maxRetries})`);
+    Log.debug('SSE', `Reconnecting in ${delay}ms (attempt ${this._retryCount}/${this.maxRetries})`);
     this._clearReconnectTimer();
     this._reconnectTimer = setTimeout(() => this.connect(), delay);
   }
@@ -203,7 +206,7 @@ class SSEConnectionManager {
         credentials: 'same-origin',
       });
       if (resp.status === 401) {
-        console.warn('[SSE] Session expired — redirecting to login');
+        Log.warn('SSE', 'Session expired — redirecting to login');
         this._emitError('auth', 'Session expired. Redirecting to login...');
         // Give UI a moment to show toast before redirect
         setTimeout(() => { window.location.href = '/'; }, 1500);
@@ -219,7 +222,7 @@ class SSEConnectionManager {
     if (document.visibilityState === 'visible' && !this._destroyed) {
       // Tab became visible — ensure connection is alive
       if (!this.eventSource || this.eventSource.readyState === EventSource.CLOSED) {
-        console.log('[SSE] Tab visible — reconnecting');
+        Log.info('SSE', 'Tab visible — reconnecting');
         this._retryCount = 0;
         this.connect();
       }
@@ -231,7 +234,7 @@ class SSEConnectionManager {
       try {
         handler({ type, message });
       } catch (err) {
-        console.error('[SSE] Error handler threw:', err);
+        Log.error('SSE', 'Error handler threw:', err);
       }
     });
   }
