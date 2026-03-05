@@ -214,7 +214,9 @@ class ManualLTPCache:
 
     def is_negative(self, symbol: str) -> bool:
         with self._lock:
-            ts = self._negative.get(symbol, 0)
+            ts = self._negative.get(symbol)
+            if ts is None:
+                return False
             return (time.monotonic() - ts) < self._NEGATIVE_TTL
 
     # -- Write --

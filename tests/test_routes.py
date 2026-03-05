@@ -952,7 +952,8 @@ class TestRouteHelpers(unittest.TestCase):
         lock3 = _get_user_fetch_lock("user2")
         self.assertIsNot(lock1, lock3)
 
-    def test_get_sheets_client_no_creds(self):
+    @patch("app.firebase_store.get_google_credentials", return_value=None)
+    def test_get_sheets_client_no_creds(self, mock_get_creds):
         from app.routes import _get_sheets_client, app_ui
         with app_ui.test_request_context("/"):
             from flask import session
@@ -1307,8 +1308,9 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
         gold, fds = _fetch_user_sheets_data(user)
         self.assertEqual(gold, [{"g": 1}])
 
+    @patch("app.firebase_store.get_google_credentials", return_value=None)
     @patch("app.routes._prefetch_all_user_sheets")
-    def test_fetch_user_sheets_data_no_creds(self, mock_prefetch):
+    def test_fetch_user_sheets_data_no_creds(self, mock_prefetch, mock_get_creds):
         from app.routes import _fetch_user_sheets_data
         gold, fds = _fetch_user_sheets_data({"google_id": "g1"})
         self.assertIsNone(gold)
