@@ -14,6 +14,9 @@ import sys
 import threading
 import time
 
+from dotenv import load_dotenv
+load_dotenv()  # read .env into os.environ before any config is accessed
+
 from flask import Flask
 
 from .config import app_config

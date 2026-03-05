@@ -20,6 +20,9 @@ try:
 except ImportError:
     pass
 
+from dotenv import load_dotenv
+load_dotenv()  # must run before any app imports that read os.environ
+
 import signal
 import sys
 import threading
