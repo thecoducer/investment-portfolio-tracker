@@ -1266,7 +1266,8 @@ def standalone_table_page(table_key):
 @app_ui.route("/nifty50", methods=["GET"])
 def nifty50_page():
     """Serve the Nifty 50 stocks page."""
-    return render_template("nifty50.html")
+    user = _current_user()
+    return render_template("nifty50.html", user=user)
 
 
 @app_ui.route("/privacy", methods=["GET"])

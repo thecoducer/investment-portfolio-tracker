@@ -81,9 +81,9 @@ header > div {
 }
 
 #header-title {
-  font-size: 18px;
+  font-size: 24px;
   color: #37352f;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: -.02em;
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-text-fill-color: #37352f;
@@ -2218,7 +2218,7 @@ body.dark-theme .nav-date-sub {
   }
 
   #header-title {
-    font-size: 15px;
+    font-size: 20px;
   }
 
   /* Refresh icon */

@@ -7,10 +7,11 @@ class Nifty50App {
   constructor() {
     this.nifty50Data = [];
     this.nifty50SortOrder = 'default';
-    this.nifty50Pagination = new PaginationManager(10, 1);
+    this.nifty50Pagination = new PaginationManager(50, 1);
     this.sseManager = new SSEConnectionManager();
     this._wasUpdating = false;
     this._lastNifty50Timestamp = 0;  // Track last Nifty 50 update timestamp
+    this.lastNifty50UpdatedAt = null;  // Track last update time for relative display
   }
 
   async init() {
@@ -18,6 +19,7 @@ class Nifty50App {
     this.setupHeaderSortListeners();
     this.connectEventSource();
     this.renderNifty50Table();
+    this._startRelativeStatusUpdater();
     if (!this.nifty50Data || this.nifty50Data.length === 0) {
       await this.updateNifty50();
     }
@@ -110,9 +112,12 @@ class Nifty50App {
     statusTag.classList.toggle('updated', !isUpdating);
     statusTag.classList.toggle('market_closed', status.market_open === false);
     
-    statusText.innerText = isUpdating
-      ? 'updating'
-      : ('updated' + (status.nifty50_last_updated ? ` • ${status.nifty50_last_updated}` : ''));
+    if (isUpdating) {
+      statusText.innerText = 'updating';
+    } else {
+      this.lastNifty50UpdatedAt = status.nifty50_last_updated || null;
+      statusText.innerText = this._formatStatusUpdatedText();
+    }
 
     this._updateRefreshButton(isUpdating);
     
@@ -147,20 +152,33 @@ class Nifty50App {
   }
 
   _updateRefreshButton(isUpdating) {
-    const refreshBtn = document.getElementById('refresh_btn');
-    const refreshBtnText = document.getElementById('refresh_btn_text');
-    
-    if (refreshBtn && refreshBtnText) {
-      if (isUpdating) {
-        refreshBtn.classList.add('loading');
-        refreshBtn.disabled = true;
-        refreshBtnText.textContent = '';
-      } else {
-        refreshBtn.classList.remove('loading');
-        refreshBtn.disabled = false;
-        refreshBtnText.textContent = 'Refresh';
-      }
+    const btn = document.getElementById('refresh_btn');
+    if (isUpdating) {
+      btn.classList.add('loading');
+      btn.disabled = true;
+    } else {
+      btn.classList.remove('loading');
+      btn.disabled = false;
     }
+  }
+
+  _formatStatusUpdatedText() {
+    if (!this.lastNifty50UpdatedAt) return 'updated';
+    const relative = Formatter.formatRelativeTime(this.lastNifty50UpdatedAt);
+    return relative ? `updated ${relative}` : 'updated';
+  }
+
+  _refreshRelativeStatusText() {
+    const statusText = document.getElementById('status_text');
+    if (!statusText) return;
+    const isUpdating = this._wasUpdating;
+    if (isUpdating) return;
+    statusText.innerText = this._formatStatusUpdatedText();
+  }
+
+  _startRelativeStatusUpdater() {
+    if (this.relativeStatusTimer) clearInterval(this.relativeStatusTimer);
+    this.relativeStatusTimer = setInterval(() => this._refreshRelativeStatusText(), 60_000);
   }
 
   async updateNifty50() {
@@ -297,8 +315,35 @@ class Nifty50App {
 
   cleanup() {
     this.sseManager.disconnect();
+    if (this.relativeStatusTimer) clearInterval(this.relativeStatusTimer);
   }
 }
+
+// User profile dropdown
+(function() {
+  const avatarBtn = document.getElementById('userAvatarBtn');
+  const dropdown = document.getElementById('userDropdown');
+  if (avatarBtn && dropdown) {
+    avatarBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      dropdown.classList.toggle('open');
+    });
+  }
+})();
+
+document.addEventListener('click', function(event) {
+  const dropdown = document.getElementById('userDropdown');
+  const avatarBtn = document.getElementById('userAvatarBtn');
+  if (dropdown && avatarBtn && !avatarBtn.contains(event.target) && !dropdown.contains(event.target)) {
+    dropdown.classList.remove('open');
+  }
+});
+
+window.handleLogout = function() {
+  metronFetch('/api/auth/logout', { method: 'POST' })
+    .then(() => { window.location.href = '/'; })
+    .catch(() => { window.location.href = '/'; });
+};
 
 // Global functions
 window.toggleTheme = function() {
