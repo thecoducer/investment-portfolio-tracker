@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 from app.api.market_data import MarketDataClient
 from app.api.zerodha_client import ZerodhaAPIClient
-from app.constants import NSE_BASE_URL, NSE_REQUEST_DELAY, NSE_REQUEST_TIMEOUT
+from app.constants import NSE_BASE_URL, NSE_REQUEST_TIMEOUT
 
 
 class TestMarketDataClient(unittest.TestCase):
@@ -21,7 +21,6 @@ class TestMarketDataClient(unittest.TestCase):
         self.assertEqual(self.client.base_url, NSE_BASE_URL)
         self.assertIn('User-Agent', self.client.headers)
         self.assertEqual(self.client.timeout, NSE_REQUEST_TIMEOUT)
-        self.assertEqual(self.client.request_delay, NSE_REQUEST_DELAY)
     
     @patch('app.api.market_data.requests.Session')
     def test_create_session_success(self, mock_session_class):
@@ -96,70 +95,79 @@ class TestMarketDataClient(unittest.TestCase):
         
         self.assertEqual(symbols, [])
     
-    @patch('time.sleep')
-    def test_fetch_stock_quote_success(self, mock_sleep):
-        """Test successful stock quote fetch"""
-        mock_session = Mock()
+    @patch('app.api.market_data.logger')
+    @patch('app.api.market_data.time.sleep')
+    @patch('app.api.market_data.requests.get')
+    def test_fetch_stock_quote_success(self, mock_get, mock_sleep, mock_logger):
+        """Test successful stock quote fetch via Yahoo Finance"""
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'info': {'companyName': 'Reliance Industries'},
-            'priceInfo': {
-                'lastPrice': 2500.50,
-                'change': 25.50,
-                'pChange': 1.03,
-                'open': 2480.00,
-                'previousClose': 2475.00,
-                'intraDayHighLow': {
-                    'max': 2510.00,
-                    'min': 2475.00
-                }
+            'chart': {
+                'result': [{
+                    'meta': {
+                        'regularMarketPrice': 2500.50,
+                        'previousClose': 2475.00,
+                        'shortName': 'Reliance Industries',
+                    },
+                    'indicators': {'quote': [{
+                        'open': [2480.00],
+                        'high': [2510.00],
+                        'low': [2475.00],
+                        'close': [2500.50],
+                    }]}
+                }]
             }
         }
-        mock_session.get.return_value = mock_response
-        
-        quote = self.client.fetch_stock_quote(mock_session, 'RELIANCE')
-        
+        mock_get.return_value = mock_response
+
+        quote = self.client.fetch_stock_quote('RELIANCE')
+
         self.assertEqual(quote['symbol'], 'RELIANCE')
         self.assertEqual(quote['name'], 'Reliance Industries')
         self.assertEqual(quote['ltp'], 2500.50)
-        self.assertEqual(quote['change'], 25.50)
-        self.assertEqual(quote['pChange'], 1.03)
         self.assertEqual(quote['open'], 2480.00)
         self.assertEqual(quote['high'], 2510.00)
         self.assertEqual(quote['low'], 2475.00)
         self.assertEqual(quote['close'], 2475.00)
-        
-        # Verify rate limiting delay
-        mock_sleep.assert_called_once_with(0.2)
-    
-    @patch('time.sleep')
-    def test_fetch_stock_quote_http_error(self, mock_sleep):
-        """Test stock quote fetch with HTTP error"""
-        mock_session = Mock()
+        # Verify logging: info for entry/exit, no errors
+        info_msgs = [str(c) for c in mock_logger.info.call_args_list]
+        self.assertTrue(any('Fetching stock quote' in s for s in info_msgs))
+        self.assertTrue(any('ltp=' in s for s in info_msgs))
+        mock_logger.error.assert_not_called()
+
+    @patch('app.api.market_data.logger')
+    @patch('app.api.market_data.time.sleep')
+    @patch('app.api.market_data.requests.get')
+    def test_fetch_stock_quote_http_error(self, mock_get, mock_sleep, mock_logger):
+        """Test stock quote fetch with HTTP error (Yahoo Finance)"""
         mock_response = Mock()
         mock_response.status_code = 404
-        mock_session.get.return_value = mock_response
-        
-        quote = self.client.fetch_stock_quote(mock_session, 'INVALID')
-        
-        # Should return empty stock data
+        mock_get.return_value = mock_response
+
+        quote = self.client.fetch_stock_quote('INVALID')
+
+        # Should return empty stock data after retries
         self.assertEqual(quote['symbol'], 'INVALID')
         self.assertEqual(quote['ltp'], 0)
         self.assertEqual(quote['change'], 0)
-    
-    @patch('time.sleep')
-    def test_fetch_stock_quote_exception(self, mock_sleep):
-        """Test stock quote fetch with exception"""
-        mock_session = Mock()
-        mock_session.get.side_effect = Exception("Network error")
-        
-        quote = self.client.fetch_stock_quote(mock_session, 'TCS')
-        
+        # Should log warnings for HTTP errors on retries
+        self.assertTrue(mock_logger.warning.called)
+
+    @patch('app.api.market_data.logger')
+    @patch('app.api.market_data.requests.get')
+    def test_fetch_stock_quote_exception(self, mock_get, mock_logger):
+        """Test stock quote fetch with exception (Yahoo Finance)"""
+        mock_get.side_effect = Exception("Network error")
+
+        quote = self.client.fetch_stock_quote('TCS')
+
         # Should return empty stock data
         self.assertEqual(quote['symbol'], 'TCS')
         self.assertEqual(quote['name'], 'TCS')
         self.assertEqual(quote['ltp'], 0)
+        # Unexpected error should be logged at error level
+        mock_logger.error.assert_called()
     
     def test_empty_stock_data(self):
         """Test _empty_stock_data helper"""

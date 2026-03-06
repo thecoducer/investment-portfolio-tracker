@@ -869,21 +869,20 @@ def _build_stocks_data(user):
 
 
 def _validate_nse_symbol(symbol: str) -> dict | None:
-    """Validate a symbol against NSE by fetching its quote.
+    """Validate a symbol by fetching its quote via Yahoo Finance.
 
     Returns the quote dict (with 'ltp' > 0) if valid, or None if the
-    symbol does not exist on NSE or the fetch fails.
+    symbol does not exist or the fetch fails.
     """
     from .api.market_data import MarketDataClient
 
     try:
         client = MarketDataClient()
-        session = client._create_session()
-        data = client.fetch_stock_quote(session, symbol)
+        data = client.fetch_stock_quote(symbol)
         if data and data.get("ltp"):
             return data
     except Exception:
-        logger.warning("NSE validation failed for symbol %s", symbol)
+        logger.warning("Symbol validation failed for %s", symbol)
     return None
 
 
@@ -940,7 +939,7 @@ def _enrich_manual_entries_with_ltp(entries: list) -> None:
                 enriched += 1
 
     if enriched:
-        logger.info("Manual LTP enrichment: %d/%d symbols from cache", enriched, len(symbols))
+        logger.debug("Manual LTP enrichment: %d/%d symbols from cache", enriched, len(symbols))
     else:
         logger.debug("Manual LTP enrichment: %d symbols, all uncached", len(symbols))
 

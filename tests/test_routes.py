@@ -1046,23 +1046,23 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.api.market_data.MarketDataClient")
     def test_validate_nse_symbol_valid(self, mock_client_cls):
         from app.routes import _validate_nse_symbol
-        mock_client_cls.return_value._create_session.return_value = Mock()
         mock_client_cls.return_value.fetch_stock_quote.return_value = {"ltp": 1500}
         result = _validate_nse_symbol("INFY")
         self.assertIsNotNone(result)
+        mock_client_cls.return_value.fetch_stock_quote.assert_called_once_with("INFY")
 
     @patch("app.api.market_data.MarketDataClient")
     def test_validate_nse_symbol_invalid(self, mock_client_cls):
         from app.routes import _validate_nse_symbol
-        mock_client_cls.return_value._create_session.return_value = Mock()
         mock_client_cls.return_value.fetch_stock_quote.return_value = {"ltp": 0}
         result = _validate_nse_symbol("FAKE")
         self.assertIsNone(result)
+        mock_client_cls.return_value.fetch_stock_quote.assert_called_once_with("FAKE")
 
     @patch("app.api.market_data.MarketDataClient")
     def test_validate_nse_symbol_exception(self, mock_client_cls):
         from app.routes import _validate_nse_symbol
-        mock_client_cls.return_value._create_session.side_effect = Exception("err")
+        mock_client_cls.return_value.fetch_stock_quote.side_effect = Exception("err")
         result = _validate_nse_symbol("FAIL")
         self.assertIsNone(result)
 
@@ -2029,16 +2029,15 @@ class TestValidateNseSymbol(unittest.TestCase):
     def test_valid_symbol(self, mock_mdc):
         from app.routes import _validate_nse_symbol
         mock_inst = mock_mdc.return_value
-        mock_inst._create_session.return_value = Mock()
         mock_inst.fetch_stock_quote.return_value = {"ltp": 1500}
         result = _validate_nse_symbol("INFY")
         self.assertEqual(result, {"ltp": 1500})
+        mock_inst.fetch_stock_quote.assert_called_once_with("INFY")
 
     @patch("app.api.market_data.MarketDataClient")
     def test_invalid_symbol(self, mock_mdc):
         from app.routes import _validate_nse_symbol
         mock_inst = mock_mdc.return_value
-        mock_inst._create_session.return_value = Mock()
         mock_inst.fetch_stock_quote.return_value = None
         result = _validate_nse_symbol("FAKE")
         self.assertIsNone(result)

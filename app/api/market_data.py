@@ -1,31 +1,40 @@
 """
-Market data client – NSE stock quotes and Yahoo Finance indices / commodities.
+Market data client – Yahoo Finance stock/ETF quotes and index/commodity data.
+NSE is used only for fetching the Nifty 50 constituent symbol list.
 """
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 import requests
 from requests.exceptions import ConnectionError, RequestException, Timeout
 
-from ..constants import NSE_BASE_URL, NSE_REQUEST_DELAY, NSE_REQUEST_TIMEOUT
+from ..constants import (
+    NSE_BASE_URL, NSE_REQUEST_TIMEOUT,
+    YF_BATCH_MAX_WORKERS, YF_MAX_RETRIES, YF_RETRY_BASE_DELAY,
+)
 from ..logging_config import logger
 
 
 class MarketDataClient:
-    """Client for NSE stock quotes and Yahoo Finance market data."""
-    
+    """Client for stock/ETF quotes and market index data via Yahoo Finance.
+
+    NSE is used only for fetching the Nifty 50 constituent symbol list.
+    """
+
+    _YF_BASE_URL = "https://query1.finance.yahoo.com"
+
     def __init__(self):
-        """Initialize the NSE API client with configuration."""
-        self.base_url = NSE_BASE_URL
+        """Initialize the market data client."""
+        self.base_url = NSE_BASE_URL  # used for Nifty 50 symbol list only
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'application/json',
             'Accept-Language': 'en-US,en;q=0.9'
         }
         self.timeout = NSE_REQUEST_TIMEOUT
-        self.request_delay = NSE_REQUEST_DELAY
     
     def _create_session(self) -> requests.Session:
         """Create and initialize an NSE session with cookies.
@@ -80,59 +89,180 @@ class MarketDataClient:
             logger.error("Error fetching Nifty 50 symbols: %s", str(e))
             return []
     
-    def fetch_stock_quote(self, session: requests.Session, symbol: str) -> Dict[str, Any]:
-        """Fetch quote data for a single stock symbol.
-        
+    # ------------------------------------------------------------------
+    # Yahoo Finance – Stock / ETF quotes
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _nse_to_yf_symbol(symbol: str) -> str:
+        """Convert an NSE symbol to its Yahoo Finance equivalent (.NS suffix)."""
+        return f"{symbol}.NS"
+
+    @staticmethod
+    def _yf_to_nse_symbol(yf_symbol: str) -> str:
+        """Strip the .NS suffix to recover the original NSE symbol."""
+        return yf_symbol.removesuffix(".NS")
+
+    def _fetch_yf_stock_quote(self, symbol: str) -> Dict[str, Any]:
+        """Fetch a single stock quote from Yahoo Finance with retry logic.
+
+        Uses the v8/finance/chart endpoint (same as market-index fetching)
+        with exponential-backoff retries on transient failures.
+
         Args:
-            session: Requests session object with active NSE cookies
-            symbol: Stock symbol to fetch
-            
+            symbol: NSE stock/ETF symbol (e.g. ``INFY``, ``NIFTYBEES``).
+
         Returns:
-            Dictionary containing stock quote data
+            Dictionary with quote data (same shape as ``_empty_stock_data``).
         """
-        try:
-            encoded_symbol = quote(symbol)
-            url = f"{self.base_url}/api/quote-equity?symbol={encoded_symbol}"
-            response = session.get(url, headers=self.headers, timeout=self.timeout)
-            
-            if response.status_code == 200:
-                data = response.json()
-                price_info = data.get('priceInfo', {})
-                return {
-                    'symbol': symbol,
-                    'name': data.get('info', {}).get('companyName', symbol),
-                    'ltp': price_info.get('lastPrice', 0),
-                    'change': price_info.get('change', 0),
-                    'pChange': price_info.get('pChange', 0),
-                    'open': price_info.get('open', 0),
-                    'high': price_info.get('intraDayHighLow', {}).get('max', 0),
-                    'low': price_info.get('intraDayHighLow', {}).get('min', 0),
-                    'close': price_info.get('previousClose', 0)
-                }
-            else:
-                logger.warning("NSE API returned status %d for %s", response.status_code, symbol)
-                return self._empty_stock_data(symbol)
-        except Timeout:
-            logger.warning("Request timeout for %s (NSE server slow to respond)", symbol)
+        yf_symbol = self._nse_to_yf_symbol(symbol)
+        encoded = quote(yf_symbol, safe="")
+        url = (
+            f"{self._YF_BASE_URL}/v8/finance/chart/"
+            f"{encoded}?interval=5m&range=1d"
+        )
+        yf_headers = {
+            'User-Agent': self.headers['User-Agent'],
+            'Accept': 'application/json',
+        }
+
+        logger.debug("Fetching Yahoo Finance quote for %s (url=%s)", symbol, url)
+
+        for attempt in range(1, YF_MAX_RETRIES + 1):
+            try:
+                resp = requests.get(url, headers=yf_headers, timeout=self.timeout)
+
+                if resp.status_code == 429:
+                    delay = YF_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Yahoo Finance rate-limited for %s, retry in %.1fs (%d/%d)",
+                        symbol, delay, attempt, YF_MAX_RETRIES,
+                    )
+                    time.sleep(delay)
+                    continue
+
+                if resp.status_code != 200:
+                    if attempt < YF_MAX_RETRIES:
+                        delay = YF_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                        logger.warning(
+                            "Yahoo Finance HTTP %d for %s, retry in %.1fs (%d/%d)",
+                            resp.status_code, symbol, delay, attempt, YF_MAX_RETRIES,
+                        )
+                        time.sleep(delay)
+                        continue
+                    logger.warning(
+                        "Yahoo Finance HTTP %d for %s after %d attempts",
+                        resp.status_code, symbol, YF_MAX_RETRIES,
+                    )
+                    return self._empty_stock_data(symbol)
+
+                chart_result = resp.json().get('chart', {}).get('result', [])
+                if not chart_result:
+                    logger.warning(
+                        "Yahoo Finance returned empty chart data for %s", symbol,
+                    )
+                    return self._empty_stock_data(symbol)
+
+                parsed = self._parse_yf_chart(symbol, chart_result[0])
+                logger.debug(
+                    "Yahoo Finance quote for %s: ltp=%s change=%s",
+                    symbol, parsed.get('ltp'), parsed.get('change'),
+                )
+                return parsed
+
+            except Timeout as e:
+                if attempt < YF_MAX_RETRIES:
+                    delay = YF_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Timeout fetching %s, retry in %.1fs (%d/%d): %s",
+                        symbol, delay, attempt, YF_MAX_RETRIES, e,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning(
+                    "Timeout fetching %s after %d attempts: %s",
+                    symbol, YF_MAX_RETRIES, e,
+                )
+            except ConnectionError as e:
+                if attempt < YF_MAX_RETRIES:
+                    delay = YF_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Connection error for %s, retry in %.1fs (%d/%d): %s",
+                        symbol, delay, attempt, YF_MAX_RETRIES, e,
+                    )
+                    time.sleep(delay)
+                    continue
+                logger.warning(
+                    "Connection error for %s after %d attempts: %s",
+                    symbol, YF_MAX_RETRIES, e,
+                )
+            except RequestException as e:
+                logger.warning("Request failed for %s: %s", symbol, e)
+            except Exception as e:
+                logger.error(
+                    "Unexpected error fetching %s from Yahoo Finance: %s",
+                    symbol, e, exc_info=True,
+                )
+
             return self._empty_stock_data(symbol)
-        except ConnectionError:
-            logger.warning("Connection error for %s (NSE server unreachable)", symbol)
-            return self._empty_stock_data(symbol)
-        except RequestException as e:
-            logger.warning("Request failed for %s: %s", symbol, str(e))
-            return self._empty_stock_data(symbol)
-        except Exception as e:
-            logger.error("Unexpected error fetching %s: %s", symbol, str(e))
-            return self._empty_stock_data(symbol)
-        finally:
-            time.sleep(self.request_delay)
-    
+
+        # All retry attempts exhausted (e.g. all were 429s)
+        logger.warning(
+            "All %d retry attempts exhausted for %s (rate-limited)",
+            YF_MAX_RETRIES, symbol,
+        )
+        return self._empty_stock_data(symbol)
+
+    @staticmethod
+    def _parse_yf_chart(symbol: str, chart_data: dict) -> Dict[str, Any]:
+        """Extract quote fields from a Yahoo Finance v8/chart result entry."""
+        meta = chart_data.get('meta', {})
+        price = meta.get('regularMarketPrice', 0)
+        prev_close = meta.get('previousClose', 0) or meta.get('chartPreviousClose', 0)
+        change = round(price - prev_close, 2) if price and prev_close else 0
+        pchange = round((change / prev_close) * 100, 2) if prev_close else 0
+
+        # Extract intraday OHLC from chart indicators
+        quotes = chart_data.get('indicators', {}).get('quote', [{}])[0]
+        opens = [v for v in (quotes.get('open') or []) if v is not None]
+        highs = [v for v in (quotes.get('high') or []) if v is not None]
+        lows = [v for v in (quotes.get('low') or []) if v is not None]
+
+        return {
+            'symbol': symbol,
+            'name': meta.get('shortName') or meta.get('longName') or symbol,
+            'ltp': round(price, 2) if price else 0,
+            'change': change,
+            'pChange': pchange,
+            'open': round(opens[0], 2) if opens else 0,
+            'high': round(max(highs), 2) if highs else 0,
+            'low': round(min(lows), 2) if lows else 0,
+            'close': round(prev_close, 2) if prev_close else 0,
+        }
+
+    def fetch_stock_quote(self, symbol: str) -> Dict[str, Any]:
+        """Fetch quote data for a single stock symbol via Yahoo Finance.
+
+        Args:
+            symbol: NSE stock/ETF symbol.
+
+        Returns:
+            Dictionary containing stock quote data.
+        """
+        logger.info("Fetching stock quote for %s", symbol)
+        data = self._fetch_yf_stock_quote(symbol)
+        if data.get('ltp'):
+            logger.info("Stock quote for %s: ltp=%s", symbol, data['ltp'])
+        else:
+            logger.warning("No LTP returned for %s", symbol)
+        return data
+
     def _empty_stock_data(self, symbol: str) -> Dict[str, Any]:
         """Return empty stock data structure for error cases.
-        
+
         Args:
             symbol: Stock symbol
-            
+
         Returns:
             Dictionary with zero values for all price fields
         """
@@ -149,58 +279,85 @@ class MarketDataClient:
         }
 
     # ------------------------------------------------------------------
-    # Batch quote fetching (for manual stock/ETF enrichment)
+    # Batch quote fetching via Yahoo Finance (concurrent)
     # ------------------------------------------------------------------
 
     def fetch_stock_quotes(self, symbols: list, timeout: int = None,
                            cancel: Optional[threading.Event] = None) -> dict:
-        """Fetch quotes for multiple symbols in a single NSE session.
+        """Fetch quotes for multiple symbols concurrently via Yahoo Finance.
+
+        Uses a thread pool to fetch quotes in parallel. Each individual
+        symbol request has its own retry logic with exponential backoff.
 
         Args:
-            symbols: List of NSE stock symbols to fetch.
+            symbols: List of NSE stock/ETF symbols to fetch.
             timeout: Optional per-request timeout override (seconds).
-            cancel:  Optional threading.Event; when set the loop stops early.
+            cancel:  Optional threading.Event; when set pending work stops.
 
-        Returns a dict mapping each symbol to its quote data dict.
-        Symbols that fail to fetch are omitted from the result.
+        Returns:
+            Dict mapping each successfully-resolved symbol to its quote data.
+            Symbols that fail are omitted from the result.
         """
         if not symbols:
             return {}
 
-        logger.info("Batch quote fetch: %d symbols (timeout=%s)", len(symbols), timeout)
+        logger.info(
+            "Yahoo Finance batch fetch: %d symbols (timeout=%s)",
+            len(symbols), timeout,
+        )
 
         saved_timeout = self.timeout
         if timeout is not None:
             self.timeout = timeout
 
         try:
-            session = self._create_session()
-            logger.info("NSE session created for batch quote fetch")
-        except Exception:
-            logger.warning("Could not create NSE session for batch quote fetch")
-            return {}
+            result: Dict[str, Any] = {}
+            failed: list = []
+
+            with ThreadPoolExecutor(max_workers=YF_BATCH_MAX_WORKERS) as executor:
+                future_to_sym = {}
+                for sym in symbols:
+                    if cancel and cancel.is_set():
+                        break
+                    future_to_sym[executor.submit(self._fetch_yf_stock_quote, sym)] = sym
+
+                logger.debug(
+                    "Submitted %d symbols to thread pool (workers=%d)",
+                    len(future_to_sym), YF_BATCH_MAX_WORKERS,
+                )
+
+                for future in as_completed(future_to_sym):
+                    if cancel and cancel.is_set():
+                        logger.info(
+                            "Batch fetch cancelled after %d/%d symbols",
+                            len(result), len(symbols),
+                        )
+                        break
+                    sym = future_to_sym[future]
+                    try:
+                        data = future.result()
+                        if data and data.get('ltp'):
+                            result[sym] = data
+                        else:
+                            logger.debug("No LTP in response for %s", sym)
+                            failed.append(sym)
+                    except Exception as exc:
+                        logger.error(
+                            "Yahoo Finance fetch error for %s: %s",
+                            sym, exc, exc_info=True,
+                        )
+                        failed.append(sym)
+
+            if failed:
+                logger.info("No LTP for %d symbols: %s", len(failed), failed)
+            logger.info(
+                "Yahoo Finance batch fetch done: %d/%d symbols successful",
+                len(result), len(symbols),
+            )
+            return result
         finally:
             if timeout is not None:
                 self.timeout = saved_timeout
-
-        result = {}
-        failed: list = []
-        for symbol in symbols:
-            if cancel and cancel.is_set():
-                logger.info("Batch quote fetch cancelled after %d/%d symbols",
-                            len(result), len(symbols))
-                break
-            data = self.fetch_stock_quote(session, symbol)
-            if data and data.get('ltp'):
-                result[symbol] = data
-            else:
-                failed.append(symbol)
-
-        if failed:
-            logger.info("No LTP for %d symbols: %s", len(failed), failed)
-        logger.info("Batch quote fetch done: %d/%d symbols successful",
-                    len(result), len(symbols))
-        return result
 
     # ------------------------------------------------------------------
     # Market index data (NIFTY 50 + SENSEX) via Yahoo Finance
@@ -224,12 +381,18 @@ class MarketDataClient:
         Returns:
             Dictionary with 'nifty50' and 'sensex' keys.
         """
+        logger.info("Fetching market indices: %s", list(self._YF_SYMBOLS.keys()))
         result: Dict[str, Any] = {
             key: self._empty_index_data(label)
             for key, (_, label) in self._YF_SYMBOLS.items()
         }
         for key, (yf_sym, label) in self._YF_SYMBOLS.items():
             self._fetch_yf_index(result, key, yf_sym, label)
+        fetched = [k for k, v in result.items() if v.get('value')]
+        logger.info(
+            "Market indices fetched: %d/%d successful (%s)",
+            len(fetched), len(self._YF_SYMBOLS), fetched,
+        )
         return result
 
     def _fetch_yf_index(
@@ -249,10 +412,12 @@ class MarketDataClient:
                 f'https://query1.finance.yahoo.com/v8/finance/chart/'
                 f'{yf_symbol}?interval=5m&range=1d'
             )
+            logger.debug("Fetching index %s from Yahoo Finance", display_name)
             resp = requests.get(url, headers=yf_headers, timeout=self.timeout)
             if resp.status_code != 200:
                 logger.warning(
-                    "Yahoo Finance returned %d for %s", resp.status_code, display_name
+                    "Yahoo Finance returned HTTP %d for %s",
+                    resp.status_code, display_name,
                 )
                 return
 
@@ -260,6 +425,10 @@ class MarketDataClient:
                 resp.json().get('chart', {}).get('result', [])
             )
             if not chart_result:
+                logger.warning(
+                    "Yahoo Finance returned empty chart data for index %s",
+                    display_name,
+                )
                 return
 
             meta = chart_result[0].get('meta', {})
@@ -291,12 +460,24 @@ class MarketDataClient:
                 'pChange': pchange,
                 'chart': chart_data,
             }
-        except Timeout:
-            logger.warning("Timeout fetching %s from Yahoo Finance", display_name)
-        except ConnectionError:
-            logger.warning("Connection error fetching %s", display_name)
+            logger.debug(
+                "Index %s fetched: value=%s change=%s",
+                display_name, round(price, 2), change,
+            )
+        except Timeout as e:
+            logger.warning(
+                "Timeout fetching %s from Yahoo Finance: %s", display_name, e,
+            )
+        except ConnectionError as e:
+            logger.warning(
+                "Connection error fetching %s from Yahoo Finance: %s",
+                display_name, e,
+            )
         except Exception as e:
-            logger.warning("Error fetching %s: %s", display_name, str(e))
+            logger.error(
+                "Unexpected error fetching index %s: %s",
+                display_name, e, exc_info=True,
+            )
 
     # -- helpers --------------------------------------------------------
 

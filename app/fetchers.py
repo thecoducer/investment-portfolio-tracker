@@ -42,7 +42,7 @@ _LTP_CACHE_WARMUP_ATTEMPTS = 6   # max polls (~12 s total)
 # ===================================================================
 
 def collect_manual_symbols(google_id: str) -> list:
-    """Return deduplicated NSE symbols from the user's manual sheets cache.
+    """Return deduplicated stock/ETF symbols from the user's manual sheets cache.
 
     Call *before* ``user_sheets_cache.invalidate()`` so data is still present.
     """
@@ -56,10 +56,10 @@ def collect_manual_symbols(google_id: str) -> list:
 
 
 def fetch_manual_ltps(symbols: list, *, force: bool = False) -> None:
-    """Fetch LTPs from NSE for *symbols* and populate ``manual_ltp_cache``.
+    """Fetch LTPs from Yahoo Finance for *symbols* and populate ``manual_ltp_cache``.
 
     Args:
-        symbols: NSE symbols to look up.
+        symbols: Stock/ETF symbols to look up.
         force:   Re-fetch even if already cached (used during refresh
                  cycles).  Negative-cached symbols are always skipped.
     """
@@ -68,16 +68,16 @@ def fetch_manual_ltps(symbols: list, *, force: bool = False) -> None:
 
     to_fetch = _filter_symbols_to_fetch(symbols, force)
     if not to_fetch:
-        logger.info("Manual LTP: all %d symbols already cached", len(symbols))
+        logger.debug("Manual LTP: all %d symbols already cached", len(symbols))
         return
 
-    logger.info("Manual LTP fetch: %d/%d symbols", len(to_fetch), len(symbols))
-    fetched = _nse_batch_fetch(to_fetch)
+    logger.debug("Manual LTP fetch: %d/%d symbols", len(to_fetch), len(symbols))
+    fetched = _batch_fetch_quotes(to_fetch)
     _update_ltp_cache(to_fetch, fetched)
 
 
 def _filter_symbols_to_fetch(symbols: list, force: bool) -> list:
-    """Exclude symbols that don't need an NSE request."""
+    """Exclude symbols that don't need a Yahoo Finance request."""
     result = []
     for sym in symbols:
         if manual_ltp_cache.is_negative(sym):
@@ -87,14 +87,17 @@ def _filter_symbols_to_fetch(symbols: list, force: bool) -> list:
     return result
 
 
-def _nse_batch_fetch(symbols: list) -> dict:
-    """Call NSE for a batch of symbols. Returns ``{symbol: quote_dict}``."""
+def _batch_fetch_quotes(symbols: list) -> dict:
+    """Fetch quotes via Yahoo Finance for a batch of symbols.
+
+    Returns ``{symbol: quote_dict}``.
+    """
     try:
         return MarketDataClient().fetch_stock_quotes(
             symbols, cancel=manual_ltp_cache.cancel_flag,
         )
     except Exception:
-        logger.exception("Error in manual LTP fetch")
+        logger.exception("Error in batch LTP fetch")
         return {}
 
 
@@ -141,7 +144,7 @@ def _bg_fetch_and_broadcast_ltps(
 
         fetch_manual_ltps(syms, force=force)
         state_manager.set_portfolio_updated(google_id=google_id)
-        logger.info("Manual LTP SSE broadcast fired for %s", google_id[:8])
+        logger.debug("Manual LTP SSE broadcast fired for %s", google_id[:8])
     except Exception:
         logger.exception("Error in LTP fetch+broadcast for %s", google_id[:8])
 
@@ -151,7 +154,7 @@ def _wait_for_symbols(google_id: str) -> list:
     for attempt in range(1, _LTP_CACHE_WARMUP_ATTEMPTS + 1):
         syms = collect_manual_symbols(google_id)
         if syms:
-            logger.info("Manual LTP: found %d symbols after %d polls", len(syms), attempt)
+            logger.debug("Manual LTP: found %d symbols after %d polls", len(syms), attempt)
             return syms
         time.sleep(_LTP_CACHE_WARMUP_INTERVAL)
     return []
@@ -173,7 +176,7 @@ def _process_pending_ltp_retries() -> None:
         if not syms:
             continue
 
-        logger.info("Manual LTP retry for %s: %d symbols", gid[:8], len(syms))
+        logger.debug("Manual LTP retry for %s: %d symbols", gid[:8], len(syms))
         with _pending_ltp_lock:
             _pending_ltp_retries.discard(gid)
         threading.Thread(
@@ -266,7 +269,12 @@ def fetch_gold_prices(force: bool = False) -> None:
 
 
 def fetch_nifty50_data() -> None:
-    """Fetch Nifty 50 constituent stocks from NSE (non-blocking)."""
+    """Fetch Nifty 50 constituent stocks via Yahoo Finance (non-blocking).
+
+    The Nifty 50 symbol list is still fetched from NSE (with a hardcoded
+    fallback).  Individual stock quotes are fetched concurrently from
+    Yahoo Finance.
+    """
     if nifty50_fetch_in_progress.is_set():
         logger.info("Nifty 50 fetch already in progress")
         return
@@ -279,15 +287,19 @@ def fetch_nifty50_data() -> None:
             nifty50_fetch_in_progress.set()
             client = MarketDataClient()
             symbols = client.fetch_nifty50_symbols() or NIFTY50_FALLBACK_SYMBOLS
-            session = client._create_session()
-            market_cache.nifty50 = [client.fetch_stock_quote(session, s) for s in symbols]
-            logger.info("Nifty 50 updated: %d stocks", len(market_cache.nifty50))
+            quotes = client.fetch_stock_quotes(symbols)
+            # Preserve symbol order; include empty data for missed symbols
+            market_cache.nifty50 = [
+                quotes.get(s, client._empty_stock_data(s)) for s in symbols
+            ]
+            logger.info("Nifty 50 updated: %d stocks (%d with LTP)",
+                        len(market_cache.nifty50), len(quotes))
         except Timeout:
-            error = "NSE website timeout"
+            error = "Yahoo Finance timeout"
             logger.warning(error)
         except ConnectionError:
             error = "Connection error"
-            logger.warning("Cannot connect to NSE")
+            logger.warning("Cannot connect to Yahoo Finance")
         except Exception as e:
             error = str(e)
             logger.error("Error fetching Nifty 50: %s", e)

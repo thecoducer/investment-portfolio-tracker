@@ -41,6 +41,11 @@ NSE_REQUEST_DELAY = 0.2  # delay between requests to avoid rate-limiting
 GOOGLE_SHEETS_TIMEOUT = 20
 IBJA_GOLD_PRICE_TIMEOUT = 20
 
+# Yahoo Finance batch quote settings
+YF_BATCH_MAX_WORKERS = 10   # max concurrent Yahoo Finance requests
+YF_MAX_RETRIES = 3           # retry attempts per symbol on transient failures
+YF_RETRY_BASE_DELAY = 1.0   # exponential backoff base (1s, 2s, 4s)
+
 # Server startup / UI timing (seconds)
 SERVER_STARTUP_DELAY = 0.5
 SSE_KEEPALIVE_INTERVAL = 25  # SSE keepalive — must be < 60s (Firebase Hosting idle timeout)

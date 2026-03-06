@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch, MagicMock
 from requests.exceptions import Timeout, ConnectionError
 
 from app.fetchers import (_should_auto_refresh, _should_fetch_gold_prices,
-                          _filter_symbols_to_fetch, _nse_batch_fetch,
+                          _filter_symbols_to_fetch, _batch_fetch_quotes,
                           _update_ltp_cache, _wait_for_symbols,
                           _bg_fetch_and_broadcast_ltps,
                           _process_pending_ltp_retries,
@@ -261,19 +261,19 @@ class TestFilterSymbolsToFetch(unittest.TestCase):
         self.assertEqual(result, [])
 
 
-class TestNseBatchFetch(unittest.TestCase):
+class TestBatchFetchQuotes(unittest.TestCase):
     @patch('app.fetchers.MarketDataClient')
     @patch('app.fetchers.manual_ltp_cache')
     def test_success(self, mock_cache, mock_client_cls):
         mock_client_cls.return_value.fetch_stock_quotes.return_value = {"INFY": {"ltp": 100}}
-        result = _nse_batch_fetch(["INFY"])
+        result = _batch_fetch_quotes(["INFY"])
         self.assertEqual(result["INFY"]["ltp"], 100)
 
     @patch('app.fetchers.MarketDataClient')
     @patch('app.fetchers.manual_ltp_cache')
     def test_error_returns_empty(self, mock_cache, mock_client_cls):
         mock_client_cls.return_value.fetch_stock_quotes.side_effect = Exception("err")
-        result = _nse_batch_fetch(["INFY"])
+        result = _batch_fetch_quotes(["INFY"])
         self.assertEqual(result, {})
 
 
@@ -298,7 +298,7 @@ class TestUpdateLtpCache(unittest.TestCase):
 
 class TestFetchManualLtps(unittest.TestCase):
     @patch('app.fetchers._update_ltp_cache')
-    @patch('app.fetchers._nse_batch_fetch', return_value={"INFY": {"ltp": 100}})
+    @patch('app.fetchers._batch_fetch_quotes', return_value={"INFY": {"ltp": 100}})
     @patch('app.fetchers._filter_symbols_to_fetch', return_value=["INFY"])
     def test_fetches(self, mock_filter, mock_fetch, mock_update):
         fetch_manual_ltps(["INFY"])
@@ -658,7 +658,7 @@ class TestProcessPendingLtpRetryEmpty(unittest.TestCase):
 
 
 class TestFetchNifty50Success(unittest.TestCase):
-    """Cover fetchers.py line 284: nifty50 fetch success path."""
+    """Cover fetchers.py: nifty50 fetch success path (Yahoo Finance batch)."""
 
     @patch('app.fetchers.nifty50_fetch_in_progress')
     @patch('app.fetchers.state_manager')
@@ -675,10 +675,13 @@ class TestFetchNifty50Success(unittest.TestCase):
         fetch_fn = call_args[1].get('target') or call_args[0][0] if call_args[0] else call_args[1]['target']
         client = mock_client_cls.return_value
         client.fetch_nifty50_symbols.return_value = ["INFY", "TCS"]
-        session = client._create_session.return_value
-        client.fetch_stock_quote.return_value = {"symbol": "INFY"}
+        client.fetch_stock_quotes.return_value = {
+            "INFY": {"symbol": "INFY", "ltp": 1500},
+            "TCS": {"symbol": "TCS", "ltp": 3500},
+        }
+        client._empty_stock_data.side_effect = lambda s: {"symbol": s, "ltp": 0}
         fetch_fn()
-        self.assertEqual(mock_cache.nifty50, [{"symbol": "INFY"}, {"symbol": "INFY"}])
+        self.assertEqual(len(mock_cache.nifty50), 2)
         mock_state.set_nifty50_updated.assert_called_once()
 
 
