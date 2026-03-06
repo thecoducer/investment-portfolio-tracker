@@ -42,7 +42,7 @@ body::after {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1350px;
   margin: 0 auto;
   padding: 32px 32px;
   min-height: 100vh;
@@ -1304,7 +1304,7 @@ body.privacy-mode .allocation-pct {
 
 .section-wrapper {
   width: 100%;
-  margin: 0 auto 24px;
+  margin: 0 auto 48px;
 }
 
 .section-wrapper > table,
@@ -2340,7 +2340,7 @@ body.dark-theme .nav-date-sub {
 
   /* Sections */
   .section-wrapper {
-    margin-bottom: 16px;
+    margin-bottom: 32px;
   }
 
   .section-header {
