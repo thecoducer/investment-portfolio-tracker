@@ -477,6 +477,8 @@ class TableRenderer {
 
     let allRows = [];
     let totalMonthlyAmount = 0;
+    const frequencyCounts = { monthly: 0, weekly: 0, quarterly: 0 };
+    const frequencyAmounts = { monthly: 0, weekly: 0, quarterly: 0 };
 
     sips.forEach(sip => {
       const fundName = (sip.fund || sip.tradingsymbol).toUpperCase();
@@ -487,16 +489,21 @@ class TableRenderer {
 
       // Calculate total monthly amount for SIPs
       if (sip.status === 'ACTIVE' && sip.instalment_amount) {
-        const frequency = sip.frequency || 'monthly';
+        const frequency = (sip.frequency || 'monthly').toLowerCase();
         const amount = sip.instalment_amount;
 
-        // Convert to monthly equivalent
-        if (frequency.toLowerCase() === 'monthly') {
+        if (frequency === 'monthly') {
           totalMonthlyAmount += amount;
-        } else if (frequency.toLowerCase() === 'weekly') {
-          totalMonthlyAmount += amount * 4.33; // Average weeks per month
-        } else if (frequency.toLowerCase() === 'quarterly') {
+          frequencyCounts.monthly++;
+          frequencyAmounts.monthly += amount;
+        } else if (frequency === 'weekly') {
+          totalMonthlyAmount += amount * 4.33;
+          frequencyCounts.weekly++;
+          frequencyAmounts.weekly += amount;
+        } else if (frequency === 'quarterly') {
           totalMonthlyAmount += amount / 3;
+          frequencyCounts.quarterly++;
+          frequencyAmounts.quarterly += amount;
         }
       }
     });
@@ -511,9 +518,11 @@ class TableRenderer {
         rowsHTML += this._buildViewMoreRow(totalVisible, 7, 'sips', 'SIPs');
       }
 
-      rowsHTML += this._buildSIPTotalRow(totalMonthlyAmount, dataClass);
       this._updateTbodyContent(tbody, rowsHTML);
     }
+
+    // Render SIP Rhythm Summary
+    this._renderSIPRhythm(totalMonthlyAmount, frequencyCounts, frequencyAmounts);
 
     // Show/hide table and controls (Add button)
     this._toggleSectionVisibility({
@@ -523,18 +532,67 @@ class TableRenderer {
     }, sips.length > 0);
   }
 
-  _buildSIPTotalRow(totalAmount, dataClass) {
-    const formattedAmount = Formatter.formatCurrency(totalAmount);
 
-    return `<tr style="border-top: 2px solid #e9e9e7; font-weight: 600;">
-<td class="${dataClass}">Total Monthly SIP Amount:</td>
-<td class="${dataClass}">${formattedAmount}</td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-<td></td>
-</tr>`;
+  /**
+   * Render the SIP Rhythm summary strip — total monthly/annual amounts,
+   * frequency contribution segments, and a proportional stacked bar.
+   */
+  _renderSIPRhythm(totalMonthly, counts, amounts) {
+    const rhythm = document.getElementById('sip_rhythm');
+    if (!rhythm) return;
+
+    const hasActive = counts.monthly + counts.weekly + counts.quarterly > 0;
+    rhythm.style.display = hasActive ? '' : 'none';
+    if (!hasActive) return;
+
+    // Monthly & annual totals
+    const monthlyEl = document.getElementById('sip_monthly_total');
+    const annualEl = document.getElementById('sip_annual_total');
+    monthlyEl.textContent = '₹' + Formatter.formatCompactIndian(totalMonthly, 1);
+    annualEl.textContent = '₹' + Formatter.formatCompactIndian(totalMonthly * 12, 1);
+
+    // Convert raw amounts to monthly equivalents for proportions
+    const monthlyEquiv = {
+      weekly: amounts.weekly * 4.33,
+      monthly: amounts.monthly,
+      quarterly: amounts.quarterly / 3
+    };
+
+    // Frequency segments
+    const segmentsEl = document.getElementById('sip_freq_segments');
+    const order = ['weekly', 'monthly', 'quarterly'];
+    const labels = { weekly: 'Weekly', monthly: 'Monthly', quarterly: 'Quarterly' };
+    const perLabels = { weekly: '/wk', monthly: '/mo', quarterly: '/qtr' };
+
+    let segsHTML = '';
+    order.forEach(freq => {
+      if (counts[freq] === 0) return;
+      const perAmount = amounts[freq] / counts[freq]; // amount per SIP
+      const moEquiv = monthlyEquiv[freq];
+      const sipWord = counts[freq] === 1 ? 'SIP' : 'SIPs';
+      const showEquiv = freq !== 'monthly'; // only show "≈ ₹X/mo" for non-monthly
+
+      segsHTML += `<div class="sip-freq-seg">
+  <div class="sip-freq-seg-header">
+    <span class="sip-freq-dot sip-freq-dot--${freq}"></span>
+    <span class="sip-freq-name">${labels[freq]}</span>
+    <span class="sip-freq-count">${counts[freq]} ${sipWord}</span>
+  </div>
+  <div class="sip-freq-amount">₹${Formatter.formatCompactIndian(amounts[freq], 1)}${perLabels[freq]}</div>
+  ${showEquiv ? `<div class="sip-freq-monthly-eq">≈ ₹${Formatter.formatCompactIndian(moEquiv, 1)}/mo</div>` : ''}
+</div>`;
+    });
+    segmentsEl.innerHTML = segsHTML;
+
+    // Proportional stacked bar
+    const barEl = document.getElementById('sip_proportion_bar');
+    let barHTML = '';
+    order.forEach(freq => {
+      if (counts[freq] === 0) return;
+      const pct = totalMonthly > 0 ? (monthlyEquiv[freq] / totalMonthly * 100) : 0;
+      barHTML += `<span class="sip-bar-seg sip-bar-seg--${freq}" style="width:${pct.toFixed(1)}%"></span>`;
+    });
+    barEl.innerHTML = barHTML;
   }
 
   /**
