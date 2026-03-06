@@ -201,10 +201,10 @@ class CrudManager {
     popover.innerHTML = `
       <div class="crud-delete-popover-arrow"></div>
       <div class="crud-delete-popover-body">
-        <span class="crud-delete-popover-text">Delete ${schema.label}?</span>
+        <span class="crud-delete-popover-text">Are you sure?</span>
         <div class="crud-delete-popover-actions">
           <button class="crud-dpop-btn crud-dpop-cancel">Cancel</button>
-          <button class="crud-dpop-btn crud-dpop-confirm">Delete</button>
+          <button class="crud-dpop-btn crud-dpop-confirm">Confirm</button>
         </div>
       </div>`;
 
