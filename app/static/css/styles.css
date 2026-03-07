@@ -744,6 +744,131 @@ body.dark-theme .theme-toggle:hover {
   flex-shrink: 0;
 }
 
+/* ============ PORTFOLIO SNAPSHOT GRID ============ */
+
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+  margin-bottom: 40px;
+}
+
+.snapshot-card {
+  background: rgba(245, 245, 244, 0.5);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px 12px;
+  font-family: 'Inter', sans-serif;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.snapshot-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--snap-accent, #ccc);
+  opacity: 0.5;
+}
+
+.snapshot-card:hover {
+  background: rgba(245, 245, 244, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.snapshot-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.snapshot-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--snap-accent, #ccc);
+  flex-shrink: 0;
+}
+
+.snapshot-name {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+}
+
+.snapshot-current {
+  font-size: 19px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.snapshot-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.snapshot-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #bbb;
+}
+
+.snapshot-invested {
+  font-size: 12px;
+  font-weight: 500;
+  color: #999;
+}
+
+.snapshot-pl-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.snapshot-pl {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.snapshot-pct {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+  line-height: 1;
+}
+
+@media (max-width: 600px) {
+  .snapshot-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 32px;
+  }
+  .snapshot-card {
+    padding: 12px 13px 10px;
+  }
+  .snapshot-current {
+    font-size: 16px;
+  }
+}
+
 /* ============ SECTION SUMMARY STRIPS ============ */
 
 .section-summary {
@@ -3074,6 +3199,37 @@ body.dark-theme .alloc-chip:hover {
   color: #ccc;
 }
 
+/* Dark theme - Snapshot grid */
+body.dark-theme .snapshot-card {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+body.dark-theme .snapshot-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .snapshot-name {
+  color: #777;
+}
+
+body.dark-theme .snapshot-current {
+  color: #f0f0f0;
+}
+
+body.dark-theme .snapshot-label {
+  color: #555;
+}
+
+body.dark-theme .snapshot-invested {
+  color: #777;
+}
+
+body.dark-theme .snapshot-pl-row {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
 /* Dark theme - Section summary strips */
 body.dark-theme .section-summary {
   background: rgba(255, 255, 255, 0.03);
@@ -3492,7 +3648,11 @@ tbody tr td:nth-child(5),
 tbody tr td:nth-child(7),
 tbody tr td:nth-child(8),
 #sips-section tbody tr td:nth-child(6),
-.sip-total-value {
+.sip-total-value,
+.snapshot-current,
+.snapshot-invested,
+.snapshot-pl,
+.snapshot-pct {
   filter: none;
   transition: filter 0.2s ease;
 }
@@ -3547,6 +3707,26 @@ body.privacy-mode .section-summary-badge {
 body.privacy-mode .allocation-bar {
   filter: blur(4px);
   user-select: none;
+}
+
+/* Privacy mode - Snapshot grid */
+body.privacy-mode .snapshot-current,
+body.privacy-mode .snapshot-pl,
+body.privacy-mode .snapshot-pct {
+  filter: blur(6px);
+  user-select: none;
+  transform: translateZ(0);
+  will-change: filter;
+}
+
+body.privacy-mode .snapshot-invested {
+  color: transparent;
+  text-shadow: 0 0 8px rgba(0,0,0,0.5);
+  user-select: none;
+}
+
+body.dark-theme.privacy-mode .snapshot-invested {
+  text-shadow: 0 0 8px rgba(255,255,255,0.3);
 }
 
 /* Intensified blur for Total Net Worth */
@@ -6886,6 +7066,7 @@ body.dark-theme .crud-empty-add-btn:hover {
   .container.dash-entrance header,
   .container.dash-entrance .portfolio-overview,
   .container.dash-entrance .summary-cards > .card,
+  .container.dash-entrance .snapshot-grid .snapshot-card,
   .container.dash-entrance .section-wrapper,
   .container.dash-entrance .connect-nudge,
   .container.dash-entrance .login-banner {
@@ -7135,6 +7316,18 @@ body.dark-theme .pin-overlay {
 .container.dash-entrance .portfolio-overview {
   animation: dashRevealFadeUp 0.55s cubic-bezier(.16, 1, .3, 1) 0.12s both;
 }
+
+.container.dash-entrance .snapshot-grid .snapshot-card {
+  animation: dashRevealScaleUp 0.45s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(1) { animation-delay: 0.14s; }
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(2) { animation-delay: 0.18s; }
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(3) { animation-delay: 0.22s; }
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(4) { animation-delay: 0.26s; }
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(5) { animation-delay: 0.30s; }
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(6) { animation-delay: 0.34s; }
+.container.dash-entrance .snapshot-grid .snapshot-card:nth-child(7) { animation-delay: 0.38s; }
 
 .container.dash-entrance .summary-cards > .card {
   animation: dashRevealScaleUp 0.5s cubic-bezier(.16, 1, .3, 1) both;

@@ -416,6 +416,21 @@ class PortfolioApp {
         window.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
       });
     });
+
+    // Snapshot cards → scroll to respective sections
+    document.querySelectorAll('.snapshot-card[data-section]').forEach(card => {
+      card.addEventListener('click', () => {
+        const sectionId = card.dataset.section;
+        const section = document.getElementById(sectionId);
+        if (!section) return;
+
+        const header = document.querySelector('header');
+        const headerHeight = header ? header.getBoundingClientRect().height : 0;
+        const extraSpacing = 12;
+        const targetTop = section.getBoundingClientRect().top + window.scrollY - headerHeight - extraSpacing;
+        window.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+      });
+    });
   }
 
   connectEventSource() {

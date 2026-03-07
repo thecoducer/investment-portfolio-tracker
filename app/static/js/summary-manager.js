@@ -163,6 +163,38 @@ class SummaryManager {
       pl: combinedPL,
       plPct: combinedPLPct
     });
+
+    // Update portfolio snapshot grid
+    this._updateSnapshotGrid(stock, etf, gold, silver, mf, fd, pf);
+  }
+
+  _updateSnapshotCell(prefix, invested, current, pl, plPct) {
+    const currentEl = document.getElementById(`snap_${prefix}_current`);
+    const investedEl = document.getElementById(`snap_${prefix}_invested`);
+    const plEl = document.getElementById(`snap_${prefix}_pl`);
+    const pctEl = document.getElementById(`snap_${prefix}_pct`);
+    if (!currentEl) return;
+
+    currentEl.innerText = Formatter.formatCurrencyForSummary(current);
+    if (investedEl) investedEl.innerText = Formatter.formatCurrencyForSummary(invested);
+    if (plEl) {
+      plEl.innerText = (pl < 0 ? '-' : '') + Formatter.formatCurrencyForSummary(Math.abs(pl));
+      plEl.style.color = Formatter.colorPL(pl);
+    }
+    if (pctEl) {
+      pctEl.innerText = Formatter.formatPercentage(plPct);
+      pctEl.style.color = Formatter.colorPL(pl);
+    }
+  }
+
+  _updateSnapshotGrid(stock, etf, gold, silver, mf, fd, pf) {
+    this._updateSnapshotCell('stocks', stock.invested, stock.current, stock.pl, stock.plPct);
+    this._updateSnapshotCell('etf', etf.invested, etf.current, etf.pl, etf.plPct);
+    this._updateSnapshotCell('mf', mf.invested, mf.current, mf.pl, mf.plPct);
+    this._updateSnapshotCell('gold', gold.invested, gold.current, gold.pl, gold.plPct);
+    this._updateSnapshotCell('silver', silver.invested, silver.current, silver.pl, silver.plPct);
+    this._updateSnapshotCell('fd', fd.invested, fd.maturity, fd.returns, fd.returnsPct);
+    this._updateSnapshotCell('pf', pf.contributed, pf.corpus, pf.interest, pf.interestPct);
   }
 
   _updateAllocationPercentage(elementId, percentage) {
