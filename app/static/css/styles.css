@@ -680,7 +680,239 @@ body.dark-theme .theme-toggle:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,.2);
 }
 
-/* ============ SUMMARY CARDS ============ */
+/* ============ PORTFOLIO ALLOCATION STRIP ============ */
+
+.portfolio-allocation {
+  margin-bottom: 40px;
+}
+
+.allocation-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.04);
+  margin-bottom: 12px;
+}
+
+.alloc-seg {
+  height: 100%;
+  background: var(--seg-color, #ccc);
+  transition: width 0.5s cubic-bezier(.4,0,.2,1);
+  min-width: 0;
+}
+
+.alloc-seg:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.alloc-seg:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.allocation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+}
+
+.alloc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #777;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.alloc-chip:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #333;
+}
+
+.alloc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ============ SECTION SUMMARY STRIPS ============ */
+
+.section-summary {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+  background: rgba(245, 245, 244, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  position: relative;
+}
+
+.section-summary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: var(--allocation-width, 0%);
+  background: linear-gradient(135deg, var(--allocation-color, transparent), color-mix(in srgb, var(--allocation-color, transparent) 60%, transparent));
+  opacity: 0.08;
+  z-index: 0;
+  transition: width 0.5s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+}
+
+.section-summary > * {
+  position: relative;
+  z-index: 1;
+}
+
+.section-summary-metrics {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+}
+
+.section-summary-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(55, 53, 47, 0.07);
+  color: #37352f;
+  flex-shrink: 0;
+  min-width: 42px;
+  text-align: center;
+}
+
+.section-summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.section-summary-invested {
+  font-size: 13px;
+  font-weight: 500;
+  color: #999;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.section-summary-invested::before {
+  content: 'Inv.';
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #bbb;
+}
+
+.section-summary-pl {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.section-summary-pl::before {
+  content: 'P&L';
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #bbb;
+}
+
+.section-summary-pl > span:first-child {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+}
+
+.section-summary-pct {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  opacity: 0.8;
+}
+
+.section-summary-accent {
+  height: 3px;
+  width: 100%;
+  background: var(--section-accent, #ccc);
+  opacity: 0.4;
+}
+
+/* Expandable variant (Gold) */
+.section-summary--expandable {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.section-summary--expandable:hover {
+  background: rgba(245, 245, 244, 0.9);
+}
+
+.section-summary-chevron {
+  color: #999;
+  transition: transform 0.3s cubic-bezier(.4,0,.2,1), color 0.2s ease;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.section-summary--expandable:hover .section-summary-chevron {
+  color: var(--section-accent, #999);
+}
+
+.section-summary.drawer-open .section-summary-chevron {
+  transform: rotate(180deg);
+  color: var(--section-accent, #999);
+}
+
+/* Section subtitle */
+.section-subtitle {
+  font-size: 0.75em;
+  opacity: 0.6;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+@media (max-width: 600px) {
+  .section-summary-metrics {
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  .section-summary-pl {
+    margin-left: 0;
+    width: 100%;
+  }
+  .allocation-legend {
+    gap: 2px;
+  }
+  .alloc-chip {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+}
+
+/* ============ LEGACY SUMMARY CARDS (kept for compatibility) ============ */
 
 .summary-cards {
   display: grid;
@@ -2640,6 +2872,64 @@ body.dark-theme #fd_summary {
   --accent-color: #34d399;
 }
 
+/* Dark theme - Allocation strip */
+body.dark-theme .allocation-bar {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+body.dark-theme .alloc-chip {
+  color: #888;
+}
+
+body.dark-theme .alloc-chip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ccc;
+}
+
+/* Dark theme - Section summary strips */
+body.dark-theme .section-summary {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+body.dark-theme .section-summary::after {
+  opacity: 0.12;
+}
+
+body.dark-theme .section-summary--expandable:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-theme .section-summary-badge {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+body.dark-theme .section-summary-value {
+  color: #f0f0f0;
+}
+
+body.dark-theme .section-summary-invested {
+  color: #777;
+}
+
+body.dark-theme .section-summary-invested::before,
+body.dark-theme .section-summary-pl::before {
+  color: #555;
+}
+
+body.dark-theme .section-summary-chevron {
+  color: #666;
+}
+
+body.dark-theme .section-summary--expandable:hover .section-summary-chevron {
+  color: var(--section-accent, #888);
+}
+
+body.dark-theme .section-summary.drawer-open .section-summary-chevron {
+  color: var(--section-accent, #888);
+}
+
 body.dark-theme table {
   background: #141414;
   border-color: #222;
@@ -2979,6 +3269,8 @@ tbody tr td:nth-child(8),
 
 body.privacy-mode .category-current,
 body.privacy-mode .category-pl span,
+body.privacy-mode .section-summary-value,
+body.privacy-mode .section-summary-pl > span,
 body.privacy-mode tbody tr td:nth-child(2),
 body.privacy-mode tbody tr td:nth-child(3),
 body.privacy-mode tbody tr td:nth-child(4),
@@ -2994,14 +3286,31 @@ body.privacy-mode .sip-total-value {
 }
 
 /* Blur invested value but keep "Inv." label visible */
-body.privacy-mode .category-invested {
+body.privacy-mode .category-invested,
+body.privacy-mode .section-summary-invested span {
   color: transparent;
   text-shadow: 0 0 8px rgba(0,0,0,0.5);
   user-select: none;
 }
-body.privacy-mode .category-invested::before {
+body.privacy-mode .category-invested::before,
+body.privacy-mode .section-summary-invested::before {
   color: #bbb;
   text-shadow: none;
+}
+
+/* Hide allocation progress bars and percentage badges */
+body.privacy-mode .section-summary::after {
+  opacity: 0 !important;
+}
+
+body.privacy-mode .section-summary-badge {
+  filter: blur(6px);
+  user-select: none;
+}
+
+body.privacy-mode .allocation-bar {
+  filter: blur(4px);
+  user-select: none;
 }
 
 /* Intensified blur for Total Net Worth */

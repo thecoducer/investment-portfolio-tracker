@@ -415,37 +415,18 @@ class PortfolioApp {
   }
 
   _setupSummaryCardNavigation() {
-    const cardToSectionMap = {
-      stocks_summary: 'stocks-section',
-      etf_summary: 'etf-section',
-      mf_summary: 'mf-section',
-      fd_summary: 'fixed-deposits-section'
-    };
+    // Allocation legend chips → scroll to respective sections
+    document.querySelectorAll('.alloc-chip[data-section]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const sectionId = chip.dataset.section;
+        const section = document.getElementById(sectionId);
+        if (!section) return;
 
-    Object.entries(cardToSectionMap).forEach(([cardId, sectionId]) => {
-      const card = document.getElementById(cardId);
-      const section = document.getElementById(sectionId);
-
-      if (!card || !section) return;
-
-      card.classList.add('card--clickable');
-      card.setAttribute('role', 'button');
-      card.setAttribute('tabindex', '0');
-
-      const scrollToSection = () => {
         const header = document.querySelector('header');
         const headerHeight = header ? header.getBoundingClientRect().height : 0;
         const extraSpacing = 12;
         const targetTop = section.getBoundingClientRect().top + window.scrollY - headerHeight - extraSpacing;
         window.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
-      };
-
-      card.addEventListener('click', scrollToSection);
-      card.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          scrollToSection();
-        }
       });
     });
   }

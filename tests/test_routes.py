@@ -171,10 +171,10 @@ class TestUIServerRoutes(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'html', response.data.lower())
-        # ensure gold card displays subtitle and clickable drawer trigger
+        # ensure gold section displays subtitle and expandable breakdown
         self.assertIn(b'(ETFs + Physical + SGBs)', response.data)
         self.assertIn(b'id="gold_breakdown_drawer"', response.data)
-        self.assertIn(b'card--clickable', response.data)
+        self.assertIn(b'section-summary--expandable', response.data)
 
     def test_nifty50_page(self):
         response = self.client.get('/nifty50')

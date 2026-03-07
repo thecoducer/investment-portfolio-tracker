@@ -184,100 +184,174 @@
     </div>
 </div>
 
-<div class="summary-cards" id="data-container-summary">
+<div class="portfolio-allocation" id="data-container-summary">
+  <div class="allocation-bar" id="allocation_bar">
+    <div class="alloc-seg" id="alloc_seg_stocks" style="--seg-color:#6366f1"></div>
+    <div class="alloc-seg" id="alloc_seg_etf" style="--seg-color:#ec4899"></div>
+    <div class="alloc-seg" id="alloc_seg_mf" style="--seg-color:#3b82f6"></div>
+    <div class="alloc-seg" id="alloc_seg_gold" style="--seg-color:#f59e0b"></div>
+    <div class="alloc-seg" id="alloc_seg_silver" style="--seg-color:#94a3b8"></div>
+    <div class="alloc-seg" id="alloc_seg_fd" style="--seg-color:#10b981"></div>
+    <div class="alloc-seg" id="alloc_seg_pf" style="--seg-color:#e67e22"></div>
+  </div>
+  <div class="allocation-legend">
+    <button class="alloc-chip" data-section="stocks-section" type="button">
+      <span class="alloc-dot" style="background:#6366f1"></span>
+      <span class="alloc-chip-label">Stocks</span>
+    </button>
+    <button class="alloc-chip" data-section="etf-section" type="button">
+      <span class="alloc-dot" style="background:#ec4899"></span>
+      <span class="alloc-chip-label">ETFs</span>
+    </button>
+    <button class="alloc-chip" data-section="mf-section" type="button">
+      <span class="alloc-dot" style="background:#3b82f6"></span>
+      <span class="alloc-chip-label">MFs</span>
+    </button>
+    <button class="alloc-chip" data-section="gold-aggregate-section" type="button">
+      <span class="alloc-dot" style="background:#f59e0b"></span>
+      <span class="alloc-chip-label">Gold</span>
+    </button>
+    <button class="alloc-chip" data-section="silver-aggregate-section" type="button">
+      <span class="alloc-dot" style="background:#94a3b8"></span>
+      <span class="alloc-chip-label">Silver</span>
+    </button>
+    {% if fixed_deposits_enabled %}
+    <button class="alloc-chip" data-section="fixed-deposits-section" type="button">
+      <span class="alloc-dot" style="background:#10b981"></span>
+      <span class="alloc-chip-label">FDs</span>
+    </button>
+    {% endif %}
+    <button class="alloc-chip" data-section="provident-fund-section" type="button">
+      <span class="alloc-dot" style="background:#e67e22"></span>
+      <span class="alloc-chip-label">PF</span>
+    </button>
+  </div>
+</div>
 
-<div class="card card--category" id="stocks_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="stocks_allocation_pct"></span>Stocks</h3>
-    <div class="category-metrics">
-        <div class="category-current" id="current_value">0.00</div>
-        <div class="category-invested" id="total_invested">0.00</div>
-        <div class="category-pl">
-            <span id="total_pl">0.00</span>
-            <span class="category-pct" id="total_pl_pct">0.00%</span>
-        </div>
+<div id="data-container-sections">
+<div class="section-wrapper" id="stocks-section">
+<div class="section-header">
+<h2>Stocks</h2>
+<div class="controls-container">
+<button class="crud-add-btn" onclick="window.crudAdd('stocks')" title="Add stock manually">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+<span>Add</span>
+</button>
+</div>
+</div>
+<div class="section-summary" id="stocks_summary" style="--section-accent:#6366f1">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="stocks_allocation_pct"></span>
+    <div class="section-summary-value" id="current_value">0.00</div>
+    <div class="section-summary-invested"><span id="total_invested">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="total_pl">0.00</span>
+      <span class="section-summary-pct" id="total_pl_pct">0.00%</span>
     </div>
+  </div>
+  <div class="section-summary-accent"></div>
+</div>
+<div class="table-scroll-wrapper">
+<table id="stocksTable" aria-label="Holdings table">
+<thead>
+<tr>
+<th data-sort-asc="symbol_asc" data-sort-desc="symbol_desc" data-sort-default="asc">Symbol</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="ltp_asc" data-sort-desc="ltp_desc">LTP</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc" data-sort-asc2="pl_pct_asc" data-sort-desc2="pl_pct_desc">P/L</th><th data-sort-asc="day_change_asc" data-sort-desc="day_change_desc">Day's Change</th><th data-sort-asc="exchange_asc" data-sort-desc="exchange_desc" data-sort-default="asc">EX</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="tbody">
+</tbody>
+</table>
+</div>
 </div>
 
-<div class="card card--category" id="etf_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="etf_allocation_pct"></span>ETFs</h3>
-    <div class="category-metrics">
-        <div class="category-current" id="etf_current_value">0.00</div>
-        <div class="category-invested" id="etf_total_invested">0.00</div>
-        <div class="category-pl">
-            <span id="etf_total_pl">0.00</span>
-            <span class="category-pct" id="etf_total_pl_pct">0.00%</span>
-        </div>
+<div class="section-wrapper" id="etf-section">
+<div class="section-header">
+<h2>ETFs</h2>
+<div class="controls-container">
+<button class="crud-add-btn" onclick="window.crudAdd('etfs')" title="Add ETF manually">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+<span>Add</span>
+</button>
+</div>
+</div>
+<div class="section-summary" id="etf_summary" style="--section-accent:#ec4899">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="etf_allocation_pct"></span>
+    <div class="section-summary-value" id="etf_current_value">0.00</div>
+    <div class="section-summary-invested"><span id="etf_total_invested">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="etf_total_pl">0.00</span>
+      <span class="section-summary-pct" id="etf_total_pl_pct">0.00%</span>
     </div>
+  </div>
+  <div class="section-summary-accent"></div>
+</div>
+<div class="table-scroll-wrapper">
+<table id="etfTable" aria-label="ETF Holdings table">
+<thead>
+<tr>
+<th data-sort-asc="symbol_asc" data-sort-desc="symbol_desc" data-sort-default="asc">Symbol</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="ltp_asc" data-sort-desc="ltp_desc">LTP</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc" data-sort-asc2="pl_pct_asc" data-sort-desc2="pl_pct_desc">P/L</th><th data-sort-asc="day_change_asc" data-sort-desc="day_change_desc">Day's Change</th><th data-sort-asc="exchange_asc" data-sort-desc="exchange_desc" data-sort-default="asc">EX</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="etf_tbody">
+</tbody>
+</table>
+</div>
 </div>
 
-<div class="card card--category" id="mf_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="mf_allocation_pct"></span>Mutual Funds</h3>
-    <div class="category-metrics">
-        <div class="category-current" id="mf_current_value">0.00</div>
-        <div class="category-invested" id="mf_total_invested">0.00</div>
-        <div class="category-pl">
-            <span id="mf_total_pl">0.00</span>
-            <span class="category-pct" id="mf_total_pl_pct">0.00%</span>
-        </div>
+<div class="section-wrapper" id="mf-section">
+<div class="section-header">
+<h2>Mutual Funds</h2>
+<div class="controls-container">
+<button class="crud-add-btn" onclick="window.crudAdd('mutual_funds')" title="Add mutual fund manually">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+<span>Add</span>
+</button>
+</div>
+</div>
+<div class="section-summary" id="mf_summary" style="--section-accent:#3b82f6">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="mf_allocation_pct"></span>
+    <div class="section-summary-value" id="mf_current_value">0.00</div>
+    <div class="section-summary-invested"><span id="mf_total_invested">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="mf_total_pl">0.00</span>
+      <span class="section-summary-pct" id="mf_total_pl_pct">0.00%</span>
     </div>
+  </div>
+  <div class="section-summary-accent"></div>
+</div>
+<div class="table-scroll-wrapper">
+<table id="mfTable" aria-label="MF Holdings table">
+<thead>
+<tr>
+<th data-sort-asc="name_asc" data-sort-desc="name_desc" data-sort-default="asc">Fund</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="nav_asc" data-sort-desc="nav_desc">NAV</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc" data-sort-asc2="pl_pct_asc" data-sort-desc2="pl_pct_desc">P/L</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
+</tr>
+</thead>
+<tbody id="mf_tbody">
+</tbody>
+</table>
+</div>
 </div>
 
-<div class="card card--category card--clickable" id="gold_summary" tabindex="0" role="button" aria-expanded="false" aria-controls="gold_breakdown_drawer">
-    <h3 class="card-title">
-        <span class="allocation-pct" id="gold_allocation_pct"></span>
-        Gold <span class="card-subtitle">(ETFs + Physical + SGBs)</span>
-        <svg class="gold-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-    </h3>
-    <div class="category-metrics">
-        <div class="category-current" id="gold_current_value">0.00</div>
-        <div class="category-invested" id="gold_total_invested">0.00</div>
-        <div class="category-pl">
-            <span id="gold_total_pl">0.00</span>
-            <span class="category-pct" id="gold_total_pl_pct">0.00%</span>
-        </div>
+<!-- Gold Aggregate Section -->
+<div class="section-wrapper" id="gold-aggregate-section">
+<div class="section-header">
+<h2>Gold <span class="section-subtitle">(ETFs + Physical + SGBs)</span></h2>
+</div>
+<div class="section-summary section-summary--expandable" id="gold_summary" style="--section-accent:#f59e0b" tabindex="0" role="button" aria-expanded="false" aria-controls="gold_breakdown_drawer">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="gold_allocation_pct"></span>
+    <div class="section-summary-value" id="gold_current_value">0.00</div>
+    <div class="section-summary-invested"><span id="gold_total_invested">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="gold_total_pl">0.00</span>
+      <span class="section-summary-pct" id="gold_total_pl_pct">0.00%</span>
     </div>
+    <svg class="section-summary-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+  </div>
+  <div class="section-summary-accent"></div>
 </div>
-
-<div class="card card--category" id="silver_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="silver_allocation_pct"></span>Silver <span class="card-subtitle">(ETFs)</span></h3>
-    <div class="category-metrics">
-        <div class="category-current" id="silver_current_value">0.00</div>
-        <div class="category-invested" id="silver_total_invested">0.00</div>
-        <div class="category-pl">
-            <span id="silver_total_pl">0.00</span>
-            <span class="category-pct" id="silver_total_pl_pct">0.00%</span>
-        </div>
-    </div>
-</div>
-
-{% if fixed_deposits_enabled %}
-<div class="card card--category" id="fd_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="fd_allocation_pct"></span>Fixed Deposits</h3>
-    <div class="category-metrics">
-        <div class="category-current" id="fd_maturity_value">0.00</div>
-        <div class="category-invested" id="fd_total_invested">0.00</div>
-        <div class="category-pl">
-            <span id="fd_total_pl">0.00</span>
-            <span class="category-pct" id="fd_total_pl_pct">0.00%</span>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<div class="card card--category" id="pf_summary">
-    <h3 class="card-title"><span class="allocation-pct" id="pf_allocation_pct"></span>Provident Fund</h3>
-    <div class="category-metrics">
-        <div class="category-current" id="pf_corpus_value">0.00</div>
-        <div class="category-invested" id="pf_total_contributed">0.00</div>
-        <div class="category-pl">
-            <span id="pf_total_interest">0.00</span>
-            <span class="category-pct" id="pf_total_interest_pct">0.00%</span>
-        </div>
-    </div>
-</div>
-</div>
-
-<!-- Gold breakdown drawer (expands below summary cards when gold card is clicked) -->
 <div class="gold-breakdown-drawer" id="gold_breakdown_drawer" aria-hidden="true">
     <div class="gold-breakdown-inner">
         <div class="breakdown-segment" id="gold_etf_segment">
@@ -309,74 +383,24 @@
         </div>
     </div>
 </div>
-
-<div id="data-container-sections">
-<div class="section-wrapper" id="stocks-section">
-<div class="section-header">
-<h2>Stocks</h2>
-<div class="controls-container">
-<button class="crud-add-btn" onclick="window.crudAdd('stocks')" title="Add stock manually">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-<span>Add</span>
-</button>
-</div>
-</div>
-<div class="table-scroll-wrapper">
-<table id="stocksTable" aria-label="Holdings table">
-<thead>
-<tr>
-<th data-sort-asc="symbol_asc" data-sort-desc="symbol_desc" data-sort-default="asc">Symbol</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="ltp_asc" data-sort-desc="ltp_desc">LTP</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc" data-sort-asc2="pl_pct_asc" data-sort-desc2="pl_pct_desc">P/L</th><th data-sort-asc="day_change_asc" data-sort-desc="day_change_desc">Day's Change</th><th data-sort-asc="exchange_asc" data-sort-desc="exchange_desc" data-sort-default="asc">EX</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
-</tr>
-</thead>
-<tbody id="tbody">
-</tbody>
-</table>
-</div>
 </div>
 
-<div class="section-wrapper" id="etf-section">
+<!-- Silver Aggregate Section -->
+<div class="section-wrapper" id="silver-aggregate-section">
 <div class="section-header">
-<h2>ETFs</h2>
-<div class="controls-container">
-<button class="crud-add-btn" onclick="window.crudAdd('etfs')" title="Add ETF manually">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-<span>Add</span>
-</button>
+<h2>Silver <span class="section-subtitle">(ETFs)</span></h2>
 </div>
-</div>
-<div class="table-scroll-wrapper">
-<table id="etfTable" aria-label="ETF Holdings table">
-<thead>
-<tr>
-<th data-sort-asc="symbol_asc" data-sort-desc="symbol_desc" data-sort-default="asc">Symbol</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="ltp_asc" data-sort-desc="ltp_desc">LTP</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc" data-sort-asc2="pl_pct_asc" data-sort-desc2="pl_pct_desc">P/L</th><th data-sort-asc="day_change_asc" data-sort-desc="day_change_desc">Day's Change</th><th data-sort-asc="exchange_asc" data-sort-desc="exchange_desc" data-sort-default="asc">EX</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
-</tr>
-</thead>
-<tbody id="etf_tbody">
-</tbody>
-</table>
-</div>
-</div>
-
-<div class="section-wrapper" id="mf-section">
-<div class="section-header">
-<h2>Mutual Funds</h2>
-<div class="controls-container">
-<button class="crud-add-btn" onclick="window.crudAdd('mutual_funds')" title="Add mutual fund manually">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-<span>Add</span>
-</button>
-</div>
-</div>
-<div class="table-scroll-wrapper">
-<table id="mfTable" aria-label="MF Holdings table">
-<thead>
-<tr>
-<th data-sort-asc="name_asc" data-sort-desc="name_desc" data-sort-default="asc">Fund</th><th data-sort-asc="qty_asc" data-sort-desc="qty_desc">Qty</th><th data-sort-asc="avg_asc" data-sort-desc="avg_desc">Avg Price</th><th data-sort-asc="invested_asc" data-sort-desc="invested_desc">Invested</th><th data-sort-asc="current_asc" data-sort-desc="current_desc">Current</th><th data-sort-asc="nav_asc" data-sort-desc="nav_desc">NAV</th><th data-sort-asc="pl_asc" data-sort-desc="pl_desc" data-sort-asc2="pl_pct_asc" data-sort-desc2="pl_pct_desc">P/L</th><th data-sort-asc="account_asc" data-sort-desc="account_desc" data-sort-default="asc">Account</th>
-</tr>
-</thead>
-<tbody id="mf_tbody">
-</tbody>
-</table>
+<div class="section-summary" id="silver_summary" style="--section-accent:#94a3b8">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="silver_allocation_pct"></span>
+    <div class="section-summary-value" id="silver_current_value">0.00</div>
+    <div class="section-summary-invested"><span id="silver_total_invested">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="silver_total_pl">0.00</span>
+      <span class="section-summary-pct" id="silver_total_pl_pct">0.00%</span>
+    </div>
+  </div>
+  <div class="section-summary-accent"></div>
 </div>
 </div>
 
@@ -432,6 +456,18 @@ By Bank
 <span>Add</span>
 </button>
 </div>
+</div>
+<div class="section-summary" id="fd_summary" style="--section-accent:#10b981">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="fd_allocation_pct"></span>
+    <div class="section-summary-value" id="fd_maturity_value">0.00</div>
+    <div class="section-summary-invested"><span id="fd_total_invested">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="fd_total_pl">0.00</span>
+      <span class="section-summary-pct" id="fd_total_pl_pct">0.00%</span>
+    </div>
+  </div>
+  <div class="section-summary-accent"></div>
 </div>
 
 <!-- Tab Content: By Maturity (Detailed View) -->
@@ -489,6 +525,18 @@ By Bank
 <span>Add</span>
 </button>
 </div>
+</div>
+<div class="section-summary" id="pf_summary" style="--section-accent:#e67e22">
+  <div class="section-summary-metrics">
+    <span class="section-summary-badge" id="pf_allocation_pct"></span>
+    <div class="section-summary-value" id="pf_corpus_value">0.00</div>
+    <div class="section-summary-invested"><span id="pf_total_contributed">0.00</span></div>
+    <div class="section-summary-pl">
+      <span id="pf_total_interest">0.00</span>
+      <span class="section-summary-pct" id="pf_total_interest_pct">0.00%</span>
+    </div>
+  </div>
+  <div class="section-summary-accent"></div>
 </div>
 <div class="table-scroll-wrapper">
 <table id="providentFundTable" aria-label="Provident Fund table">

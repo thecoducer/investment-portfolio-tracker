@@ -132,6 +132,17 @@ class SummaryManager {
     this._updateAllocationPercentage('fd_allocation_pct', fdAllocation);
     this._updateAllocationPercentage('pf_allocation_pct', pfAllocation);
 
+    // Update allocation bar segments
+    this._updateAllocationBar({
+      stocks: stockAllocation,
+      etf: etfAllocation,
+      mf: mfAllocation,
+      gold: goldAllocation,
+      silver: silverAllocation,
+      fd: fdAllocation,
+      pf: pfAllocation
+    });
+
     // remember totals so drawer can re-render later
     this._lastCombinedGold = gold;
     this._lastGoldBreakdown = {
@@ -159,14 +170,14 @@ class SummaryManager {
   _updateAllocationPercentage(elementId, percentage) {
     const el = document.getElementById(elementId);
     if (el) {
-      el.innerText = percentage.toFixed(1) + '% ';
+      el.innerText = percentage.toFixed(1) + '%';
       
-      // Set progress bar on parent card
-      const card = el.closest('.card');
-      if (card) {
-        card.style.setProperty('--allocation-width', `${percentage}%`);
+      // Set progress bar on parent section summary strip
+      const strip = el.closest('.section-summary');
+      if (strip) {
+        strip.style.setProperty('--allocation-width', `${percentage}%`);
         
-        // Set color based on card type
+        // Set color based on element type
         let color = '#8b7765'; // default brown
         if (elementId === 'stocks_allocation_pct') {
           color = '#7c5cdb'; // purple
@@ -183,7 +194,25 @@ class SummaryManager {
         } else if (elementId === 'pf_allocation_pct') {
           color = '#e67e22'; // warm orange
         }
-        card.style.setProperty('--allocation-color', color);
+        strip.style.setProperty('--allocation-color', color);
+      }
+    }
+  }
+
+  _updateAllocationBar(allocations) {
+    const segments = {
+      stocks: 'alloc_seg_stocks',
+      etf: 'alloc_seg_etf',
+      mf: 'alloc_seg_mf',
+      gold: 'alloc_seg_gold',
+      silver: 'alloc_seg_silver',
+      fd: 'alloc_seg_fd',
+      pf: 'alloc_seg_pf'
+    };
+    for (const [key, id] of Object.entries(segments)) {
+      const seg = document.getElementById(id);
+      if (seg) {
+        seg.style.width = `${allocations[key] || 0}%`;
       }
     }
   }
