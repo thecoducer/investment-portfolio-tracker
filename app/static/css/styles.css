@@ -3069,7 +3069,9 @@ body.privacy-mode #gold_total_pl_pct,
 body.privacy-mode #silver_total_pl,
 body.privacy-mode #silver_total_pl_pct,
 body.privacy-mode #fd_total_pl,
-body.privacy-mode #fd_total_pl_pct {
+body.privacy-mode #fd_total_pl_pct,
+body.privacy-mode #pf_total_interest,
+body.privacy-mode #pf_total_interest_pct {
   color: inherit !important;
 }
 
@@ -3106,6 +3108,33 @@ body.privacy-mode #fixed-deposits-section tbody tr td:nth-child(9) {
 }
 
 body.privacy-mode #fd-summary-section tbody tr td:nth-child(1) {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* Privacy mode for Provident Fund table */
+body.privacy-mode #provident-fund-section tbody tr {
+  background-color: transparent !important;
+}
+
+body.privacy-mode #provident-fund-section tbody tr td {
+  color: inherit !important;
+}
+
+body.privacy-mode #provident-fund-section tbody tr td span {
+  color: inherit !important;
+}
+
+/* Blur all columns in Provident Fund table */
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(1),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(2),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(3),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(4),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(5),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(6),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(7),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(8),
+body.privacy-mode #provident-fund-section tbody tr td:nth-child(9) {
   filter: blur(6px);
   user-select: none;
 }
@@ -6172,6 +6201,49 @@ body.dark-theme .crud-inline-input:hover:not(:focus) {
 }
 body.dark-theme .crud-inline-input::placeholder {
   color: #4a4a55;
+}
+
+/* ── Suggestion dropdown (custom datalist replacement) ──────── */
+.crud-suggest-wrap {
+  position: relative;
+}
+.crud-suggest-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 140px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1.5px solid #e2e2ea;
+  border-radius: 6px;
+  margin-top: 2px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.1);
+}
+.crud-suggest-dropdown.open { display: block; }
+.crud-suggest-item {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-family: 'Inter', sans-serif;
+  color: #37352f;
+  cursor: pointer;
+  transition: background .12s ease;
+}
+.crud-suggest-item:hover {
+  background: #f0f0f0;
+}
+body.dark-theme .crud-suggest-dropdown {
+  background: #1e1e22;
+  border-color: #2e2e35;
+  box-shadow: 0 4px 16px rgba(0,0,0,.4);
+}
+body.dark-theme .crud-suggest-item {
+  color: #e5e5e5;
+}
+body.dark-theme .crud-suggest-item:hover {
+  background: #2a2a32;
 }
 
 body.dark-theme .crud-inline-save {

@@ -80,6 +80,7 @@ _SHEETS_CACHE_TTL = 300  # seconds
 class _UserCacheEntry:
     physical_gold: List[Dict[str, Any]] = field(default_factory=list)
     fixed_deposits: List[Dict[str, Any]] = field(default_factory=list)
+    provident_fund: List[Dict[str, Any]] = field(default_factory=list)
     stocks: List[Dict[str, Any]] = field(default_factory=list)
     etfs: List[Dict[str, Any]] = field(default_factory=list)
     mutual_funds: List[Dict[str, Any]] = field(default_factory=list)
@@ -104,7 +105,7 @@ class UserSheetsCache:
                 return entry
             return None
 
-    def put(self, google_id: str, *, physical_gold: List = None, fixed_deposits: List = None) -> None:
+    def put(self, google_id: str, *, physical_gold: List = None, fixed_deposits: List = None, provident_fund: List = None) -> None:
         with self._lock:
             now = time.monotonic()
             entry = self._store.setdefault(google_id, _UserCacheEntry(timestamp=now))
@@ -113,6 +114,9 @@ class UserSheetsCache:
                 entry.timestamp = now
             if fixed_deposits is not None:
                 entry.fixed_deposits = fixed_deposits
+                entry.timestamp = now
+            if provident_fund is not None:
+                entry.provident_fund = provident_fund
                 entry.timestamp = now
 
     # ── Sheet-entry helpers (stocks / etfs / mutual_funds / sips) ──
@@ -163,8 +167,9 @@ class UserSheetsCache:
     def put_all(self, google_id: str, *,
                 physical_gold: List = None,
                 fixed_deposits: List = None,
+                provident_fund: List = None,
                 manual: Dict[str, List] = None) -> None:
-        """Cache gold, FDs, and all manual sheet types in one call."""
+        """Cache gold, FDs, PF, and all manual sheet types in one call."""
         with self._lock:
             now = time.monotonic()
             entry = self._store.setdefault(google_id, _UserCacheEntry(timestamp=now))
@@ -172,6 +177,8 @@ class UserSheetsCache:
                 entry.physical_gold = physical_gold
             if fixed_deposits is not None:
                 entry.fixed_deposits = fixed_deposits
+            if provident_fund is not None:
+                entry.provident_fund = provident_fund
             if manual:
                 for sheet_type, rows in manual.items():
                     attr = self._SHEET_ATTR.get(sheet_type)

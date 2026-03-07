@@ -8,7 +8,8 @@ from app.constants import (HTTP_ACCEPTED, HTTP_CONFLICT, HTTP_OK, STATE_ERROR,
                            NSE_REQUEST_TIMEOUT, NSE_REQUEST_DELAY,
                            GOOGLE_SHEETS_TIMEOUT, IBJA_GOLD_PRICE_TIMEOUT,
                            CONFIG_DIR_NAME, SSE_KEEPALIVE_INTERVAL,
-                           TOKEN_WAIT_POLL_INTERVAL)
+                           TOKEN_WAIT_POLL_INTERVAL,
+                           EPF_HISTORICAL_RATES, EPF_DEFAULT_RATE)
 
 
 class TestConstants(unittest.TestCase):
@@ -57,6 +58,21 @@ class TestConstants(unittest.TestCase):
         self.assertGreater(SSE_KEEPALIVE_INTERVAL, 0)
         self.assertIsInstance(TOKEN_WAIT_POLL_INTERVAL, (int, float))
         self.assertGreater(TOKEN_WAIT_POLL_INTERVAL, 0)
+
+    def test_epf_historical_rates(self):
+        """Test EPF rate table is well-formed"""
+        self.assertIsInstance(EPF_HISTORICAL_RATES, dict)
+        self.assertGreater(len(EPF_HISTORICAL_RATES), 10)
+        for fy_year, rate in EPF_HISTORICAL_RATES.items():
+            self.assertIsInstance(fy_year, int)
+            self.assertGreater(rate, 0)
+            self.assertLess(rate, 20)  # sanity check
+
+    def test_epf_default_rate(self):
+        """Test EPF default rate is reasonable"""
+        self.assertIsInstance(EPF_DEFAULT_RATE, (int, float))
+        self.assertGreater(EPF_DEFAULT_RATE, 0)
+        self.assertLess(EPF_DEFAULT_RATE, 20)
 
 
 if __name__ == '__main__':
