@@ -111,6 +111,7 @@ class PortfolioApp {
     this.tableRenderer.renderSIPsTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderPhysicalGoldTable([]);
     this.tableRenderer.renderFixedDepositsTable([]);
+    this.tableRenderer.renderProvidentFundTable([]);
     this.tableRenderer.renderFDSummaryTable([]);
   }
 
@@ -181,25 +182,13 @@ class PortfolioApp {
       } catch { /* ignore bad JSON */ }
     };
     window.crudDelete = (schemaKey, rowNumber) => this.crudManager.confirmDelete(schemaKey, rowNumber);
-    // gold card click → toggle breakdown drawer
-    const goldCard = document.getElementById('gold_summary');
-    if (goldCard) {
-      goldCard.addEventListener('click', () => {
-        this.summaryManager.toggleGoldDrawer();
-      });
-      goldCard.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          this.summaryManager.toggleGoldDrawer();
-        }
-      });
-    }
     // Sort handlers
     window.sortStocksTable = (sortBy) => this._handleSort('Stocks', sortBy);
     window.sortETFTable = (sortBy) => this._handleSort('ETF', sortBy);
     window.sortMFTable = (sortBy) => this._handleSort('MF', sortBy);
     window.sortPhysicalGoldTable = (sortBy) => this._handleSort('PhysicalGold', sortBy);
     window.sortFixedDepositsTable = (sortBy) => this.handleFixedDepositsSort(sortBy);
+    window.sortProvidentFundTable = (sortBy) => this.handleProvidentFundSort(sortBy);
     window.sortFDSummaryTable = (sortBy) => this.handleFDSummarySort(sortBy);
 
     this._setupHeaderSortListeners();
@@ -328,6 +317,11 @@ class PortfolioApp {
         applySort: (sortBy) => this.handleFixedDepositsSort(sortBy)
       },
       {
+        selector: '#providentFundTable',
+        getSortOrder: () => this.sortManager.getProvidentFundSortOrder(),
+        applySort: (sortBy) => this.handleProvidentFundSort(sortBy)
+      },
+      {
         selector: '#fdSummaryTable',
         getSortOrder: () => this.sortManager.getFDSummarySortOrder(),
         applySort: (sortBy) => this.handleFDSummarySort(sortBy)
@@ -408,37 +402,18 @@ class PortfolioApp {
   }
 
   _setupSummaryCardNavigation() {
-    const cardToSectionMap = {
-      stocks_summary: 'stocks-section',
-      etf_summary: 'etf-section',
-      mf_summary: 'mf-section',
-      fd_summary: 'fixed-deposits-section'
-    };
+    // Allocation legend chips → scroll to respective sections
+    document.querySelectorAll('.alloc-chip[data-section]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const sectionId = chip.dataset.section;
+        const section = document.getElementById(sectionId);
+        if (!section) return;
 
-    Object.entries(cardToSectionMap).forEach(([cardId, sectionId]) => {
-      const card = document.getElementById(cardId);
-      const section = document.getElementById(sectionId);
-
-      if (!card || !section) return;
-
-      card.classList.add('card--clickable');
-      card.setAttribute('role', 'button');
-      card.setAttribute('tabindex', '0');
-
-      const scrollToSection = () => {
         const header = document.querySelector('header');
         const headerHeight = header ? header.getBoundingClientRect().height : 0;
         const extraSpacing = 12;
         const targetTop = section.getBoundingClientRect().top + window.scrollY - headerHeight - extraSpacing;
         window.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
-      };
-
-      card.addEventListener('click', scrollToSection);
-      card.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          scrollToSection();
-        }
       });
     });
   }
@@ -570,6 +545,12 @@ class PortfolioApp {
     );
     const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
 
+    const sortedProvidentFund = this.sortManager.sortProvidentFund(
+      this.dataManager.getProvidentFund(),
+      this.sortManager.getProvidentFundSortOrder()
+    );
+    const pfTotals = this.tableRenderer.renderProvidentFundTable(sortedProvidentFund);
+
     const Z = { invested: 0, current: 0, pl: 0, plPct: 0 };
 
     let stockTotals = Z, etfTotals = Z, mfTotals = Z;
@@ -597,7 +578,8 @@ class PortfolioApp {
       isUpdating,
       goldETFTotals,
       sgbTotals,
-      physicalGoldTotals
+      physicalGoldTotals,
+      pfTotals
     );
   }
 
@@ -641,6 +623,12 @@ class PortfolioApp {
     const physicalGoldTotals = this.tableRenderer.renderPhysicalGoldTable(sortedPhysicalGold);
     const fdTotals = this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
 
+    const sortedProvidentFund = this.sortManager.sortProvidentFund(
+      this.dataManager.getProvidentFund(),
+      this.sortManager.getProvidentFundSortOrder()
+    );
+    const pfTotals = this.tableRenderer.renderProvidentFundTable(sortedProvidentFund);
+
     if (fdSummaryData && fdSummaryData.length > 0) {
       this.tableRenderer.renderFDSummaryTable(fdSummaryData);
     }
@@ -658,7 +646,8 @@ class PortfolioApp {
       isUpdating,
       goldETFTotals,
       sgbTotals,
-      physicalGoldTotals
+      physicalGoldTotals,
+      pfTotals
     );
   }
 
@@ -672,7 +661,7 @@ class PortfolioApp {
   /**
    * Apply a data payload (inlined or fetched) to the data manager and render.
    */
-  _applyData({ stocks, mfHoldings, sips, physicalGold, fixedDeposits, fdSummary, status }) {
+  _applyData({ stocks, mfHoldings, sips, physicalGold, fixedDeposits, providentFund, fdSummary, status }) {
     const searchEl = document.getElementById('search');
     const searchQuery = searchEl ? searchEl.value : '';
     const forceUpdate = searchQuery !== '';
@@ -682,6 +671,7 @@ class PortfolioApp {
     this.dataManager.updateSIPs(sips || [], forceUpdate);
     this.dataManager.updatePhysicalGold(physicalGold || [], forceUpdate);
     this.dataManager.updateFixedDeposits(fixedDeposits || [], forceUpdate);
+    this.dataManager.updateProvidentFund(providentFund || [], forceUpdate);
     const computedSummary = (fdSummary && fdSummary.length)
       ? fdSummary
       : this.dataManager._computeFDSummary(fixedDeposits || []);
@@ -736,6 +726,7 @@ class PortfolioApp {
         sips: partialData.sips ?? this.dataManager.getSIPs(),
         physicalGold: partialData.physicalGold ?? this.dataManager.getPhysicalGold(),
         fixedDeposits: partialData.fixedDeposits ?? this.dataManager.getFixedDeposits(),
+        providentFund: partialData.providentFund ?? this.dataManager.getProvidentFund(),
         fdSummary: null,  // let _applyData recompute from fixedDeposits
         status: this.lastStatus || {},
       };
@@ -764,6 +755,15 @@ class PortfolioApp {
     );
     this.tableRenderer.renderFixedDepositsTable(sortedFixedDeposits);
     this.tableRenderer.renderFDSummaryTable(sortedFixedDeposits);
+  }
+
+  handleProvidentFundSort(sortBy) {
+    this.sortManager.setProvidentFundSortOrder(sortBy);
+    const sortedPF = this.sortManager.sortProvidentFund(
+      this.dataManager.getProvidentFund(),
+      this.sortManager.getProvidentFundSortOrder()
+    );
+    this.tableRenderer.renderProvidentFundTable(sortedPF);
   }
 
   handleFDSummarySort(sortBy) {

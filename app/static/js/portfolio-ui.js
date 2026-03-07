@@ -251,15 +251,15 @@ function removeDrawerAccount(name) {
     {
       target: '#data-container-summary',
       iconClass: 'tour-icon-barchart',
-      title: 'Asset breakdown',
-      desc: 'Your portfolio split across Stocks, ETFs, Mutual Funds, Gold, Silver, and Fixed Deposits — each card shows invested vs current value and P&L.',
+      title: 'Asset allocation',
+      desc: 'Your portfolio allocation at a glance. Click any category label to jump to its section below.',
       position: 'bottom',
     },
     {
       target: '#gold_summary',
       iconClass: 'tour-icon-medal',
-      title: 'Expandable gold summary',
-      desc: 'Click this card to expand it and see a detailed breakdown of your gold holdings — ETFs, physical gold, and SGBs listed separately with individual P&L.',
+      title: 'Gold breakdown',
+      desc: 'See your total gold holdings at a glance — broken down by ETFs, physical gold, and SGBs with a proportion bar.',
       position: 'bottom',
     },
     {

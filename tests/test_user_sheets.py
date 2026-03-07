@@ -40,7 +40,7 @@ class TestSheetConstants(unittest.TestCase):
 
 class TestSheetConfigs(unittest.TestCase):
     def test_all_types_present(self):
-        expected_types = {"stocks", "etfs", "mutual_funds", "sips", "physical_gold", "fixed_deposits"}
+        expected_types = {"stocks", "etfs", "mutual_funds", "sips", "physical_gold", "fixed_deposits", "provident_fund"}
         self.assertEqual(set(SHEET_CONFIGS.keys()), expected_types)
 
     def test_each_config_has_required_keys(self):
@@ -57,11 +57,11 @@ class TestSheetConfigs(unittest.TestCase):
 
 class TestAllSheets(unittest.TestCase):
     def test_count(self):
-        self.assertEqual(len(ALL_SHEETS), 6)
+        self.assertEqual(len(ALL_SHEETS), 7)
 
     def test_unique_indices(self):
         indices = [idx for _, _, idx in ALL_SHEETS]
-        self.assertEqual(len(set(indices)), 6)
+        self.assertEqual(len(set(indices)), 7)
 
 
 class TestCreatePortfolioSheet(unittest.TestCase):

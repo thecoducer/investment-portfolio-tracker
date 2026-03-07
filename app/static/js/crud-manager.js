@@ -110,6 +110,17 @@ const SCHEMAS = {
       { key: 'account',                label: 'Account',          type: 'text',   required: true, placeholder: 'e.g. Joint' },
     ],
   },
+  provident_fund: {
+    label: 'Provident Fund',
+    sheetType: 'provident_fund',
+    fields: [
+      { key: 'company_name',        label: 'Company',            type: 'text',   required: true, placeholder: 'e.g. Infosys', datalistFrom: 'company_name' },
+      { key: 'start_date',          label: 'Start Date',         type: 'date',   required: true },
+      { key: 'end_date',            label: 'End Date',           type: 'date',   required: false },
+      { key: 'monthly_contribution', label: 'Monthly Contribution', type: 'number', required: true, step: '1', min: '1' },
+      { key: 'interest_rate',       label: 'Interest Rate (%)',  type: 'number', required: false, step: '0.01', min: '0', placeholder: '0 = Auto (EPFO rate)' },
+    ],
+  },
 };
 
 // ── Map schema keys → target <tbody> element IDs ─────────────────
@@ -120,6 +131,7 @@ const TBODY_MAP = {
   sips: 'sips_tbody',
   physical_gold: 'physical_gold_table_body',
   fixed_deposits: 'fixed_deposits_table_body',
+  provident_fund: 'provident_fund_table_body',
 };
 
 
@@ -312,10 +324,28 @@ class CrudManager {
     const td = document.createElement('td');
     td.setAttribute('colspan', colCount);
 
+    // Collect existing values for datalist suggestions from table rows
+    const suggestions = {};
+    for (const f of schema.fields) {
+      if (f.datalistFrom) {
+        const existing = new Set();
+        const colIdx = schema.fields.findIndex(sf => sf.key === f.datalistFrom);
+        tbody.querySelectorAll(`tr[data-schema="${schemaKey}"]`).forEach(row => {
+          const cell = row.children[colIdx];
+          if (cell) {
+            const v = cell.textContent.trim();
+            if (v && v !== '-') existing.add(v);
+          }
+        });
+        suggestions[f.key] = [...existing].sort();
+      }
+    }
+
+    this._fieldSuggestions = suggestions;
     let fieldsHtml = '';
     for (const f of schema.fields) {
       const val = (values && values[f.key] !== undefined) ? values[f.key] : '';
-      fieldsHtml += this._buildInlineField(f, val);
+      fieldsHtml += this._buildInlineField(f, val, suggestions[f.key]);
     }
 
     td.innerHTML = `
@@ -357,6 +387,14 @@ class CrudManager {
     const firstInput = tr.querySelector('input, select');
     if (firstInput) setTimeout(() => firstInput.focus(), 100);
 
+    // Wire up custom suggestion dropdowns
+    if (this._fieldSuggestions) {
+      tr.querySelectorAll('input.crud-inline-input').forEach(inp => {
+        const items = this._fieldSuggestions[inp.name];
+        if (items && items.length) this._initSuggestDropdown(inp, items);
+      });
+    }
+
     // Event handlers
     const form = tr.querySelector('.crud-inline-form');
     form.addEventListener('submit', (e) => {
@@ -375,8 +413,9 @@ class CrudManager {
     });
   }
 
-  _buildInlineField(f, value) {
+  _buildInlineField(f, value, datalistItems) {
     const req = f.required ? '<span class="crud-req">*</span>' : '';
+    const hasSuggestions = datalistItems && datalistItems.length > 0;
     let input = '';
 
     if (f.type === 'select') {
@@ -393,6 +432,7 @@ class CrudManager {
         `class="crud-inline-input${f.uppercase ? ' crud-inline-input-uppercase' : ''}"`,
         `name="${f.key}"`,
         `value="${this._esc(displayValue)}"`,
+        `autocomplete="off"`,
       ];
       if (f.required) attrs.push('required');
       if (f.placeholder) attrs.push(`placeholder="${this._esc(f.placeholder)}"`);
@@ -401,10 +441,48 @@ class CrudManager {
       input = `<input ${attrs.join(' ')}>`;
     }
 
-    return `<div class="crud-inline-field">
+    return `<div class="${hasSuggestions ? 'crud-inline-field crud-suggest-wrap' : 'crud-inline-field'}">
       <label class="crud-inline-label">${f.label}${req}</label>
       ${input}
     </div>`;
+  }
+
+  _initSuggestDropdown(inp, items) {
+    if (!items || !items.length) return;
+
+    const wrap = inp.closest('.crud-suggest-wrap');
+    const dropdown = document.createElement('div');
+    dropdown.className = 'crud-suggest-dropdown';
+    wrap.appendChild(dropdown);
+
+    const render = (filter) => {
+      const q = (filter || '').toLowerCase();
+      const matches = q ? items.filter(v => v.toLowerCase().includes(q)) : items;
+      if (!matches.length) { dropdown.classList.remove('open'); return; }
+      dropdown.innerHTML = matches.map(v =>
+        `<div class="crud-suggest-item">${this._esc(v)}</div>`
+      ).join('');
+      dropdown.classList.add('open');
+    };
+
+    inp.addEventListener('focus', () => { if (inp.value) render(inp.value); });
+    inp.addEventListener('input', () => {
+      if (inp.value) render(inp.value);
+      else dropdown.classList.remove('open');
+    });
+
+    dropdown.addEventListener('mousedown', (e) => {
+      e.preventDefault();            // keep focus on input
+      const item = e.target.closest('.crud-suggest-item');
+      if (item) {
+        inp.value = item.textContent;
+        dropdown.classList.remove('open');
+      }
+    });
+
+    inp.addEventListener('blur', () => {
+      setTimeout(() => dropdown.classList.remove('open'), 150);
+    });
   }
 
   // ── Save (create / update) ─────────────────────────────────
