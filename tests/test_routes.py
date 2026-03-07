@@ -590,6 +590,20 @@ class TestDataRoutes(unittest.TestCase):
         data = json.loads(resp.data)
         self.assertEqual(data, [])
 
+    def test_epf_rates(self):
+        _inject_user(self.client)
+        resp = self.client.get("/api/epf_rates", headers=_APP_HEADERS)
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.data)
+        self.assertIn("rates", data)
+        self.assertIn("currentRate", data)
+        self.assertIn("currentFY", data)
+        self.assertIn("defaultRate", data)
+        self.assertIsInstance(data["rates"], dict)
+        self.assertGreater(len(data["rates"]), 10)
+        self.assertGreater(data["currentRate"], 0)
+        self.assertGreater(data["defaultRate"], 0)
+
     @patch("app.routes._prefetch_all_user_sheets")
     @patch("app.routes._build_stocks_data", return_value=[])
     @patch("app.routes._build_mf_data", return_value=[])
@@ -962,7 +976,7 @@ class TestRouteHelpers(unittest.TestCase):
             self.assertIsNone(client)
             self.assertIsNotNone(err)
 
-    @patch("app.routes._fetch_user_sheets_data", return_value=([{"a": 1}], None))
+    @patch("app.routes._fetch_user_sheets_data", return_value=([{"a": 1}], None, None))
     @patch("app.routes.enrich_holdings_with_prices", return_value=[{"a": 1}])
     @patch("app.routes.market_cache")
     def test_build_gold_data(self, mock_mc, mock_enrich, mock_fetch):
@@ -971,19 +985,19 @@ class TestRouteHelpers(unittest.TestCase):
         result = _build_gold_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
 
-    @patch("app.routes._fetch_user_sheets_data", return_value=(None, None))
+    @patch("app.routes._fetch_user_sheets_data", return_value=(None, None, None))
     def test_build_gold_data_none(self, mock_fetch):
         from app.routes import _build_gold_data
         result = _build_gold_data({"google_id": "g1"})
         self.assertEqual(result, [])
 
-    @patch("app.routes._fetch_user_sheets_data", return_value=(None, [{"deposited_on": "2024-01-01"}]))
+    @patch("app.routes._fetch_user_sheets_data", return_value=(None, [{"deposited_on": "2024-01-01"}], None))
     def test_build_fd_data(self, mock_fetch):
         from app.routes import _build_fd_data
         result = _build_fd_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
 
-    @patch("app.routes._fetch_user_sheets_data", return_value=(None, None))
+    @patch("app.routes._fetch_user_sheets_data", return_value=(None, None, None))
     def test_build_fd_data_none(self, mock_fetch):
         from app.routes import _build_fd_data
         result = _build_fd_data({"google_id": "g1"})
@@ -1301,18 +1315,18 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
     @patch("app.routes._prefetch_all_user_sheets")
     def test_fetch_user_sheets_data_cached(self, mock_prefetch, mock_usc):
         from app.routes import _fetch_user_sheets_data
-        cached_entry = Mock(physical_gold=[{"g": 1}], fixed_deposits=[{"fd": 1}])
+        cached_entry = Mock(physical_gold=[{"g": 1}], fixed_deposits=[{"fd": 1}], provident_fund=[{"pf": 1}])
         mock_usc.get.return_value = cached_entry
         user = {"google_id": "g1", "spreadsheet_id": "sid",
                 "google_credentials": {"token": "t"}}
-        gold, fds = _fetch_user_sheets_data(user)
+        gold, fds, pf = _fetch_user_sheets_data(user)
         self.assertEqual(gold, [{"g": 1}])
 
     @patch("app.firebase_store.get_google_credentials", return_value=None)
     @patch("app.routes._prefetch_all_user_sheets")
     def test_fetch_user_sheets_data_no_creds(self, mock_prefetch, mock_get_creds):
         from app.routes import _fetch_user_sheets_data
-        gold, fds = _fetch_user_sheets_data({"google_id": "g1"})
+        gold, fds, pf = _fetch_user_sheets_data({"google_id": "g1"})
         self.assertIsNone(gold)
         self.assertIsNone(fds)
 
@@ -2168,7 +2182,7 @@ class TestCORSOriginParseException(unittest.TestCase):
 
 
 class TestFetchUserSheetsDataCacheMiss(unittest.TestCase):
-    """Line 234: return None, None when cache is empty after prefetch."""
+    """Line 234: return None, None, None when cache is empty after prefetch."""
 
     @patch("app.routes.user_sheets_cache")
     @patch("app.routes._prefetch_all_user_sheets")
@@ -2178,9 +2192,10 @@ class TestFetchUserSheetsDataCacheMiss(unittest.TestCase):
         mock_usc.get.return_value = None  # cache miss
         user = {"google_id": "g1", "spreadsheet_id": "sid",
                 "google_credentials": {"token": "t"}}
-        gold, fds = _fetch_user_sheets_data(user)
+        gold, fds, pf = _fetch_user_sheets_data(user)
         self.assertIsNone(gold)
         self.assertIsNone(fds)
+        self.assertIsNone(pf)
         mock_prefetch.assert_called_once()
 
 

@@ -81,6 +81,15 @@ SIPS_HEADERS = [
     "Account",
 ]
 
+PF_SHEET_NAME = "ProvidentFund"
+PF_HEADERS = [
+    "Company",
+    "Start Date",
+    "End Date",
+    "Monthly Contribution",
+    "Interest Rate (%)",
+]
+
 # Unified registry used by the CRUD API (sheet_type → config)
 SHEET_CONFIGS = {
     "stocks": {
@@ -118,6 +127,12 @@ SHEET_CONFIGS = {
                     "deposit_day", "original_amount", "reinvested_amount",
                     "interest_rate", "account"],
     },
+    "provident_fund": {
+        "sheet_name": PF_SHEET_NAME,
+        "headers": PF_HEADERS,
+        "fields": ["company_name", "start_date", "end_date",
+                    "monthly_contribution", "interest_rate"],
+    },
 }
 
 # All sheet tabs to create for a new user
@@ -128,6 +143,7 @@ ALL_SHEETS = [
     (ETFS_SHEET_NAME, ETFS_HEADERS, 3),
     (MF_SHEET_NAME, MF_HEADERS, 4),
     (SIPS_SHEET_NAME, SIPS_HEADERS, 5),
+    (PF_SHEET_NAME, PF_HEADERS, 6),
 ]
 
 

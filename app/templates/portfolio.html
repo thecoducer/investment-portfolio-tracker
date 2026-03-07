@@ -263,6 +263,18 @@
     </div>
 </div>
 {% endif %}
+
+<div class="card card--category" id="pf_summary">
+    <h3 class="card-title"><span class="allocation-pct" id="pf_allocation_pct"></span>Provident Fund</h3>
+    <div class="category-metrics">
+        <div class="category-current" id="pf_corpus_value">0.00</div>
+        <div class="category-invested" id="pf_total_contributed">0.00</div>
+        <div class="category-pl">
+            <span id="pf_total_interest">0.00</span>
+            <span class="category-pct" id="pf_total_interest_pct">0.00%</span>
+        </div>
+    </div>
+</div>
 </div>
 
 <!-- Gold breakdown drawer (expands below summary cards when gold card is clicked) -->
@@ -466,6 +478,38 @@ By Bank
 
 </div>
 {% endif %}
+
+<!-- Provident Fund Section -->
+<div class="section-wrapper" id="provident-fund-section">
+<div class="section-header">
+<h2>Provident Fund</h2>
+<div class="controls-container">
+<button class="crud-add-btn" onclick="window.crudAdd('provident_fund')" title="Add PF entry">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+<span>Add</span>
+</button>
+</div>
+</div>
+<div class="table-scroll-wrapper">
+<table id="providentFundTable" aria-label="Provident Fund table">
+<thead>
+<tr>
+<th data-sort-asc="company_asc" data-sort-desc="company_desc" data-sort-default="asc">Company</th>
+<th data-sort-asc="start_asc" data-sort-desc="start_desc">Start Date</th>
+<th data-sort-asc="end_asc" data-sort-desc="end_desc">End Date</th>
+<th data-sort-asc="contribution_asc" data-sort-desc="contribution_desc">Monthly Contribution</th>
+<th data-sort-asc="rate_asc" data-sort-desc="rate_desc">Interest Rate</th>
+<th data-sort-asc="months_asc" data-sort-desc="months_desc">Months</th>
+<th data-sort-asc="total_contrib_asc" data-sort-desc="total_contrib_desc">Total Contributed</th>
+<th data-sort-asc="interest_asc" data-sort-desc="interest_desc">Interest Earned</th>
+<th data-sort-asc="corpus_asc" data-sort-desc="corpus_desc">Balance</th>
+</tr>
+</thead>
+<tbody id="provident_fund_table_body">
+</tbody>
+</table>
+</div>
+</div>
 
 <div class="section-wrapper" id="sips-section">
 <div class="section-header">
