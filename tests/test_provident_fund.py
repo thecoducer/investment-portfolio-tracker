@@ -7,9 +7,9 @@ from unittest.mock import patch
 
 from app.api.provident_fund import (
     _get_epf_rate,
-    _parse_date,
     calculate_pf_corpus,
 )
+from app.utils import parse_date
 from app.api.google_sheets_client import ProvidentFundService, DataError
 from app.constants import EPF_DEFAULT_RATE, EPF_HISTORICAL_RATES
 
@@ -49,22 +49,22 @@ class TestGetEpfRate(unittest.TestCase):
 
 class TestParseDate(unittest.TestCase):
     def test_iso_format(self):
-        self.assertEqual(_parse_date("2024-01-15"), date(2024, 1, 15))
+        self.assertEqual(parse_date("2024-01-15"), date(2024, 1, 15))
 
     def test_us_format(self):
-        self.assertEqual(_parse_date("01/15/2024"), date(2024, 1, 15))
+        self.assertEqual(parse_date("01/15/2024"), date(2024, 1, 15))
 
     def test_long_format(self):
-        self.assertEqual(_parse_date("January 15, 2024"), date(2024, 1, 15))
+        self.assertEqual(parse_date("January 15, 2024"), date(2024, 1, 15))
 
     def test_empty_string(self):
-        self.assertIsNone(_parse_date(""))
+        self.assertIsNone(parse_date(""))
 
     def test_none(self):
-        self.assertIsNone(_parse_date(None))
+        self.assertIsNone(parse_date(None))
 
     def test_garbage(self):
-        self.assertIsNone(_parse_date("not-a-date"))
+        self.assertIsNone(parse_date("not-a-date"))
 
 
 class TestCalculatePfCorpus(unittest.TestCase):

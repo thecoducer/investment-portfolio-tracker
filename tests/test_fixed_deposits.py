@@ -152,10 +152,9 @@ class TestCalculateCurrentValue(unittest.TestCase):
             'reinvested_amount': 0,
             'interest_rate': 7.5,
         }]
-        # Empty date_str is falsy → deposit_date stays None → None + relativedelta
-        # raises TypeError. Verify the function raises in this case.
-        with self.assertRaises(TypeError):
-            calculate_current_value(deposits)
+        # Empty date_str → parse_date returns None → deposit is skipped gracefully
+        result = calculate_current_value(deposits)
+        self.assertEqual(len(result), 0)
 
     @patch('app.api.fixed_deposits.datetime')
     def test_maturity_calculation_with_months_days(self, mock_dt):

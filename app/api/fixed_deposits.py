@@ -1,11 +1,12 @@
 """Fixed Deposits Service"""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Dict, List
 
 from dateutil.relativedelta import relativedelta
 
 from ..logging_config import logger
+from ..utils import parse_date
 
 
 def calculate_compound_interest(
@@ -54,23 +55,14 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
         
         # Parse deposit date: prefer reinvested date, but fall back to original investment date
         deposit_date_str = deposit.get('reinvested_date') or deposit.get('original_investment_date', '')
-        deposit_date = None
-
-        if deposit_date_str:
-            # Try multiple date formats (Google Sheets may store dates differently)
-            for fmt in ("%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d"):
-                try:
-                    deposit_date = datetime.strptime(deposit_date_str, fmt)
-                    break
-                except (ValueError, TypeError):
-                    continue
-
-            if deposit_date is None:
+        deposit_date = parse_date(deposit_date_str)
+        if deposit_date is None:
+            if deposit_date_str:
                 logger.warning(
                     "Cannot parse deposit date '%s' for %s — skipping",
                     deposit_date_str, deposit.get('bank_name', 'unknown'),
                 )
-                continue
+            continue
         
         # Calculate maturity date from deposit tenure (year/month/day)
         deposit_year = deposit.get('deposit_year', 0)
@@ -102,7 +94,7 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
         annual_rate = deposit.get('interest_rate', 0)
         
         # Calculate till today since active deposits are auto-reinvested
-        days_elapsed = (datetime.now() - deposit_date).days
+        days_elapsed = (datetime.now().date() - deposit_date).days
         years_elapsed = days_elapsed / 365.0
         
         # Calculate current value with quarterly compound interest
@@ -120,7 +112,7 @@ def calculate_current_value(fixed_deposits: List[Dict[str, Any]]) -> List[Dict[s
 
     # Sort by maturity date in ascending order
     enriched_deposits.sort(
-        key=lambda d: datetime.strptime(d['maturity_date'], "%B %d, %Y") if d.get('maturity_date') else datetime.max
+        key=lambda d: parse_date(d.get('maturity_date')) or date.max
     )
 
     return enriched_deposits

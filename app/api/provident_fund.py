@@ -17,8 +17,11 @@ multiple company stints.  Key rules modelled:
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from dateutil.rrule import MONTHLY, rrule
+
 from ..constants import EPF_HISTORICAL_RATES, EPF_DEFAULT_RATE
 from ..logging_config import logger
+from ..utils import parse_date
 
 
 def _get_epf_rate(year: int, month: int) -> float:
@@ -29,31 +32,10 @@ def _get_epf_rate(year: int, month: int) -> float:
 
 # ── Date helpers ──────────────────────────────────────────────────
 
-_DATE_FORMATS = ("%B %d, %Y", "%m/%d/%Y", "%Y-%m-%d")
-
-
-def _parse_date(raw: str) -> Optional[date]:
-    """Try multiple date formats and return a date, or None."""
-    if not raw or not str(raw).strip():
-        return None
-    raw = str(raw).strip()
-    for fmt in _DATE_FORMATS:
-        try:
-            return datetime.strptime(raw, fmt).date()
-        except (ValueError, TypeError):
-            continue
-    return None
-
-
-def _month_iter(start: date, end: date):
+def _month_range(start: date, end: date):
     """Yield (year, month) tuples from *start* through *end* inclusive."""
-    y, m = start.year, start.month
-    while (y, m) <= (end.year, end.month):
-        yield y, m
-        m += 1
-        if m > 12:
-            m = 1
-            y += 1
+    for dt in rrule(MONTHLY, dtstart=start.replace(day=1), until=end.replace(day=1)):
+        yield dt.year, dt.month
 
 
 # ── Core calculation ─────────────────────────────────────────────
@@ -79,14 +61,14 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Parse dates and filter out unparseable entries
     parsed: List[Tuple[Dict[str, Any], date, Optional[date]]] = []
     for entry in entries:
-        start = _parse_date(entry.get("start_date", ""))
+        start = parse_date(entry.get("start_date", ""))
         if not start:
             logger.warning(
                 "PF: skipping entry for '%s' — cannot parse start_date '%s'",
                 entry.get("company_name", "?"), entry.get("start_date"),
             )
             continue
-        end = _parse_date(entry.get("end_date", ""))
+        end = parse_date(entry.get("end_date", ""))
         parsed.append((entry, start, end))
 
     if not parsed:
@@ -114,7 +96,7 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # Clamp future end dates to today
         if effective_end > today:
             effective_end = today
-        for ym in _month_iter(start, effective_end):
+        for ym in _month_range(start, effective_end):
             month_info[ym] = (contribution, rate, idx)
 
     # Walk month-by-month from earliest start to today
@@ -139,7 +121,7 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Track which entry index is active each month for per-entry accounting
     prev_entry_idx = -1
 
-    for ym in _month_iter(earliest, today):
+    for ym in _month_range(earliest, today):
         info = month_info.get(ym)
         if info:
             contribution, rate, entry_idx = info

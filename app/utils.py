@@ -508,6 +508,27 @@ class PinRateLimiter:
         with self._lock:
             self._state.pop(google_id, None)
 
+
+# ---------------------------------------------------------------------------
+# Date Parsing — shared across PF, FD, and other sheet-based services
+# ---------------------------------------------------------------------------
+
+from dateutil.parser import parse as _dateutil_parse
+
+
+def parse_date(raw):
+    """Parse a flexible date string into a ``datetime.date``, or *None*.
+
+    Uses ``python-dateutil`` so it handles ISO-8601, US, long-month
+    and many other formats automatically.
+    """
+    if not raw or not str(raw).strip():
+        return None
+    try:
+        return _dateutil_parse(str(raw).strip()).date()
+    except (ValueError, OverflowError):
+        return None
+
     def get_attempts(self, google_id: str) -> int:
         """Return current attempt count for a user."""
         with self._lock:
