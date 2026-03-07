@@ -14,6 +14,14 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .api.physical_gold import enrich_holdings_with_prices
 from .cache import market_cache, manual_ltp_cache, portfolio_cache, user_sheets_cache
+
+_REAUTH_MESSAGE = "Google session expired. Please sign in again."
+
+
+def _is_google_auth_error(exc: Exception) -> bool:
+    """Return True if *exc* is a Google credential refresh / auth failure."""
+    name = type(exc).__name__
+    return "RefreshError" in name or "InvalidGrantError" in name
 from .constants import (HTTP_ACCEPTED, HTTP_CONFLICT, MARKET_INDEX_CACHE_TTL,
                          PORTFOLIO_TABLE_ROW_LIMIT,
                          SSE_KEEPALIVE_INTERVAL, SSE_TOKEN_MAX_AGE)
@@ -361,12 +369,24 @@ def _prefetch_all_user_sheets(user):
                 google_id[:8], _elapsed, len(gold), len(deposits),
                 len(pf_entries), manual_counts,
             )
-        except Exception:
+        except Exception as exc:
             _elapsed = _time.monotonic() - _t0
-            logger.exception(
-                "Sheets batch-fetch FAILED for user=%s after %.1fs",
-                google_id[:8], _elapsed,
-            )
+            # Detect Google OAuth credential refresh failures and log a
+            # concise warning instead of a full traceback — the user just
+            # needs to re-authenticate.
+            _exc_type = type(exc).__name__
+            if "RefreshError" in _exc_type or "InvalidGrantError" in _exc_type:
+                logger.warning(
+                    "Sheets batch-fetch FAILED for user=%s after %.1fs: "
+                    "Google credentials expired or incomplete (%s). "
+                    "User must re-authenticate.",
+                    google_id[:8], _elapsed, exc,
+                )
+            else:
+                logger.exception(
+                    "Sheets batch-fetch FAILED for user=%s after %.1fs",
+                    google_id[:8], _elapsed,
+                )
 
 @app_ui.route("/api/auth/google/login", methods=["GET"])
 def google_login():
@@ -381,6 +401,7 @@ def google_login():
         authorization_url, state = flow.authorization_url(
             access_type="offline",
             include_granted_scopes="true",
+            prompt="consent",
         )
         session["oauth_state"] = state
         return redirect(authorization_url)
@@ -1538,6 +1559,9 @@ def sheets_list(sheet_type):
         client.ensure_sheet_tab(spreadsheet_id, cfg["sheet_name"], cfg["headers"])
         raw = client.fetch_sheet_data_until_blank(spreadsheet_id, cfg["sheet_name"])
     except Exception as e:
+        if _is_google_auth_error(e):
+            logger.warning("Auth error listing %s: %s", sheet_type, e)
+            return jsonify({"error": _REAUTH_MESSAGE}), 401
         logger.exception("Error listing %s", sheet_type)
         return jsonify({"error": str(e)}), 500
 
@@ -1606,6 +1630,9 @@ def sheets_add(sheet_type):
         if sheet_type in ("stocks", "etfs"):
             _fetch_uncached_manual_ltps(user, symbol)
     except Exception as e:
+        if _is_google_auth_error(e):
+            logger.warning("Auth error adding %s row: %s", sheet_type, e)
+            return jsonify({"error": _REAUTH_MESSAGE}), 401
         logger.exception("Error adding %s row", sheet_type)
         return jsonify({"error": str(e)}), 500
 
@@ -1664,6 +1691,9 @@ def sheets_update(sheet_type, row_number):
         google_id = user.get("google_id", "")
         _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type)
     except Exception as e:
+        if _is_google_auth_error(e):
+            logger.warning("Auth error updating %s row %d: %s", sheet_type, row_number, e)
+            return jsonify({"error": _REAUTH_MESSAGE}), 401
         logger.exception("Error updating %s row %d", sheet_type, row_number)
         return jsonify({"error": str(e)}), 500
 
@@ -1698,6 +1728,9 @@ def sheets_delete(sheet_type, row_number):
         google_id = user.get("google_id", "")
         _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type)
     except Exception as e:
+        if _is_google_auth_error(e):
+            logger.warning("Auth error deleting %s row %d: %s", sheet_type, row_number, e)
+            return jsonify({"error": _REAUTH_MESSAGE}), 401
         logger.exception("Error deleting %s row %d", sheet_type, row_number)
         return jsonify({"error": str(e)}), 500
 

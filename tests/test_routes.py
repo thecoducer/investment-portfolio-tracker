@@ -454,6 +454,11 @@ class TestAuthRoutes(unittest.TestCase):
         mock_flow_builder.return_value = mock_flow
         resp = self.client.get("/api/auth/google/login")
         self.assertEqual(resp.status_code, 302)
+        mock_flow.authorization_url.assert_called_once_with(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent",
+        )
 
     @patch("app.api.google_auth.build_oauth_flow", side_effect=FileNotFoundError("no config"))
     def test_google_login_no_config(self, mock_flow_builder):
@@ -890,6 +895,48 @@ class TestSheetsCRUD(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 400)
 
+    @patch("app.routes._get_sheets_client")
+    def test_sheets_list_refresh_error_returns_401(self, mock_get_client):
+        """RefreshError on list should return 401 with re-auth message."""
+        mock_client = Mock()
+        mock_client.ensure_sheet_tab.side_effect = type("RefreshError", (Exception,), {})("creds expired")
+        mock_get_client.return_value = (mock_client, "sid", None)
+        self._inject()
+        resp = self.client.get("/api/sheets/stocks", headers=_APP_HEADERS)
+        self.assertEqual(resp.status_code, 401)
+        self.assertIn("sign in", json.loads(resp.data)["error"].lower())
+
+    @patch("app.routes._fetch_uncached_manual_ltps")
+    @patch("app.routes._refresh_single_sheet_cache")
+    @patch("app.routes._build_data_for_type", return_value={})
+    @patch("app.routes._get_sheets_client")
+    def test_sheets_add_refresh_error_returns_401(self, mock_get_client,
+                                                   mock_build, mock_refresh,
+                                                   mock_uncached):
+        mock_client = Mock()
+        mock_client.ensure_sheet_tab.side_effect = type("RefreshError", (Exception,), {})("expired")
+        mock_get_client.return_value = (mock_client, "sid", None)
+        self._inject()
+        resp = self.client.post(
+            "/api/sheets/mutual_funds",
+            data=json.dumps({"fund_name": "Test"}),
+            content_type="application/json",
+            headers=_APP_HEADERS,
+        )
+        self.assertEqual(resp.status_code, 401)
+
+    @patch("app.routes._build_data_for_type", return_value={})
+    @patch("app.routes._refresh_single_sheet_cache")
+    @patch("app.routes._get_sheets_client")
+    def test_sheets_delete_refresh_error_returns_401(self, mock_get_client,
+                                                      mock_refresh, mock_build):
+        mock_client = Mock()
+        mock_client.delete_row.side_effect = type("RefreshError", (Exception,), {})("expired")
+        mock_get_client.return_value = (mock_client, "sid", None)
+        self._inject()
+        resp = self.client.delete("/api/sheets/stocks/3", headers=_APP_HEADERS)
+        self.assertEqual(resp.status_code, 401)
+
 
 # ---------------------------------------------------------------------------
 # Route helpers (unit tests)
@@ -1290,6 +1337,26 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
         mock_usc.is_fully_cached.return_value = False
         _prefetch_all_user_sheets({"google_id": "g1234567", "spreadsheet_id": "sid"})
         # Should not raise
+
+    @patch("app.routes.user_sheets_cache")
+    @patch("app.routes._get_google_creds_dict", return_value={"token": "t"})
+    @patch("app.api.google_auth.credentials_from_dict",
+           side_effect=type("RefreshError", (Exception,), {})("creds expired"))
+    def test_prefetch_refresh_error_logs_warning(self, mock_creds, mock_get_creds, mock_usc):
+        """RefreshError is caught gracefully with a warning, not a full traceback."""
+        from app.routes import _prefetch_all_user_sheets
+        mock_usc.is_fully_cached.return_value = False
+        # Should not raise
+        _prefetch_all_user_sheets({"google_id": "g1234567", "spreadsheet_id": "sid"})
+        mock_usc.put_all.assert_not_called()
+
+    def test_is_google_auth_error(self):
+        from app.routes import _is_google_auth_error
+        self.assertTrue(_is_google_auth_error(
+            type("RefreshError", (Exception,), {})("bad")))
+        self.assertTrue(_is_google_auth_error(
+            type("InvalidGrantError", (Exception,), {})("revoked")))
+        self.assertFalse(_is_google_auth_error(ValueError("nope")))
 
     @patch("app.routes._current_user", return_value=None)
     def test_get_google_creds_dict_none_user(self, mock_cu):
