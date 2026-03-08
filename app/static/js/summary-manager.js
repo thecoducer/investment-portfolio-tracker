@@ -64,12 +64,6 @@ const ELEMENT_IDS = {
     INTEREST: 'pf_total_interest',
     INTEREST_PCT: 'pf_total_interest_pct'
   },
-  PF: {
-    CONTRIBUTED: 'pf_total_contributed',
-    CORPUS: 'pf_corpus_value',
-    INTEREST: 'pf_total_interest',
-    INTEREST_PCT: 'pf_total_interest_pct'
-  },
   COMBINED: {
     INVESTED: 'combined_total_invested',
     CURRENT: 'combined_current_value',
