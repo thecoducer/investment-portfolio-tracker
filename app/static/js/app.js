@@ -107,6 +107,8 @@ class PortfolioApp {
   _renderEmptyStates() {
     this.tableRenderer.renderStocksTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderETFTable([], { portfolio_state: 'idle' });
+    this.tableRenderer.renderGoldETFTable([], { portfolio_state: 'idle' });
+    this.tableRenderer.renderSilverETFTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderMFTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderSIPsTable([], { portfolio_state: 'idle' });
     this.tableRenderer.renderPhysicalGoldTable([]);
@@ -185,6 +187,8 @@ class PortfolioApp {
     // Sort handlers
     window.sortStocksTable = (sortBy) => this._handleSort('Stocks', sortBy);
     window.sortETFTable = (sortBy) => this._handleSort('ETF', sortBy);
+    window.sortGoldETFTable = (sortBy) => this._handleSort('GoldETF', sortBy);
+    window.sortSilverETFTable = (sortBy) => this._handleSort('SilverETF', sortBy);
     window.sortMFTable = (sortBy) => this._handleSort('MF', sortBy);
     window.sortPhysicalGoldTable = (sortBy) => this._handleSort('PhysicalGold', sortBy);
     window.sortFixedDepositsTable = (sortBy) => this.handleFixedDepositsSort(sortBy);
@@ -193,9 +197,9 @@ class PortfolioApp {
 
     this._setupHeaderSortListeners();
 
-
-
     this._setupSummaryCardNavigation();
+
+    this._setupInfoToasters();
 
     this._currentTooltip = null;
     this._tooltipIcon = null;
@@ -287,7 +291,180 @@ class PortfolioApp {
     this._tooltipPinned = false;
   }
 
-  
+  // ─── Section Info Toasters ────────────────────────────────────
+
+  _setupInfoToasters() {
+    const INFO_CONTENT = {
+      stocks: {
+        title: 'Stocks',
+        items: [
+          'Shows all your equity holdings across broker accounts.',
+          'Same stock from multiple accounts is grouped \u2014 click to expand and see the split.',
+          '<strong>To add:</strong> Click <strong>+ Add</strong> and enter the symbol (e.g. RELIANCE), quantity, average price, and exchange (NSE/BSE).',
+          'Broker-synced holdings update automatically. Manually added entries show a person icon.',
+          '<strong>P/L</strong> = (Current Price \u2212 Avg Price) \u00d7 Qty. <strong>Day\u2019s Change</strong> shows today\u2019s move.',
+        ]
+      },
+      etfs: {
+        title: 'ETFs',
+        items: [
+          'Exchange-Traded Funds that are not gold or silver \u2014 index ETFs, liquid ETFs, etc.',
+          'Gold ETFs (GOLDBEES, etc.) and Silver ETFs (SILVERBEES, etc.) have their own dedicated tables under Gold and Silver sections.',
+          '<strong>To add:</strong> Click <strong>+ Add</strong>, enter the ETF symbol (e.g. NIFTYBEES, LIQUIDETF), quantity, average price, and exchange.',
+          'Same structure as the stocks table \u2014 sortable columns, grouped by symbol.',
+        ]
+      },
+      mutual_funds: {
+        title: 'Mutual Funds',
+        items: [
+          'All your mutual fund holdings with current NAV and returns.',
+          '<strong>To add:</strong> Click <strong>+ Add</strong>, enter the exact fund name (e.g. AXIS BLUECHIP FUND), units held, and average NAV.',
+          'NAV (Net Asset Value) is the per-unit price. The date below NAV shows when it was last updated.',
+          'Funds from multiple accounts are grouped by name \u2014 click to expand.',
+        ]
+      },
+      silver: {
+        title: 'Silver',
+        items: [
+          'Tracks your silver exposure through Silver ETFs like SILVERBEES, SILVRETF, etc.',
+          'Silver ETFs are automatically detected from the ETFs sheet and shown in this dedicated table.',
+          'The summary above shows your combined silver investment, current value, and P/L.',
+          '<strong>To add:</strong> Add a silver ETF via the ETFs section\u2019s <strong>+ Add</strong> button. It will automatically appear here.',
+        ]
+      },
+      gold: {
+        title: 'Gold',
+        items: [
+          'Combines all your gold holdings \u2014 <strong>Gold ETFs</strong>, <strong>Physical Gold</strong>, and <strong>SGBs</strong> (Sovereign Gold Bonds) \u2014 into one unified view.',
+          '<strong>Gold ETFs</strong> (GOLDBEES, GOLDPETL, etc.) are automatically detected and shown in a separate table within this section.',
+          '<strong>SGBs</strong> (SGB24JUN, SGBNOV28, etc.) are stocks that start with "SGB" \u2014 they appear in the Stocks table but their value counts here.',
+          '<strong>Physical Gold:</strong> Track jewellery, coins, bars. Valued using daily IBJA (India Bullion and Jewellers Association) rates.',
+          '<strong>To add physical gold:</strong> Click <strong>+ Add</strong>, enter date, type, purity (24K/22K/18K), weight in grams, and the IBJA rate/gm on the purchase date.',
+          'The breakdown strip shows how your gold is split across ETFs, Physical, and SGBs.',
+        ]
+      },
+      fixed_deposits: {
+        title: 'Fixed Deposits',
+        items: [
+          'Track your FDs across banks with maturity dates and interest rates.',
+          '<strong>To add:</strong> Click <strong>+ Add</strong>, enter deposit date, bank, tenure (years/months/days), amount, interest rate, and account label.',
+          '<strong>Original Amt:</strong> The money you first deposited when you opened the FD.',
+          '<strong>Reinvested Amt:</strong> When an FD auto-renews (rolls over), the maturity amount (principal + interest) becomes the reinvested amount for the new tenure.',
+          '<strong>Reinvested On:</strong> The date the FD was auto-renewed. Leave blank for first-time deposits.',
+          'For an <strong>auto-renewed FD</strong>: Original Amt is what you deposited before the last tenure. Reinvested Amt is the rolled-over amount (original + accrued interest).',
+          '<strong>Current Value:</strong> Estimated value today based on tenure elapsed and interest rate.',
+          'The <span style="color:#f59e0b;font-weight:700">!</span> icon appears when deposits at a bank exceed \u20b95 Lakhs \u2014 the DICGC insurance coverage limit.',
+          'Switch to <strong>By Bank</strong> tab to see aggregated totals per bank.',
+        ]
+      },
+      provident_fund: {
+        title: 'Provident Fund',
+        items: [
+          'Track your EPF/PF across employers with compounding interest.',
+          '<strong>To add:</strong> Click <strong>+ Add</strong>, enter company name, start date, end date (leave blank if current), monthly contribution, and interest rate.',
+          '<strong>Interest Rate:</strong> Enter 0 or leave blank to auto-apply the EPFO rate for each financial year (8.25% for FY 2023\u201324). Or enter a custom rate.',
+          'Multiple stints at the same company are grouped \u2014 click to expand.',
+          '<strong>Months:</strong> Auto-computed from start and end dates.',
+          '<strong>Balance:</strong> Your closing balance for that stint (contributions + interest compounded monthly).',
+        ]
+      },
+      sips: {
+        title: 'SIPs',
+        items: [
+          'Track your Systematic Investment Plans with frequency, status, and next due date.',
+          '<strong>To add:</strong> Click <strong>+ Add</strong>, enter fund name, amount, frequency (Monthly/Weekly/Quarterly), status, and next due date.',
+          '<strong>Installments:</strong> Enter \u22121 for perpetual SIPs (no end date). Otherwise enter total installments planned.',
+          'The rhythm summary at the top shows your total monthly and annual SIP outflow across all active SIPs.',
+          'The frequency bar shows how your SIP amount is distributed across weekly, monthly, and quarterly SIPs.',
+        ]
+      },
+    };
+
+    this._activeInfoPopup = null;
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.section-info-btn');
+      if (btn) {
+        e.stopPropagation();
+        const key = btn.dataset.info;
+        if (!key || !INFO_CONTENT[key]) return;
+
+        // Toggle off if same popup
+        if (this._activeInfoPopup && this._activeInfoPopup.dataset.infoKey === key) {
+          this._closeInfoPopup();
+          return;
+        }
+        this._closeInfoPopup();
+        this._showInfoPopup(btn, key, INFO_CONTENT[key]);
+        return;
+      }
+      // Close if clicking the overlay backdrop
+      if (this._activeInfoPopup && e.target.classList.contains('section-info-overlay')) {
+        this._closeInfoPopup();
+      }
+    });
+  }
+
+  _showInfoPopup(btn, key, content) {
+    const overlay = document.createElement('div');
+    overlay.className = 'section-info-overlay';
+    overlay.dataset.infoKey = key;
+
+    let html = `<div class="section-info-popup">
+      <div class="section-info-popup-header">
+        <span class="section-info-popup-title">${content.title}</span>
+        <button class="section-info-popup-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="section-info-popup-body">
+        <ul class="section-info-popup-list">`;
+    content.items.forEach(item => {
+      html += `<li>${item}</li>`;
+    });
+    html += '</ul></div></div>';
+    overlay.innerHTML = html;
+
+    document.body.appendChild(overlay);
+
+    // Animate in
+    requestAnimationFrame(() => overlay.classList.add('open'));
+
+    // Close button
+    overlay.querySelector('.section-info-popup-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._closeInfoPopup();
+    });
+
+    // Escape key
+    this._infoPopupEscHandler = (e) => {
+      if (e.key === 'Escape') this._closeInfoPopup();
+    };
+    document.addEventListener('keydown', this._infoPopupEscHandler);
+
+    this._activeInfoPopup = overlay;
+    btn.classList.add('active');
+  }
+
+  _closeInfoPopup() {
+    if (!this._activeInfoPopup) return;
+    const overlay = this._activeInfoPopup;
+    overlay.classList.remove('open');
+
+    // Remove active state from the button
+    const key = overlay.dataset.infoKey;
+    const btn = document.querySelector(`.section-info-btn[data-info="${key}"]`);
+    if (btn) btn.classList.remove('active');
+
+    // Remove after transition
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+    // Fallback removal
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 300);
+
+    if (this._infoPopupEscHandler) {
+      document.removeEventListener('keydown', this._infoPopupEscHandler);
+      this._infoPopupEscHandler = null;
+    }
+    this._activeInfoPopup = null;
+  }
 
   _setupHeaderSortListeners() {
     const tableConfigs = [
@@ -300,6 +477,16 @@ class PortfolioApp {
         selector: '#etfTable',
         getSortOrder: () => this.sortManager.getETFSortOrder(),
         applySort: (sortBy) => this._handleSort('ETF', sortBy)
+      },
+      {
+        selector: '#goldETFTable',
+        getSortOrder: () => this.sortManager.getGoldETFSortOrder(),
+        applySort: (sortBy) => this._handleSort('GoldETF', sortBy)
+      },
+      {
+        selector: '#silverETFTable',
+        getSortOrder: () => this.sortManager.getSilverETFSortOrder(),
+        applySort: (sortBy) => this._handleSort('SilverETF', sortBy)
       },
       {
         selector: '#mfTable',
@@ -402,19 +589,66 @@ class PortfolioApp {
   }
 
   _setupSummaryCardNavigation() {
-    // Allocation legend chips → scroll to respective sections
-    document.querySelectorAll('.alloc-chip[data-section]').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const sectionId = chip.dataset.section;
-        const section = document.getElementById(sectionId);
-        if (!section) return;
+    const bar = document.getElementById('allocation_bar');
+    const labels = document.getElementById('alloc_labels');
+    const focus = document.getElementById('alloc_focus');
+    if (!bar || !labels || !focus) return;
 
-        const header = document.querySelector('header');
-        const headerHeight = header ? header.getBoundingClientRect().height : 0;
-        const extraSpacing = 12;
-        const targetTop = section.getBoundingClientRect().top + window.scrollY - headerHeight - extraSpacing;
-        window.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+    const activate = (asset) => {
+      const isAlready = bar.querySelector(`.alloc-seg.active[data-asset="${asset}"]`);
+      // Clear all
+      bar.querySelectorAll('.alloc-seg').forEach(s => s.classList.remove('active'));
+      labels.querySelectorAll('.alloc-tag').forEach(t => t.classList.remove('active'));
+      focus.querySelectorAll('.alloc-focus-row').forEach(r => r.classList.remove('active'));
+
+      if (isAlready) {
+        // Deactivate
+        bar.classList.remove('has-focus');
+        labels.classList.remove('has-focus');
+        focus.classList.remove('open');
+      } else {
+        // Activate
+        bar.classList.add('has-focus');
+        labels.classList.add('has-focus');
+        bar.querySelector(`.alloc-seg[data-asset="${asset}"]`)?.classList.add('active');
+        labels.querySelector(`.alloc-tag[data-asset="${asset}"]`)?.classList.add('active');
+        const row = focus.querySelector(`.alloc-focus-row[data-asset="${asset}"]`);
+        if (row) row.classList.add('active');
+        focus.classList.add('open');
+      }
+    };
+
+    // Bar segment click
+    bar.querySelectorAll('.alloc-seg[data-asset]').forEach(seg => {
+      seg.addEventListener('click', () => activate(seg.dataset.asset));
+    });
+
+    // Label tag click — highlight + scroll to section
+    labels.querySelectorAll('.alloc-tag[data-asset]').forEach(tag => {
+      tag.addEventListener('click', () => {
+        activate(tag.dataset.asset);
       });
+      tag.addEventListener('dblclick', () => {
+        const section = document.getElementById(tag.dataset.section);
+        if (!section) return;
+        const hdr = document.querySelector('header');
+        const hdrH = hdr ? hdr.getBoundingClientRect().height : 0;
+        const top = section.getBoundingClientRect().top + window.scrollY - hdrH - 12;
+        window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+      });
+    });
+
+    // Click outside allocation area to collapse focus shelf
+    const allocation = document.getElementById('data-container-summary');
+    document.addEventListener('click', (e) => {
+      if (!focus.classList.contains('open')) return;
+      if (allocation && allocation.contains(e.target)) return;
+      bar.querySelectorAll('.alloc-seg').forEach(s => s.classList.remove('active'));
+      labels.querySelectorAll('.alloc-tag').forEach(t => t.classList.remove('active'));
+      focus.querySelectorAll('.alloc-focus-row').forEach(r => r.classList.remove('active'));
+      bar.classList.remove('has-focus');
+      labels.classList.remove('has-focus');
+      focus.classList.remove('open');
     });
   }
 
@@ -558,12 +792,17 @@ class PortfolioApp {
     let silverTotals = Z, silverETFTotals = Z;
 
     if (hasData) {
-      const sortedHoldings = this.sortManager.sortStocks(this.dataManager.getStocks(), this.sortManager.getStocksSortOrder());
-      const sortedETF = this.sortManager.sortETFs(this.dataManager.getStocks(), this.sortManager.getETFSortOrder());
+      const allStocks = this.dataManager.getStocks();
+      const sortedHoldings = this.sortManager.sortStocks(allStocks, this.sortManager.getStocksSortOrder());
+      const sortedETF = this.sortManager.sortETFs(allStocks, this.sortManager.getETFSortOrder());
+      const sortedGoldETF = this.sortManager.sortGoldETFs(allStocks, this.sortManager.getGoldETFSortOrder());
+      const sortedSilverETF = this.sortManager.sortSilverETFs(allStocks, this.sortManager.getSilverETFSortOrder());
       const sortedMF = this.sortManager.sortMF(this.dataManager.getMFHoldings(), this.sortManager.getMFSortOrder());
 
       ({ stockTotals, goldTotals, sgbTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status));
-      ({ etfTotals, goldETFTotals, silverETFTotals } = this.tableRenderer.renderETFTable(sortedETF, status));
+      ({ etfTotals } = this.tableRenderer.renderETFTable(sortedETF, status));
+      goldETFTotals = this.tableRenderer.renderGoldETFTable(sortedGoldETF, status);
+      silverETFTotals = this.tableRenderer.renderSilverETFTable(sortedSilverETF, status);
       mfTotals = this.tableRenderer.renderMFTable(sortedMF, status);
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);
     }
@@ -593,13 +832,22 @@ class PortfolioApp {
    * @param {Array|null} [opts.fdSummaryData=null] - If provided, render FD summary table with this data
    */
   _renderAllAndUpdateSummaries(status, { renderSIPs = false, isUpdating = false, fdSummaryData = null } = {}) {
+    const allStocks = this.dataManager.getStocks();
     const sortedHoldings = this.sortManager.sortStocks(
-      this.dataManager.getStocks(),
+      allStocks,
       this.sortManager.getStocksSortOrder()
     );
     const sortedETFHoldings = this.sortManager.sortETFs(
-      this.dataManager.getStocks(),
+      allStocks,
       this.sortManager.getETFSortOrder()
+    );
+    const sortedGoldETFHoldings = this.sortManager.sortGoldETFs(
+      allStocks,
+      this.sortManager.getGoldETFSortOrder()
+    );
+    const sortedSilverETFHoldings = this.sortManager.sortSilverETFs(
+      allStocks,
+      this.sortManager.getSilverETFSortOrder()
     );
     const sortedMFHoldings = this.sortManager.sortMF(
       this.dataManager.getMFHoldings(),
@@ -615,7 +863,9 @@ class PortfolioApp {
     );
 
     const { stockTotals, goldTotals, sgbTotals, silverTotals } = this.tableRenderer.renderStocksTable(sortedHoldings, status);
-    const { etfTotals, goldETFTotals, silverETFTotals } = this.tableRenderer.renderETFTable(sortedETFHoldings, status);
+    const { etfTotals } = this.tableRenderer.renderETFTable(sortedETFHoldings, status);
+    const goldETFTotals = this.tableRenderer.renderGoldETFTable(sortedGoldETFHoldings, status);
+    const silverETFTotals = this.tableRenderer.renderSilverETFTable(sortedSilverETFHoldings, status);
     const mfTotals = this.tableRenderer.renderMFTable(sortedMFHoldings, status);
     if (renderSIPs) {
       this.tableRenderer.renderSIPsTable(this.dataManager.getSIPs(), status);

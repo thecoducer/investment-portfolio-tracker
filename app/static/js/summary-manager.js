@@ -64,6 +64,12 @@ const ELEMENT_IDS = {
     INTEREST: 'pf_total_interest',
     INTEREST_PCT: 'pf_total_interest_pct'
   },
+  PF: {
+    CONTRIBUTED: 'pf_total_contributed',
+    CORPUS: 'pf_corpus_value',
+    INTEREST: 'pf_total_interest',
+    INTEREST_PCT: 'pf_total_interest_pct'
+  },
   COMBINED: {
     INVESTED: 'combined_total_invested',
     CURRENT: 'combined_current_value',
@@ -163,6 +169,44 @@ class SummaryManager {
       pl: combinedPL,
       plPct: combinedPLPct
     });
+
+    // Update portfolio snapshot grid
+    this._updateSnapshotGrid(stock, mf, etf, gold, silver, fd, pf);
+  }
+
+  _updateSnapshotCell(prefix, invested, current, pl, plPct) {
+    const currentEl = document.getElementById(`snap_${prefix}_current`);
+    const investedEl = document.getElementById(`snap_${prefix}_invested`);
+    const plEl = document.getElementById(`snap_${prefix}_pl`);
+    const pctEl = document.getElementById(`snap_${prefix}_pct`);
+    if (!currentEl) return;
+
+    currentEl.innerText = Formatter.formatCurrencyForSummary(current);
+    if (investedEl) investedEl.innerText = Formatter.formatCurrencyForSummary(invested);
+    if (plEl) {
+      plEl.innerText = (pl < 0 ? '-' : '') + Formatter.formatCurrencyForSummary(Math.abs(pl));
+      plEl.style.color = Formatter.colorPL(pl);
+    }
+    if (pctEl) {
+      pctEl.innerText = Formatter.formatPercentage(plPct);
+      pctEl.style.color = Formatter.colorPL(pl);
+    }
+    // Mirror P&L% to label strip tag
+    const tagPct = document.querySelector(`[data-snap-pct="${prefix}"]`);
+    if (tagPct) {
+      tagPct.innerText = Formatter.formatPercentage(plPct);
+      tagPct.style.color = Formatter.colorPL(pl);
+    }
+  }
+
+  _updateSnapshotGrid(stock, mf, etf, gold, silver, fd, pf) {
+    this._updateSnapshotCell('stocks', stock.invested, stock.current, stock.pl, stock.plPct);
+    this._updateSnapshotCell('mf', mf.invested, mf.current, mf.pl, mf.plPct);
+    this._updateSnapshotCell('etf', etf.invested, etf.current, etf.pl, etf.plPct);
+    this._updateSnapshotCell('gold', gold.invested, gold.current, gold.pl, gold.plPct);
+    this._updateSnapshotCell('silver', silver.invested, silver.current, silver.pl, silver.plPct);
+    this._updateSnapshotCell('fd', fd.invested, fd.maturity, fd.returns, fd.returnsPct);
+    this._updateSnapshotCell('pf', pf.contributed, pf.corpus, pf.interest, pf.interestPct);
   }
 
   _updateAllocationPercentage(elementId, percentage) {
@@ -190,7 +234,7 @@ class SummaryManager {
         } else if (elementId === 'fd_allocation_pct') {
           color = '#5f9e8a'; // turtle green
         } else if (elementId === 'pf_allocation_pct') {
-          color = '#e67e22'; // warm orange
+          color = '#8b4049'; // subtle maroon
         }
         strip.style.setProperty('--allocation-color', color);
       }
@@ -301,7 +345,7 @@ class SummaryManager {
       physical: (physVal / total * 100).toFixed(1),
       sgb: (sgbVal / total * 100).toFixed(1)
     };
-    barEl.innerHTML = ['etf', 'physical', 'sgb']
+    barEl.innerHTML = ['physical', 'etf', 'sgb']
       .filter(k => parseFloat(pcts[k]) > 0)
       .map(k => `<span class="gold-bar-seg gold-bar-seg--${k}" style="width:${pcts[k]}%"></span>`)
       .join('');
