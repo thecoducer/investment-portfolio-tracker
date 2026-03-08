@@ -790,6 +790,13 @@ class PortfolioApp {
         Log.info('App', 'Sheets completed — refreshing sheets data');
         await this.updateSheetsData();
         sheetsFetched = true;
+        // Manual stocks/SIPs live in the sheets cache, so if portfolio
+        // was already fetched before sheets were ready, re-fetch it now
+        // to pick up manual entries (e.g. manually added stocks & SIPs).
+        if (portfolioFetched) {
+          Log.info('App', 'Re-fetching portfolio data (manual entries now available from sheets)');
+          await this.updatePortfolioData();
+        }
       }
 
       this._applyStatus(status);
@@ -806,6 +813,12 @@ class PortfolioApp {
         } else if (!sheetsFetched) {
           Log.info('App', 'Catching up sheets data (transition missed)');
           await this.updateSheetsData();
+          // Manual stocks/SIPs depend on sheets cache — refresh portfolio
+          // so manually added entries appear in the stocks/SIPs tables.
+          if (portfolioFetched) {
+            Log.info('App', 'Re-fetching portfolio data (manual entries now available from sheets)');
+            await this.updatePortfolioData();
+          }
         }
         // Record LTP timestamp so _pollForManualLTPs doesn't re-fetch
         if (status.manual_ltp_last_updated) {

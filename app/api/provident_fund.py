@@ -282,11 +282,6 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         entry["total_corpus_contributions"] = round(total_contributions, 2)
         entry["total_corpus_interest"] = total_interest
 
-    logger.info(
-        "PF calculation: %d entries, corpus=%.2f, contributions=%.2f, interest=%.2f",
-        len(enriched), corpus, total_contributions, total_interest,
-    )
-
     return enriched
 
 

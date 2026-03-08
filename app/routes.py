@@ -1257,7 +1257,7 @@ def sheets_add(sheet_type):
         logger.exception("Error adding %s row", sheet_type)
         return jsonify({"error": str(e)}), 500
 
-    logger.info("sheets_add: user=%s type=%s row=%d", google_id[:8], sheet_type, row_num)
+    logger.info("sheets_add: type=%s row=%d", sheet_type, row_num)
     result = {"status": "added", "row_number": row_num}
     refreshed = _build_data_for_type(user, sheet_type)
     if refreshed:
