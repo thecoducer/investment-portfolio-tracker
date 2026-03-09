@@ -1,7 +1,8 @@
 """
 SIP (Systematic Investment Plan) management service.
 """
-from typing import Any, Dict, List
+
+from typing import Any
 
 from kiteconnect import KiteConnect
 from requests.exceptions import ConnectionError, ReadTimeout
@@ -12,14 +13,14 @@ from .base_service import BaseDataService
 
 class SIPService(BaseDataService):
     """Service for fetching and managing SIP data."""
-    
-    def fetch_sips(self, kite: KiteConnect) -> List[Dict[str, Any]]:
+
+    def fetch_sips(self, kite: KiteConnect) -> list[dict[str, Any]]:
         """
         Fetch all active and pending SIPs from KiteConnect.
-        
+
         Args:
             kite: Authenticated KiteConnect instance
-        
+
         Returns:
             List of SIP details
         """

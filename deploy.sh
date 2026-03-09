@@ -28,7 +28,7 @@ MIN_INSTANCES="${MIN_INSTANCES:-0}"
 MAX_INSTANCES="${MAX_INSTANCES:-1}"
 MEMORY="${MEMORY:-512Mi}"
 CPU="${CPU:-1}"
-TIMEOUT="${TIMEOUT:-1800}"          # 30 min — matches SSE_MAX_CONNECTION_AGE
+TIMEOUT="${TIMEOUT:-300}"            # 5 min — standard HTTP request timeout
 CONCURRENCY="${CONCURRENCY:-80}"    # max concurrent requests per instance
 
 # Colors
@@ -67,15 +67,6 @@ for secret in "${REQUIRED_SECRETS[@]}"; do
 done
 ok "All secrets found"
 
-# ─── Resolve Cloud Run URL for SSE direct access ────────────
-# If CLOUD_RUN_URL is already set (e.g. re-deploy), use it.
-# Otherwise, try to fetch it from the existing service.
-if [[ -z "${CLOUD_RUN_URL:-}" ]]; then
-    CLOUD_RUN_URL=$(gcloud run services describe "$SERVICE_NAME" \
-        --project="$PROJECT" --region="$REGION" \
-        --format='value(status.url)' 2>/dev/null || echo "")
-fi
-
 # ─── Deploy ──────────────────────────────────────────────────
 info "Building and deploying to Cloud Run..."
 gcloud run deploy "$SERVICE_NAME" \
@@ -90,7 +81,7 @@ gcloud run deploy "$SERVICE_NAME" \
     --max-instances="$MAX_INSTANCES" \
     --timeout="${TIMEOUT}s" \
     --concurrency="$CONCURRENCY" \
-    --set-env-vars="FLASK_ENV=production,CLOUD_RUN_URL=${CLOUD_RUN_URL}" \
+    --set-env-vars="FLASK_ENV=production" \
     --set-secrets="\
 FLASK_SECRET_KEY=flask-secret-key:latest,\
 ZERODHA_TOKEN_SECRET=zerodha-token-secret:latest,\
@@ -98,22 +89,14 @@ FIREBASE_CREDENTIALS=firebase-credentials:latest,\
 GOOGLE_OAUTH_CREDENTIALS=google-oauth-credentials:latest" \
     --port=8080
 
-# ─── Ensure CLOUD_RUN_URL is set (handles first deploy to a new region) ───
+echo ""
+ok "Deployed successfully!"
+echo ""
+
 SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" \
     --project="$PROJECT" --region="$REGION" \
     --format='value(status.url)' 2>/dev/null)
 
-if [[ -z "$CLOUD_RUN_URL" || "$CLOUD_RUN_URL" != "$SERVICE_URL" ]]; then
-    info "Updating CLOUD_RUN_URL to ${SERVICE_URL}"
-    gcloud run services update "$SERVICE_NAME" \
-        --project="$PROJECT" \
-        --region="$REGION" \
-        --update-env-vars="CLOUD_RUN_URL=$SERVICE_URL"
-fi
-
-echo ""
-ok "Deployed successfully!"
-echo ""
 info "Service URL: ${SERVICE_URL}"
 echo ""
 warn "IMPORTANT: Add these URLs to your Google OAuth Authorized redirect URIs:"

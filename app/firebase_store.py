@@ -10,16 +10,20 @@ Credential resolution order:
 
 import json
 import os
-import tempfile
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from google.api_core import exceptions as gcp_exceptions
 
 from .logging_config import logger
-from .utils import (create_pin_check, decrypt_credential,
-                    decrypt_google_credentials, encrypt_credential,
-                    encrypt_google_credentials, verify_pin)
+from .utils import (
+    create_pin_check,
+    decrypt_credential,
+    decrypt_google_credentials,
+    encrypt_credential,
+    encrypt_google_credentials,
+    verify_pin,
+)
 
 _firestore_client = None
 
@@ -71,12 +75,9 @@ def _db():
 
     try:
         import firebase_admin
-        from firebase_admin import credentials as fb_credentials
         from google.cloud import firestore as gc_firestore
     except ImportError as exc:
-        raise RuntimeError(
-            "firebase-admin is not installed. Run: pip install firebase-admin"
-        ) from exc
+        raise RuntimeError("firebase-admin is not installed. Run: pip install firebase-admin") from exc
 
     if not firebase_admin._apps:
         cred = _resolve_firebase_credential()
@@ -96,7 +97,13 @@ def _user_ref(google_id: str):
     return _db().collection(_USERS).document(google_id)
 
 
-def get_user(google_id: str) -> Optional[dict[str, Any]]:
+def _get_user_data(google_id: str) -> dict:
+    """Read a user document from Firestore, returning an empty dict if not found."""
+    doc = _user_ref(google_id).get()
+    return doc.to_dict() if doc.exists else {}
+
+
+def get_user(google_id: str) -> dict[str, Any] | None:
     """Return the user dict, or None if not found."""
     try:
         doc = _user_ref(google_id).get()
@@ -112,7 +119,7 @@ def upsert_user(
     name: str,
     picture: str,
     google_credentials: dict,
-    spreadsheet_id: Optional[str] = None,
+    spreadsheet_id: str | None = None,
 ) -> dict[str, Any]:
     """Create or update a user record. Returns the saved document.
 
@@ -120,7 +127,7 @@ def upsert_user(
     key (Tier 2 encryption — server-side, no user PIN required).
     """
     ref = _user_ref(google_id)
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
 
     encrypted_google_creds = encrypt_google_credentials(google_credentials)
 
@@ -153,10 +160,9 @@ def update_spreadsheet_id(google_id: str, spreadsheet_id: str) -> None:
     logger.info("Stored spreadsheet_id for user")
 
 
-def get_google_credentials(google_id: str) -> Optional[dict]:
+def get_google_credentials(google_id: str) -> dict | None:
     """Return decrypted Google OAuth credentials, or None."""
-    doc = _user_ref(google_id).get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     encrypted = data.get("google_credentials")
     if not encrypted:
         return None
@@ -174,7 +180,10 @@ def update_google_credentials(google_id: str, google_credentials: dict) -> None:
 
 
 def add_zerodha_account(
-    google_id: str, account_name: str, api_key: str, api_secret: str,
+    google_id: str,
+    account_name: str,
+    api_key: str,
+    api_secret: str,
     pin: str = "",
 ) -> None:
     """Add a Zerodha account to the user's list of connected accounts.
@@ -186,19 +195,20 @@ def add_zerodha_account(
         raise ValueError("Security PIN is required to store Zerodha credentials")
 
     ref = _user_ref(google_id)
-    doc = ref.get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     accounts: list[dict] = data.get("zerodha_accounts", [])
 
     # Prevent duplicate account names
     if any(a["account_name"] == account_name for a in accounts):
         raise ValueError(f"Account '{account_name}' already exists")
 
-    accounts.append({
-        "account_name": account_name,
-        "api_key": encrypt_credential(api_key, pin),
-        "api_secret": encrypt_credential(api_secret, pin),
-    })
+    accounts.append(
+        {
+            "account_name": account_name,
+            "api_key": encrypt_credential(api_key, pin),
+            "api_secret": encrypt_credential(api_secret, pin),
+        }
+    )
     ref.update({"zerodha_accounts": accounts})
     logger.info("Added Zerodha account")
 
@@ -206,8 +216,7 @@ def add_zerodha_account(
 def remove_zerodha_account(google_id: str, account_name: str) -> None:
     """Remove a Zerodha account by name from the user's list."""
     ref = _user_ref(google_id)
-    doc = ref.get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     accounts: list[dict] = data.get("zerodha_accounts", [])
 
     updated = [a for a in accounts if a["account_name"] != account_name]
@@ -220,8 +229,7 @@ def remove_zerodha_account(google_id: str, account_name: str) -> None:
 
 def get_zerodha_account_names(google_id: str) -> list[str]:
     """Return the names of the user's connected Zerodha accounts (no secrets)."""
-    doc = _user_ref(google_id).get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     accounts: list[dict] = data.get("zerodha_accounts", [])
     return [a["account_name"] for a in accounts]
 
@@ -237,22 +245,22 @@ def get_zerodha_accounts(google_id: str, pin: str = "") -> list[dict]:
         logger.info("get_zerodha_accounts called without PIN")
         return []
 
-    doc = _user_ref(google_id).get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     accounts: list[dict] = data.get("zerodha_accounts", [])
 
     result: list[dict] = []
     for a in accounts:
         try:
-            result.append({
-                "name": a["account_name"],
-                "api_key": decrypt_credential(a["api_key"], pin),
-                "api_secret": decrypt_credential(a["api_secret"], pin),
-            })
+            result.append(
+                {
+                    "name": a["account_name"],
+                    "api_key": decrypt_credential(a["api_key"], pin),
+                    "api_secret": decrypt_credential(a["api_secret"], pin),
+                }
+            )
         except Exception:
             logger.warning(
-                "Failed to decrypt credentials for a Zerodha account "
-                "— please re-add the account via Settings",
+                "Failed to decrypt credentials for a Zerodha account — please re-add the account via Settings",
             )
     return result
 
@@ -267,8 +275,7 @@ def get_zerodha_sessions(google_id: str) -> dict[str, dict]:
 
     Returns a dict mapping account name → {"access_token": ..., "expiry": ...}.
     """
-    doc = _user_ref(google_id).get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     return data.get("zerodha_sessions", {})
 
 
@@ -285,6 +292,7 @@ def save_zerodha_sessions(google_id: str, sessions: dict[str, dict]) -> None:
 def clear_zerodha_sessions(google_id: str) -> None:
     """Remove all stored Zerodha session tokens for a user."""
     from google.cloud.firestore_v1 import DELETE_FIELD
+
     _user_ref(google_id).update({"zerodha_sessions": DELETE_FIELD})
 
 
@@ -295,8 +303,7 @@ def clear_zerodha_sessions(google_id: str) -> None:
 
 def has_pin(google_id: str) -> bool:
     """Return True if the user has set a security PIN."""
-    doc = _user_ref(google_id).get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     return bool(data.get("pin_check"))
 
 
@@ -313,8 +320,7 @@ def store_pin_check(google_id: str, pin: str) -> None:
 
 def verify_user_pin(google_id: str, pin: str) -> bool:
     """Verify a PIN against the stored pin_check token."""
-    doc = _user_ref(google_id).get()
-    data = doc.to_dict() if doc.exists else {}
+    data = _get_user_data(google_id)
     pin_check_token = data.get("pin_check", "")
     if not pin_check_token:
         return False
@@ -328,9 +334,12 @@ def reset_zerodha_data(google_id: str) -> None:
     and choose a new PIN afterward.
     """
     from google.cloud.firestore_v1 import DELETE_FIELD
-    _user_ref(google_id).update({
-        "zerodha_accounts": DELETE_FIELD,
-        "zerodha_sessions": DELETE_FIELD,
-        "pin_check": DELETE_FIELD,
-    })
+
+    _user_ref(google_id).update(
+        {
+            "zerodha_accounts": DELETE_FIELD,
+            "zerodha_sessions": DELETE_FIELD,
+            "pin_check": DELETE_FIELD,
+        }
+    )
     logger.info("Reset all Zerodha data for user")

@@ -14,12 +14,12 @@ multiple company stints.  Key rules modelled:
 5. An entry with no end date means the employee is currently employed.
 """
 
-from datetime import date, datetime
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date
+from typing import Any
 
 from dateutil.rrule import MONTHLY, rrule
 
-from ..constants import EPF_HISTORICAL_RATES, EPF_DEFAULT_RATE
+from ..constants import EPF_DEFAULT_RATE, EPF_HISTORICAL_RATES
 from ..logging_config import logger
 from ..utils import parse_date
 
@@ -32,6 +32,7 @@ def _get_epf_rate(year: int, month: int) -> float:
 
 # ── Date helpers ──────────────────────────────────────────────────
 
+
 def _month_range(start: date, end: date):
     """Yield (year, month) tuples from *start* through *end* inclusive."""
     for dt in rrule(MONTHLY, dtstart=start.replace(day=1), until=end.replace(day=1)):
@@ -40,7 +41,8 @@ def _month_range(start: date, end: date):
 
 # ── Core calculation ─────────────────────────────────────────────
 
-def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+def calculate_pf_corpus(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Enrich PF entries with calculated values.
 
     Each entry describes a company stint with fields:
@@ -59,18 +61,22 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
 
     # Parse dates and filter out unparseable entries
-    parsed: List[Tuple[Dict[str, Any], date, Optional[date]]] = []
+    parsed: list[tuple[dict[str, Any], date, date | None]] = []
     for entry in entries:
         start = parse_date(entry.get("start_date", ""))
         if not start:
             # Past employer entries can omit date — default to today
-            is_past = float(entry.get("opening_balance", 0) or 0) > 0 and float(entry.get("monthly_contribution", 0) or 0) <= 0
+            is_past = (
+                float(entry.get("opening_balance", 0) or 0) > 0
+                and float(entry.get("monthly_contribution", 0) or 0) <= 0
+            )
             if is_past:
                 start = date.today()
             else:
                 logger.warning(
                     "PF: skipping entry for '%s' — cannot parse start_date '%s'",
-                    entry.get("company_name", "?"), entry.get("start_date"),
+                    entry.get("company_name", "?"),
+                    entry.get("start_date"),
                 )
                 continue
         end = parse_date(entry.get("end_date", ""))
@@ -92,24 +98,21 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Instead, lump sums are injected at TODAY so interest only accrues
     # going forward.
     past_employer_set: set = set()
-    past_lump_schedule: Dict[Tuple[int, int], List[Tuple[int, float, float]]] = {}
+    past_lump_schedule: dict[tuple[int, int], list[tuple[int, float, float]]] = {}
 
     for idx, (entry, start, end) in enumerate(parsed):
         is_past = (
-            float(entry.get("opening_balance", 0) or 0) > 0
-            and float(entry.get("monthly_contribution", 0) or 0) <= 0
+            float(entry.get("opening_balance", 0) or 0) > 0 and float(entry.get("monthly_contribution", 0) or 0) <= 0
         )
         if is_past:
             past_employer_set.add(idx)
             lump = float(entry.get("opening_balance", 0) or 0)
             actual = float(entry.get("actual_contribution", 0) or 0)
             inject_ym = (today.year, today.month)
-            past_lump_schedule.setdefault(inject_ym, []).append(
-                (idx, lump, actual)
-            )
+            past_lump_schedule.setdefault(inject_ym, []).append((idx, lump, actual))
 
     # Build month_info only from active employment entries
-    month_info: Dict[Tuple[int, int], Tuple[float, float, int]] = {}
+    month_info: dict[tuple[int, int], tuple[float, float, int]] = {}
 
     for idx, (entry, start, end) in enumerate(parsed):
         if idx in past_employer_set:
@@ -123,10 +126,7 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             month_info[ym] = (contribution, rate, idx)
 
     # Determine the earliest date for the timeline walk
-    active_starts = [
-        start for idx, (_, start, _) in enumerate(parsed)
-        if idx not in past_employer_set
-    ]
+    active_starts = [start for idx, (_, start, _) in enumerate(parsed) if idx not in past_employer_set]
     earliest = min(active_starts) if active_starts else today
 
     # Walk month-by-month from earliest start to today
@@ -141,15 +141,17 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     # Per-entry accumulators
     entry_data = []
     for idx, (entry, start, end) in enumerate(parsed):
-        entry_data.append({
-            "opening_balance": 0.0,
-            "total_contribution": 0.0,
-            "interest_earned": 0.0,
-            "closing_balance": 0.0,
-            "months_worked": 0,
-            "rate_sum": 0.0,
-            "rate_months": 0,
-        })
+        entry_data.append(
+            {
+                "opening_balance": 0.0,
+                "total_contribution": 0.0,
+                "interest_earned": 0.0,
+                "closing_balance": 0.0,
+                "months_worked": 0,
+                "rate_sum": 0.0,
+                "rate_months": 0,
+            }
+        )
 
     # Pre-fill past employer entry_data (not touched by the walk)
     for idx in past_employer_set:
@@ -203,7 +205,7 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # compounded annually at end of financial year).
         # Only accrue interest for completed months; the current month
         # is still in progress so no interest should be recognised yet.
-        is_current_month = (ym[0] == today.year and ym[1] == today.month)
+        is_current_month = ym[0] == today.year and ym[1] == today.month
         if not is_current_month:
             monthly_interest = balance * (rate / 12.0 / 100.0)
             accrued_interest_fy += monthly_interest
@@ -285,7 +287,7 @@ def calculate_pf_corpus(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return enriched
 
 
-def resolve_epf_rate(start_date_str: str, end_date_str: str = "") -> Optional[float]:
+def resolve_epf_rate(start_date_str: str, end_date_str: str = "") -> float | None:
     """Compute the weighted-average EPFO rate for a date range.
 
     Used to fill in the interest rate when the user leaves it blank.

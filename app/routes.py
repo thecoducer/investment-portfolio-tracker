@@ -4,41 +4,58 @@ import json
 import os
 import secrets
 import threading
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any
 
-from flask import (Flask, Response, jsonify, make_response, redirect,
-                   render_template, request, session)
+from flask import Flask, Response, jsonify, make_response, redirect, render_template, request, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from .api.google_sheets_client import is_blank_row
 from .api.physical_gold import enrich_holdings_with_prices
-from .cache import market_cache, manual_ltp_cache, portfolio_cache, user_sheets_cache
+from .cache import manual_ltp_cache, market_cache, portfolio_cache, user_sheets_cache
 from .fetchers import get_google_creds_dict, prefetch_all_user_sheets
 
 _REAUTH_MESSAGE = "Google session expired. Please sign in again."
+
+
+def _sheets_error_response(exc: Exception, action: str, sheet_type: str) -> tuple:
+    """Return an appropriate Flask error response for Google Sheets exceptions."""
+    if _is_google_auth_error(exc):
+        logger.warning("Auth error %s %s: %s", action, sheet_type, exc)
+        return jsonify({"error": _REAUTH_MESSAGE}), 401
+    logger.exception("Error %s %s", action, sheet_type)
+    return jsonify({"error": str(exc)}), 500
 
 
 def _is_google_auth_error(exc: Exception) -> bool:
     """Return True if *exc* is a Google credential refresh / auth failure."""
     name = type(exc).__name__
     return "RefreshError" in name or "InvalidGrantError" in name
-from .constants import (HTTP_ACCEPTED, HTTP_CONFLICT,
-                         PORTFOLIO_TABLE_ROW_LIMIT)
+
+
+from .constants import HTTP_ACCEPTED, HTTP_CONFLICT, PORTFOLIO_TABLE_ROW_LIMIT
+from .firebase_store import reset_zerodha_data, verify_user_pin
 from .logging_config import logger
 from .middleware import app_only, login_required, pin_required, protected_api
-from .services import (_build_status_response,
-                       ensure_user_loaded, get_authenticated_accounts,
-                       get_user_accounts, session_manager)
-from .firebase_store import reset_zerodha_data, verify_user_pin
+from .services import (
+    _build_status_response,
+    ensure_user_loaded,
+    get_authenticated_accounts,
+    get_user_accounts,
+    session_manager,
+)
 from .utils import pin_rate_limiter
 
+
 def _create_flask_app(name: str, enable_static: bool = False) -> Flask:
+    """Create and configure a Flask app with templates and optional static files."""
     app = Flask(name)
     base_dir = os.path.dirname(__file__)
     app.template_folder = os.path.join(base_dir, "templates")
     if enable_static:
         app.static_folder = os.path.join(base_dir, "static")
-        app.config['JSON_SORT_KEYS'] = False
-        app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
+        app.config["JSON_SORT_KEYS"] = False
+        app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
     return app
 
 
@@ -60,11 +77,8 @@ if not _secret:
 app_ui.secret_key = _secret
 
 # Production session cookie settings
-# IMPORTANT: Firebase Hosting strips ALL cookies except ``__session`` from both
-# incoming requests and outgoing responses.  Flask's default cookie name is
-# "session" which gets silently dropped, breaking OAuth and any session state.
 app_ui.config.update(
-    SESSION_COOKIE_NAME="__session",       # Firebase Hosting requirement
+    SESSION_COOKIE_NAME="__session",
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.environ.get("FLASK_ENV") != "development",
@@ -74,6 +88,7 @@ app_ui.config.update(
 # ---------------------------------------------------------------------------
 # Health check (Render liveness probe)
 # ---------------------------------------------------------------------------
+
 
 @app_ui.route("/healthz", methods=["GET"])
 def healthz():
@@ -87,6 +102,7 @@ def _sync_spreadsheet_id():
     user = session.get("user")
     if user and not user.get("spreadsheet_id"):
         from .firebase_store import get_user
+
         existing = get_user(user["google_id"])
         if existing and existing.get("spreadsheet_id"):
             user["spreadsheet_id"] = existing["spreadsheet_id"]
@@ -94,19 +110,20 @@ def _sync_spreadsheet_id():
             session.modified = True
 
 
-def _json_response(data: List[Dict[str, Any]], sort_key: Optional[str] = None) -> Response:
+def _json_response(data: list[dict[str, Any]], sort_key: str | None = None) -> Response:
     """JSON response with no-cache headers and optional sorting."""
     sorted_data = sorted(data, key=lambda x: x.get(sort_key, "")) if sort_key else data
     resp = jsonify(sorted_data)
-    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 
-def _current_user() -> Optional[Dict[str, Any]]:
+def _current_user() -> dict[str, Any] | None:
+    """Return the authenticated user dict from the session, or None."""
     return session.get("user")
 
 
-def _get_google_creds_dict(user: Optional[Dict[str, Any]] = None) -> Optional[dict]:
+def _get_google_creds_dict(user: dict[str, Any] | None = None) -> dict | None:
     """Return decrypted Google OAuth credentials for the current/given user."""
     if user is None:
         user = _current_user()
@@ -137,6 +154,7 @@ def _prefetch_all_user_sheets(user):
     """Thin wrapper — delegates to fetchers.prefetch_all_user_sheets."""
     prefetch_all_user_sheets(user)
 
+
 @app_ui.route("/api/auth/google/login", methods=["GET"])
 def google_login():
     """Redirect to Google OAuth consent screen."""
@@ -155,14 +173,12 @@ def google_login():
         return redirect(authorization_url)
     except FileNotFoundError as e:
         logger.error("Google OAuth setup incomplete: %s", e)
-        return render_template("auth_error.html",
-                               error_title="Google Sign-In Not Configured",
-                               error_message=str(e)), 500
+        return render_template(
+            "auth_error.html", error_title="Google Sign-In Not Configured", error_message=str(e)
+        ), 500
     except Exception as e:
         logger.exception("Failed to start Google OAuth flow: %s", e)
-        return render_template("auth_error.html",
-                               error_title="Sign-In Error",
-                               error_message=str(e)), 500
+        return render_template("auth_error.html", error_title="Sign-In Error", error_message=str(e)), 500
 
 
 @app_ui.route("/api/auth/google/callback", methods=["GET"])
@@ -197,7 +213,7 @@ def google_callback():
         is_new_user = existing is None
         logger.info("OAuth callback success: new_user=%s", is_new_user)
 
-        user_doc = upsert_user(
+        upsert_user(
             google_id=google_id,
             email=email,
             name=name,
@@ -207,6 +223,9 @@ def google_callback():
         )
 
         if not spreadsheet_id:
+            # Spawn a background thread to create the Google Sheet.
+            # Uses the live credentials object (not yet serialised)
+            # since thread starts before the response is sent.
             def _create_sheet_bg(creds, title, gid):
                 try:
                     sid = create_portfolio_sheet(creds, title=title)
@@ -214,6 +233,7 @@ def google_callback():
                     logger.info("Background sheet creation done")
                 except Exception:
                     logger.exception("Background sheet creation failed")
+
             threading.Thread(
                 target=_create_sheet_bg,
                 args=(credentials, f"Metron – {name or email}", google_id),
@@ -244,13 +264,15 @@ def auth_me():
     user = _current_user()
     if not user:
         return jsonify({"authenticated": False}), 401
-    return jsonify({
-        "authenticated": True,
-        "email": user.get("email"),
-        "name": user.get("name"),
-        "picture": user.get("picture"),
-        "spreadsheet_id": user.get("spreadsheet_id"),
-    })
+    return jsonify(
+        {
+            "authenticated": True,
+            "email": user.get("email"),
+            "name": user.get("name"),
+            "picture": user.get("picture"),
+            "spreadsheet_id": user.get("spreadsheet_id"),
+        }
+    )
 
 
 @app_ui.route("/api/auth/logout", methods=["POST"])
@@ -270,6 +292,7 @@ def auth_logout():
 # Security PIN endpoints
 # ---------------------------------------------------------------------------
 
+
 @app_ui.route("/api/pin/status", methods=["GET"])
 @protected_api
 def pin_status():
@@ -284,12 +307,14 @@ def pin_status():
     # PIN needed when user has accounts or has set up a PIN previously
     needs_pin = has_setup_pin and not pin_verified
 
-    return jsonify({
-        "has_pin": has_setup_pin,
-        "has_zerodha_accounts": has_accounts,
-        "pin_verified": pin_verified,
-        "needs_pin": needs_pin,
-    })
+    return jsonify(
+        {
+            "has_pin": has_setup_pin,
+            "has_zerodha_accounts": has_accounts,
+            "pin_verified": pin_verified,
+            "needs_pin": needs_pin,
+        }
+    )
 
 
 @app_ui.route("/api/pin/verify", methods=["POST"])
@@ -303,11 +328,13 @@ def pin_verify():
     allowed, retry_after = pin_rate_limiter.check(google_id)
     if not allowed:
         logger.warning("PIN verify rate-limited: retry_after=%ds", retry_after)
-        resp = jsonify({
-            "error": "Too many failed attempts",
-            "retry_after": retry_after,
-            "locked": True,
-        })
+        resp = jsonify(
+            {
+                "error": "Too many failed attempts",
+                "retry_after": retry_after,
+                "locked": True,
+            }
+        )
         resp.status_code = 429
         resp.headers["Retry-After"] = str(retry_after)
         return resp
@@ -321,8 +348,9 @@ def pin_verify():
 
     if not verify_user_pin(google_id, pin):
         attempts, lockout_secs = pin_rate_limiter.record_failure(google_id)
-        logger.warning("PIN verify failed: attempts=%d lockout=%s",
-            attempts, f"{lockout_secs}s" if lockout_secs else "none")
+        logger.warning(
+            "PIN verify failed: attempts=%d lockout=%s", attempts, f"{lockout_secs}s" if lockout_secs else "none"
+        )
         resp_data = {"error": "Incorrect PIN", "attempts": attempts}
         if lockout_secs:
             resp_data["retry_after"] = lockout_secs
@@ -434,6 +462,7 @@ def zerodha_callback():
             continue
         try:
             from kiteconnect import KiteConnect
+
             kite = KiteConnect(api_key=acc["api_key"])
             session_data = kite.generate_session(req_token, api_secret=acc["api_secret"])
             access_token = session_data.get("access_token")
@@ -455,19 +484,20 @@ def zerodha_callback():
     auth_accounts = [acc for acc in accounts if session_manager.is_valid(google_id, acc["name"])]
     if auth_accounts and not portfolio_cache.is_fetch_in_progress(google_id):
         from .fetchers import run_background_fetch
+
         run_background_fetch(google_id=google_id, accounts=auth_accounts)
 
     return render_template("callback_success.html")
 
 
-
 @app_ui.route("/api/status", methods=["GET"])
 @protected_api
 def status():
+    """Return portfolio fetch status, authenticated accounts, and session validity."""
     user = _current_user()
     google_id = user.get("google_id")
     response = jsonify(_build_status_response(google_id))
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
 
@@ -482,21 +512,23 @@ def _build_stocks_data(user):
         for m in manual:
             qty = float(m.get("qty") or 0)
             avg = float(m.get("avg_price") or 0)
-            manual_entries.append({
-                "tradingsymbol": (m.get("symbol") or "").upper(),
-                "quantity": qty,
-                "average_price": avg,
-                "last_price": avg,          # fallback; enriched below
-                "invested": qty * avg,
-                "exchange": m.get("exchange", "NSE"),
-                "account": m.get("account", "Manual"),
-                "day_change": 0,
-                "day_change_percentage": 0,
-                "isin": "",
-                "source": "manual",
-                "row_number": m.get("row_number"),
-                "manual_type": sheet_type,
-            })
+            manual_entries.append(
+                {
+                    "tradingsymbol": (m.get("symbol") or "").upper(),
+                    "quantity": qty,
+                    "average_price": avg,
+                    "last_price": avg,  # fallback; enriched below
+                    "invested": qty * avg,
+                    "exchange": m.get("exchange", "NSE"),
+                    "account": m.get("account", "Manual"),
+                    "day_change": 0,
+                    "day_change_percentage": 0,
+                    "isin": "",
+                    "source": "manual",
+                    "row_number": m.get("row_number"),
+                    "manual_type": sheet_type,
+                }
+            )
 
     if manual_entries:
         _enrich_manual_entries_with_ltp(manual_entries)
@@ -534,16 +566,14 @@ def _fetch_uncached_manual_ltps(user: dict, new_symbol: str = "") -> None:
 
         all_symbols: set[str] = set()
         for sheet_type in ("stocks", "etfs"):
-            for entry in (_fetch_manual_entries(user, sheet_type) or []):
+            for entry in _fetch_manual_entries(user, sheet_type) or []:
                 sym = (entry.get("symbol") or "").upper()
                 if sym:
                     all_symbols.add(sym)
         if new_symbol:
             all_symbols.add(new_symbol)
 
-        to_fetch = [s for s in all_symbols
-                    if not manual_ltp_cache.get(s)
-                    and not manual_ltp_cache.is_negative(s)]
+        to_fetch = [s for s in all_symbols if not manual_ltp_cache.get(s) and not manual_ltp_cache.is_negative(s)]
         if not to_fetch:
             return
 
@@ -590,18 +620,20 @@ def _build_mf_data(user):
     for m in manual:
         qty = float(m.get("qty") or 0)
         avg = float(m.get("avg_nav") or 0)
-        broker_mf.append({
-            "fund": (m.get("fund") or "").upper(),
-            "tradingsymbol": (m.get("fund") or "").upper(),
-            "quantity": qty,
-            "average_price": avg,
-            "last_price": avg,
-            "invested": qty * avg,
-            "account": m.get("account", "Manual"),
-            "last_price_date": None,
-            "source": "manual",
-            "row_number": m.get("row_number"),
-        })
+        broker_mf.append(
+            {
+                "fund": (m.get("fund") or "").upper(),
+                "tradingsymbol": (m.get("fund") or "").upper(),
+                "quantity": qty,
+                "average_price": avg,
+                "last_price": avg,
+                "invested": qty * avg,
+                "account": m.get("account", "Manual"),
+                "last_price_date": None,
+                "source": "manual",
+                "row_number": m.get("row_number"),
+            }
+        )
     return sorted(broker_mf, key=lambda x: x.get("fund", ""))
 
 
@@ -612,19 +644,21 @@ def _build_sips_data(user):
 
     manual = _fetch_manual_entries(user, "sips")
     for m in manual:
-        broker_sips.append({
-            "fund": (m.get("fund") or "").upper(),
-            "tradingsymbol": (m.get("fund") or "").upper(),
-            "instalment_amount": float(m.get("amount") or 0),
-            "frequency": m.get("frequency", "MONTHLY"),
-            "instalments": int(m.get("installments") or -1),
-            "completed_instalments": int(m.get("completed") or 0),
-            "status": (m.get("status") or "ACTIVE").upper(),
-            "next_instalment": m.get("next_due", ""),
-            "account": m.get("account", "Manual"),
-            "source": "manual",
-            "row_number": m.get("row_number"),
-        })
+        broker_sips.append(
+            {
+                "fund": (m.get("fund") or "").upper(),
+                "tradingsymbol": (m.get("fund") or "").upper(),
+                "instalment_amount": float(m.get("amount") or 0),
+                "frequency": m.get("frequency", "MONTHLY"),
+                "instalments": int(m.get("installments") or -1),
+                "completed_instalments": int(m.get("completed") or 0),
+                "status": (m.get("status") or "ACTIVE").upper(),
+                "next_instalment": m.get("next_due", ""),
+                "account": m.get("account", "Manual"),
+                "source": "manual",
+                "row_number": m.get("row_number"),
+            }
+        )
     return sorted(broker_sips, key=lambda x: x.get("status", ""))
 
 
@@ -656,6 +690,7 @@ def _build_pf_data(user):
 @app_ui.route("/api/stocks_data", methods=["GET"])
 @pin_required
 def stocks_data():
+    """Return merged broker + manual stocks with live LTPs."""
     user = _current_user()
     return _json_response(_build_stocks_data(user))
 
@@ -663,6 +698,7 @@ def stocks_data():
 @app_ui.route("/api/mf_holdings_data", methods=["GET"])
 @pin_required
 def mf_holdings_data():
+    """Return merged broker + manual mutual fund holdings."""
     user = _current_user()
     return _json_response(_build_mf_data(user))
 
@@ -670,6 +706,7 @@ def mf_holdings_data():
 @app_ui.route("/api/sips_data", methods=["GET"])
 @pin_required
 def sips_data():
+    """Return merged broker + manual SIPs."""
     user = _current_user()
     return _json_response(_build_sips_data(user))
 
@@ -677,12 +714,14 @@ def sips_data():
 @app_ui.route("/api/nifty50_data", methods=["GET"])
 @app_only
 def nifty50_data():
+    """Return cached Nifty 50 constituent data."""
     return _json_response(market_cache.nifty50, sort_key="symbol")
 
 
 @app_ui.route("/api/physical_gold_data", methods=["GET"])
 @pin_required
 def physical_gold_data():
+    """Return enriched physical gold holdings with IBJA prices."""
     user = _current_user()
     return _json_response(_build_gold_data(user))
 
@@ -690,6 +729,7 @@ def physical_gold_data():
 @app_ui.route("/api/fixed_deposits_data", methods=["GET"])
 @pin_required
 def fixed_deposits_data():
+    """Return fixed deposits with maturity calculations."""
     user = _current_user()
     return _json_response(_build_fd_data(user))
 
@@ -697,6 +737,7 @@ def fixed_deposits_data():
 @app_ui.route("/api/provident_fund_data", methods=["GET"])
 @pin_required
 def provident_fund_data():
+    """Return provident fund entries with corpus calculations."""
     user = _current_user()
     return _json_response(_build_pf_data(user))
 
@@ -705,23 +746,25 @@ def provident_fund_data():
 @pin_required
 def epf_rates():
     """Return official EPF historical interest rates."""
-    from .constants import EPF_HISTORICAL_RATES, EPF_DEFAULT_RATE
+    from .constants import EPF_DEFAULT_RATE, EPF_HISTORICAL_RATES
+
     # Current rate = latest entry in the table
     current_fy = max(EPF_HISTORICAL_RATES)
-    return _json_response({
-        "rates": {str(k): v for k, v in sorted(EPF_HISTORICAL_RATES.items())},
-        "currentRate": EPF_HISTORICAL_RATES[current_fy],
-        "currentFY": f"{current_fy}-{str(current_fy + 1)[-2:]}",
-        "defaultRate": EPF_DEFAULT_RATE,
-    })
+    return _json_response(
+        {
+            "rates": {str(k): v for k, v in sorted(EPF_HISTORICAL_RATES.items())},
+            "currentRate": EPF_HISTORICAL_RATES[current_fy],
+            "currentFY": f"{current_fy}-{str(current_fy + 1)[-2:]}",
+            "defaultRate": EPF_DEFAULT_RATE,
+        }
+    )
 
 
 @app_ui.route("/api/data/portfolio", methods=["GET"])
 @pin_required
 def portfolio_data():
     """Return broker-sourced portfolio data (stocks, MFs, SIPs) + status."""
-    import time as _t
-    _t0 = _t.monotonic()
+    _t0 = time.monotonic()
     user = _current_user()
     google_id = user["google_id"]
     payload = {
@@ -730,9 +773,9 @@ def portfolio_data():
         "sips": _build_sips_data(user),
         "status": _build_status_response(google_id),
     }
-    logger.info("portfolio data served in %.2fs", _t.monotonic() - _t0)
+    logger.info("portfolio data served in %.2fs", time.monotonic() - _t0)
     resp = jsonify(payload)
-    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 
@@ -740,8 +783,7 @@ def portfolio_data():
 @pin_required
 def sheets_data():
     """Return Google Sheets data (gold, FDs, PF) + status."""
-    import time as _t
-    _t0 = _t.monotonic()
+    _t0 = time.monotonic()
     user = _current_user()
     google_id = user["google_id"]
     payload = {
@@ -750,9 +792,9 @@ def sheets_data():
         "providentFund": _build_pf_data(user),
         "status": _build_status_response(google_id),
     }
-    logger.info("sheets data served in %.2fs", _t.monotonic() - _t0)
+    logger.info("sheets data served in %.2fs", time.monotonic() - _t0)
     resp = jsonify(payload)
-    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 
@@ -760,8 +802,7 @@ def sheets_data():
 @pin_required
 def all_data():
     """Return all portfolio data in a single response (legacy/initial load)."""
-    import time as _t
-    _t0 = _t.monotonic()
+    _t0 = time.monotonic()
     user = _current_user()
     google_id = user["google_id"]
     payload = {
@@ -773,15 +814,16 @@ def all_data():
         "providentFund": _build_pf_data(user),
         "status": _build_status_response(google_id),
     }
-    logger.info("all_data served in %.2fs", _t.monotonic() - _t0)
+    logger.info("all_data served in %.2fs", time.monotonic() - _t0)
     resp = jsonify(payload)
-    resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
 
 @app_ui.route("/api/fd_summary_data", methods=["GET"])
 @pin_required
 def fd_summary_data():
+    """Return fixed deposit summary (currently unused, returns empty list)."""
     return _json_response([])
 
 
@@ -797,7 +839,7 @@ def market_indices():
     """
     data = market_cache.market_indices or {}
     response = jsonify(data)
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
 
@@ -805,7 +847,7 @@ def market_indices():
 @pin_required
 def refresh_route():
     """Trigger manual data refresh for the signed-in user."""
-    from .fetchers import run_background_fetch, collect_manual_symbols
+    from .fetchers import collect_manual_symbols, run_background_fetch
 
     user = _current_user()
     google_id = user["google_id"]
@@ -825,7 +867,9 @@ def refresh_route():
     authenticated = get_authenticated_accounts(google_id)
     logger.info("Manual refresh started")
     run_background_fetch(
-        is_manual=True, accounts=authenticated, google_id=google_id,
+        is_manual=True,
+        accounts=authenticated,
+        google_id=google_id,
         manual_symbols=manual_symbols,
     )
 
@@ -839,7 +883,7 @@ def portfolio_page():
     For return visits with warm caches the page is rendered with inlined
     data (zero JS round-trips).  For first login or cold caches the page
     is rendered immediately with empty data and the frontend fetches
-    asynchronously via SSE + ``/api/all_data``.
+    asynchronously via ``/api/all_data``.
     """
     user = _current_user()
     if not user:
@@ -889,11 +933,14 @@ def portfolio_page():
             initial_data = None
 
     from .firebase_store import has_pin as _has_pin
+
     user_has_pin = _has_pin(google_id)
 
     logger.info(
         "portfolio_page: pin_verified=%s inlined=%s has_pin=%s",
-        pin_verified, initial_data is not None, user_has_pin,
+        pin_verified,
+        initial_data is not None,
+        user_has_pin,
     )
 
     return render_template(
@@ -912,10 +959,17 @@ def portfolio_page():
 # Standalone table detail page (full table view with pagination)
 # ---------------------------------------------------------------------------
 # Valid table keys — prevents arbitrary template injection
-_VALID_TABLE_KEYS = frozenset({
-    "stocks", "etfs", "mutual-funds", "physical-gold",
-    "fixed-deposits", "provident-fund", "sips",
-})
+_VALID_TABLE_KEYS = frozenset(
+    {
+        "stocks",
+        "etfs",
+        "mutual-funds",
+        "physical-gold",
+        "fixed-deposits",
+        "provident-fund",
+        "sips",
+    }
+)
 
 _TABLE_DISPLAY_NAMES = {
     "stocks": "Stocks",
@@ -973,8 +1027,10 @@ def contact_page():
 @app_ui.route("/api/settings", methods=["GET"])
 @pin_required
 def get_settings():
+    """Return user's Zerodha accounts, session validity, and login URLs."""
     user = _current_user()
     from .firebase_store import get_zerodha_accounts
+
     google_id = user["google_id"]
     pin = session_manager.get_pin(google_id) or ""
     accounts = get_zerodha_accounts(google_id, pin)
@@ -986,6 +1042,7 @@ def get_settings():
         if not session_manager.is_valid(google_id, acc["name"]):
             try:
                 from kiteconnect import KiteConnect
+
                 login_urls[acc["name"]] = KiteConnect(api_key=acc["api_key"]).login_url()
             except Exception:
                 pass
@@ -1015,6 +1072,7 @@ def add_zerodha():
         return jsonify({"error": "pin_required"}), 403
 
     from .firebase_store import add_zerodha_account
+
     try:
         add_zerodha_account(google_id, account_name, api_key, api_secret, pin=pin)
     except ValueError as exc:
@@ -1032,6 +1090,7 @@ def remove_zerodha(account_name):
     user = _current_user()
     google_id = user["google_id"]
     from .firebase_store import remove_zerodha_account
+
     try:
         remove_zerodha_account(google_id, account_name)
     except ValueError as exc:
@@ -1049,6 +1108,7 @@ def remove_zerodha(account_name):
 # ---------------------------------------------------------------------------
 # Manual-entry CRUD  (Google Sheets backed)
 # ---------------------------------------------------------------------------
+
 
 def _get_sheets_client():
     """Return an authenticated GoogleSheetsClient for the current user."""
@@ -1070,7 +1130,7 @@ def _get_sheets_client():
 # Mapping: sheet_type → frontend data key for CRUD response
 _SHEET_TYPE_DATA_KEY = {
     "stocks": "stocks",
-    "etfs": "stocks",           # ETFs merge into the stocks table
+    "etfs": "stocks",  # ETFs merge into the stocks table
     "mutual_funds": "mfHoldings",
     "sips": "sips",
     "physical_gold": "physicalGold",
@@ -1100,13 +1160,15 @@ def _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type):
 
     if sheet_type == "physical_gold":
         from .api.google_sheets_client import PhysicalGoldService
+
         svc = PhysicalGoldService(client)
         parsed = svc._parse_batch_data(raw)
         user_sheets_cache.put(google_id, physical_gold=parsed)
 
     elif sheet_type == "fixed_deposits":
-        from .api.google_sheets_client import FixedDepositsService
         from .api.fixed_deposits import calculate_current_value
+        from .api.google_sheets_client import FixedDepositsService
+
         svc = FixedDepositsService(client)
         parsed = calculate_current_value(svc._parse_batch_data(raw))
         user_sheets_cache.put(google_id, fixed_deposits=parsed)
@@ -1114,6 +1176,7 @@ def _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type):
     elif sheet_type == "provident_fund":
         from .api.google_sheets_client import ProvidentFundService
         from .api.provident_fund import calculate_pf_corpus
+
         svc = ProvidentFundService(client)
         parsed = calculate_pf_corpus(svc._parse_batch_data(raw))
         user_sheets_cache.put(google_id, provident_fund=parsed)
@@ -1124,7 +1187,7 @@ def _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type):
         if raw and len(raw) >= 2:
             fields = cfg["fields"]
             for idx, row in enumerate(raw[1:], start=2):
-                if not row or all(not v or str(v).strip() == "" for v in row):
+                if is_blank_row(row):
                     break
                 entry = {"row_number": idx, "source": "manual"}
                 for fi, fname in enumerate(fields):
@@ -1180,11 +1243,7 @@ def sheets_list(sheet_type):
         client.ensure_sheet_tab(spreadsheet_id, cfg["sheet_name"], cfg["headers"])
         raw = client.fetch_sheet_data_until_blank(spreadsheet_id, cfg["sheet_name"])
     except Exception as e:
-        if _is_google_auth_error(e):
-            logger.warning("Auth error listing %s: %s", sheet_type, e)
-            return jsonify({"error": _REAUTH_MESSAGE}), 401
-        logger.exception("Error listing %s", sheet_type)
-        return jsonify({"error": str(e)}), 500
+        return _sheets_error_response(e, "listing", sheet_type)
 
     if not raw or len(raw) < 2:
         return jsonify([])
@@ -1192,7 +1251,7 @@ def sheets_list(sheet_type):
     fields = cfg["fields"]
     rows = []
     for idx, row in enumerate(raw[1:], start=2):
-        if not row or all(not v or str(v).strip() == "" for v in row):
+        if is_blank_row(row):
             break
         entry = {"row_number": idx}
         for fi, fname in enumerate(fields):
@@ -1233,9 +1292,8 @@ def sheets_add(sheet_type):
         rate_val = float(data.get("interest_rate", 0) or 0)
         if rate_val <= 0:
             from .api.provident_fund import resolve_epf_rate
-            resolved = resolve_epf_rate(
-                data.get("start_date", ""), data.get("end_date", "")
-            )
+
+            resolved = resolve_epf_rate(data.get("start_date", ""), data.get("end_date", ""))
             if resolved:
                 rate_idx = cfg["fields"].index("interest_rate")
                 values[rate_idx] = resolved
@@ -1251,11 +1309,7 @@ def sheets_add(sheet_type):
         if sheet_type in ("stocks", "etfs"):
             _fetch_uncached_manual_ltps(user, symbol)
     except Exception as e:
-        if _is_google_auth_error(e):
-            logger.warning("Auth error adding %s row: %s", sheet_type, e)
-            return jsonify({"error": _REAUTH_MESSAGE}), 401
-        logger.exception("Error adding %s row", sheet_type)
-        return jsonify({"error": str(e)}), 500
+        return _sheets_error_response(e, "adding", sheet_type)
 
     logger.info("sheets_add: type=%s row=%d", sheet_type, row_num)
     result = {"status": "added", "row_number": row_num}
@@ -1299,9 +1353,8 @@ def sheets_update(sheet_type, row_number):
         rate_val = float(data.get("interest_rate", 0) or 0)
         if rate_val <= 0:
             from .api.provident_fund import resolve_epf_rate
-            resolved = resolve_epf_rate(
-                data.get("start_date", ""), data.get("end_date", "")
-            )
+
+            resolved = resolve_epf_rate(data.get("start_date", ""), data.get("end_date", ""))
             if resolved:
                 rate_idx = cfg["fields"].index("interest_rate")
                 values[rate_idx] = resolved
@@ -1312,11 +1365,7 @@ def sheets_update(sheet_type, row_number):
         google_id = user.get("google_id", "")
         _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type)
     except Exception as e:
-        if _is_google_auth_error(e):
-            logger.warning("Auth error updating %s row %d: %s", sheet_type, row_number, e)
-            return jsonify({"error": _REAUTH_MESSAGE}), 401
-        logger.exception("Error updating %s row %d", sheet_type, row_number)
-        return jsonify({"error": str(e)}), 500
+        return _sheets_error_response(e, "updating", sheet_type)
 
     result = {"status": "updated"}
     refreshed = _build_data_for_type(user, sheet_type)
@@ -1349,11 +1398,7 @@ def sheets_delete(sheet_type, row_number):
         google_id = user.get("google_id", "")
         _refresh_single_sheet_cache(client, spreadsheet_id, google_id, sheet_type)
     except Exception as e:
-        if _is_google_auth_error(e):
-            logger.warning("Auth error deleting %s row %d: %s", sheet_type, row_number, e)
-            return jsonify({"error": _REAUTH_MESSAGE}), 401
-        logger.exception("Error deleting %s row %d", sheet_type, row_number)
-        return jsonify({"error": str(e)}), 500
+        return _sheets_error_response(e, "deleting", sheet_type)
 
     result = {"status": "deleted"}
     refreshed = _build_data_for_type(user, sheet_type)

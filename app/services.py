@@ -1,13 +1,11 @@
 """Service wiring, per-user lifecycle, and status helpers."""
 
 import threading
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from .api import (AuthenticationManager, HoldingsService, SIPService,
-                  ZerodhaAPIClient)
+from .api import AuthenticationManager, HoldingsService, SIPService, ZerodhaAPIClient
 from .logging_config import logger
-from .utils import (SessionManager, StateManager, format_timestamp,
-                    is_market_open_ist)
+from .utils import SessionManager, StateManager, format_timestamp, is_market_open_ist
 
 # Core service singletons
 session_manager = SessionManager()
@@ -49,10 +47,12 @@ def ensure_user_loaded(google_id: str, *, force: bool = False) -> None:
         return
 
     from .fetchers import run_background_fetch
+
     run_background_fetch(google_id=google_id)
 
 
-def get_user_accounts(google_id: str) -> List[Dict[str, str]]:
+def get_user_accounts(google_id: str) -> list[dict[str, str]]:
+    """Return the list of Zerodha accounts for *google_id*, or [] if unavailable."""
     if not google_id:
         return []
     pin = session_manager.get_pin(google_id)
@@ -60,19 +60,20 @@ def get_user_accounts(google_id: str) -> List[Dict[str, str]]:
         return []
     try:
         from .firebase_store import get_zerodha_accounts
+
         return get_zerodha_accounts(google_id, pin)
     except Exception:
         logger.exception("Failed to fetch Zerodha accounts")
         return []
 
 
-def get_authenticated_accounts(google_id: str) -> List[Dict[str, str]]:
-    return [acc for acc in get_user_accounts(google_id)
-            if session_manager.is_valid(google_id, acc["name"])]
+def get_authenticated_accounts(google_id: str) -> list[dict[str, str]]:
+    """Return only the Zerodha accounts with a valid (non-expired) session."""
+    return [acc for acc in get_user_accounts(google_id) if session_manager.is_valid(google_id, acc["name"])]
 
 
-def _build_status_response(google_id: str = None) -> Dict[str, Any]:
-    """Build status dict for API and SSE, scoped to *google_id* if provided."""
+def _build_status_response(google_id: str = None) -> dict[str, Any]:
+    """Build status dict for the API, scoped to *google_id* if provided."""
     accounts = get_user_accounts(google_id) if google_id else []
 
     authenticated, unauthenticated, login_urls, session_validity = [], [], {}, {}
@@ -84,6 +85,7 @@ def _build_status_response(google_id: str = None) -> Dict[str, Any]:
         else:
             try:
                 from kiteconnect import KiteConnect
+
                 url = KiteConnect(api_key=acc["api_key"]).login_url()
             except Exception:
                 url = None
@@ -116,6 +118,5 @@ def _build_status_response(google_id: str = None) -> Dict[str, Any]:
     }
     for st in StateManager.GLOBAL_STATE_TYPES:
         response[f"{st}_state"] = getattr(state_manager, f"{st}_state")
-        response[f"{st}_last_updated"] = format_timestamp(
-            getattr(state_manager, f"{st}_last_updated"))
+        response[f"{st}_last_updated"] = format_timestamp(getattr(state_manager, f"{st}_last_updated"))
     return response

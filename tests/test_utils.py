@@ -1,22 +1,30 @@
 """
 Unit tests for utility functions (multi-tenant SessionManager, StateManager, etc.)
 """
-import json
+
 import os
-import tempfile
 import threading
 import unittest
-from datetime import datetime, timedelta, timezone
-from unittest.mock import patch, MagicMock
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from app.constants import STATE_ERROR, STATE_UPDATED, STATE_UPDATING
-from app.utils import (SessionManager, StateManager, encrypt_credential,
-                       decrypt_credential, encrypt_google_credentials,
-                       decrypt_google_credentials, create_pin_check,
-                       verify_pin, format_timestamp,
-                       is_market_open_ist, PinRateLimiter,
-                       _get_base_secret, _get_flask_secret)
+from app.utils import (
+    PinRateLimiter,
+    SessionManager,
+    StateManager,
+    _get_base_secret,
+    _get_flask_secret,
+    create_pin_check,
+    decrypt_credential,
+    decrypt_google_credentials,
+    encrypt_credential,
+    encrypt_google_credentials,
+    format_timestamp,
+    is_market_open_ist,
+    verify_pin,
+)
 
 # Default PIN used throughout tests
 _GID = "test_google_id_123"
@@ -36,6 +44,7 @@ class TestCredentialEncryption(unittest.TestCase):
     def test_decrypt_plaintext_raises(self):
         """Decrypting a plaintext string raises InvalidToken (no fallback)."""
         from cryptography.fernet import InvalidToken
+
         with self.assertRaises(InvalidToken):
             decrypt_credential("not_encrypted_at_all", _PIN)
 
@@ -53,6 +62,7 @@ class TestCredentialEncryption(unittest.TestCase):
     def test_per_pin_isolation(self):
         """Data encrypted with PIN A cannot be decrypted with PIN B."""
         from cryptography.fernet import InvalidToken
+
         encrypted = encrypt_credential("secret", "111111")
         self.assertEqual(decrypt_credential(encrypted, "111111"), "secret")
         with self.assertRaises(InvalidToken):
@@ -85,6 +95,7 @@ class TestGoogleCredentialsEncryption(unittest.TestCase):
 
     def test_decrypt_invalid_raises(self):
         from cryptography.fernet import InvalidToken
+
         with self.assertRaises(InvalidToken):
             decrypt_google_credentials("not_valid_data")
 
@@ -111,14 +122,14 @@ class TestSessionManager(unittest.TestCase):
         self.sm.set_token(_GID, "test_account", "expired_tok", hours=0, minutes=0)
         # Force expiry
         sessions = self.sm._sessions_for(_GID)
-        sessions["test_account"]["expiry"] = datetime.now(timezone.utc) - timedelta(hours=1)
+        sessions["test_account"]["expiry"] = datetime.now(UTC) - timedelta(hours=1)
 
         self.assertEqual(self.sm.get_token(_GID, "test_account"), "expired_tok")
         self.assertFalse(self.sm.is_valid(_GID, "test_account"))
 
     def test_invalidate_removes_token(self):
         """invalidate removes the session and persists via save."""
-        with patch('app.firebase_store.save_zerodha_sessions'):
+        with patch("app.firebase_store.save_zerodha_sessions"):
             self.sm.set_token(_GID, "Acc1", "tok")
             self.sm.invalidate(_GID, "Acc1")
             self.assertIsNone(self.sm.get_token(_GID, "Acc1"))
@@ -145,21 +156,19 @@ class TestSessionManager(unittest.TestCase):
         self.sm.set_token(_GID, "acc", "tok2")
         self.assertEqual(self.sm.get_token(_GID, "acc"), "tok2")
 
-    @patch('app.firebase_store.get_zerodha_sessions')
+    @patch("app.firebase_store.get_zerodha_sessions")
     def test_load_user_from_firestore(self, mock_get):
         """load_user populates in-memory sessions from Firestore."""
         encrypted = self.sm._encrypt("my_token", _GID)
-        future = (datetime.now(timezone.utc) + timedelta(hours=23)).isoformat()
-        mock_get.return_value = {
-            "Account1": {"access_token": encrypted, "expiry": future}
-        }
+        future = (datetime.now(UTC) + timedelta(hours=23)).isoformat()
+        mock_get.return_value = {"Account1": {"access_token": encrypted, "expiry": future}}
 
         self.sm.load_user(_GID)
 
         self.assertEqual(self.sm.get_token(_GID, "Account1"), "my_token")
         self.assertTrue(self.sm.is_valid(_GID, "Account1"))
 
-    @patch('app.firebase_store.save_zerodha_sessions')
+    @patch("app.firebase_store.save_zerodha_sessions")
     def test_save_to_firestore(self, mock_save):
         """save persists encrypted tokens to Firestore."""
         self.sm.set_token(_GID, "Account1", "token_abc")
@@ -198,7 +207,7 @@ class TestSessionManager(unittest.TestCase):
         sessions = self.sm._sessions_for(_GID)
         sessions["expired_acc"] = {
             "access_token": "tok2",
-            "expiry": datetime.now(timezone.utc) - timedelta(hours=1),
+            "expiry": datetime.now(UTC) - timedelta(hours=1),
         }
 
         result = self.sm.get_validity(_GID, ["valid_acc", "expired_acc", "missing_acc"])
@@ -241,51 +250,45 @@ class TestSessionManager(unittest.TestCase):
         with self.assertRaises(ValueError):
             sm._decrypt("encrypted_data", "no_pin_user")
 
-    @patch('app.firebase_store.get_zerodha_sessions')
+    @patch("app.firebase_store.get_zerodha_sessions")
     def test_load_user_no_pin_skips(self, mock_get):
         """load_user skips when PIN not in memory."""
         sm = SessionManager()
         sm.load_user("user_no_pin")
         mock_get.assert_not_called()
 
-    @patch('app.firebase_store.get_zerodha_sessions', side_effect=Exception("db error"))
+    @patch("app.firebase_store.get_zerodha_sessions", side_effect=Exception("db error"))
     def test_load_user_firestore_exception(self, mock_get):
         """load_user handles Firestore errors gracefully."""
         self.sm.load_user(_GID)
         # Should not raise
 
-    @patch('app.firebase_store.get_zerodha_sessions')
+    @patch("app.firebase_store.get_zerodha_sessions")
     def test_load_user_bad_expiry_skipped(self, mock_get):
         """load_user skips sessions with invalid expiry dates."""
-        mock_get.return_value = {
-            "BadAcc": {"access_token": "enc", "expiry": "not-a-date"}
-        }
+        mock_get.return_value = {"BadAcc": {"access_token": "enc", "expiry": "not-a-date"}}
         self.sm.load_user(_GID)
         self.assertIsNone(self.sm.get_token(_GID, "BadAcc"))
 
-    @patch('app.firebase_store.get_zerodha_sessions')
+    @patch("app.firebase_store.get_zerodha_sessions")
     def test_load_user_decrypt_failure_skipped(self, mock_get):
         """load_user skips sessions that fail to decrypt (wrong PIN)."""
-        future = (datetime.now(timezone.utc) + timedelta(hours=23)).isoformat()
-        mock_get.return_value = {
-            "CorruptAcc": {"access_token": "bad_encrypted_data", "expiry": future}
-        }
+        future = (datetime.now(UTC) + timedelta(hours=23)).isoformat()
+        mock_get.return_value = {"CorruptAcc": {"access_token": "bad_encrypted_data", "expiry": future}}
         self.sm.load_user(_GID)
         self.assertIsNone(self.sm.get_token(_GID, "CorruptAcc"))
 
-    @patch('app.firebase_store.get_zerodha_sessions')
+    @patch("app.firebase_store.get_zerodha_sessions")
     def test_load_user_naive_expiry_gets_utc(self, mock_get):
         """load_user adds UTC tz to naive expiry timestamps."""
         encrypted = self.sm._encrypt("my_token", _GID)
         # Naive datetime string (no tzinfo)
         future = (datetime.now() + timedelta(hours=23)).strftime("%Y-%m-%dT%H:%M:%S")
-        mock_get.return_value = {
-            "NaiveAcc": {"access_token": encrypted, "expiry": future}
-        }
+        mock_get.return_value = {"NaiveAcc": {"access_token": encrypted, "expiry": future}}
         self.sm.load_user(_GID)
         self.assertEqual(self.sm.get_token(_GID, "NaiveAcc"), "my_token")
 
-    @patch('app.firebase_store.get_zerodha_sessions')
+    @patch("app.firebase_store.get_zerodha_sessions")
     def test_load_user_all_invalid_warns(self, mock_get):
         """load_user warns when stored sessions exist but none are valid."""
         mock_get.return_value = {
@@ -303,7 +306,7 @@ class TestSessionManager(unittest.TestCase):
         sm._user_pins.clear()
         sm.save("g1")  # Should not raise
 
-    @patch('app.firebase_store.save_zerodha_sessions', side_effect=Exception("db error"))
+    @patch("app.firebase_store.save_zerodha_sessions", side_effect=Exception("db error"))
     def test_save_firestore_exception(self, mock_save):
         """save() handles Firestore errors gracefully."""
         self.sm.set_token(_GID, "Acc1", "token_abc")
@@ -437,6 +440,7 @@ class TestFormatTimestamp(unittest.TestCase):
 
     def test_format_valid(self):
         import time
+
         result = format_timestamp(time.time())
         self.assertIsInstance(result, str)
         self.assertIn(":", result)
@@ -445,30 +449,30 @@ class TestFormatTimestamp(unittest.TestCase):
 class TestMarketHours(unittest.TestCase):
     """Test market hours checking."""
 
-    @patch('app.utils.datetime')
+    @patch("app.utils.datetime")
     def test_market_open_weekday_during_hours(self, mock_datetime):
-        ist = ZoneInfo('Asia/Kolkata')
+        ist = ZoneInfo("Asia/Kolkata")
         mock_now = datetime(2025, 11, 26, 10, 0, 0, tzinfo=ist)
         mock_datetime.now.return_value = mock_now
         self.assertTrue(is_market_open_ist())
 
-    @patch('app.utils.datetime')
+    @patch("app.utils.datetime")
     def test_market_closed_before_hours(self, mock_datetime):
-        ist = ZoneInfo('Asia/Kolkata')
+        ist = ZoneInfo("Asia/Kolkata")
         mock_now = datetime(2025, 11, 26, 8, 0, 0, tzinfo=ist)
         mock_datetime.now.return_value = mock_now
         self.assertFalse(is_market_open_ist())
 
-    @patch('app.utils.datetime')
+    @patch("app.utils.datetime")
     def test_market_closed_after_hours(self, mock_datetime):
-        ist = ZoneInfo('Asia/Kolkata')
+        ist = ZoneInfo("Asia/Kolkata")
         mock_now = datetime(2025, 11, 26, 17, 0, 0, tzinfo=ist)
         mock_datetime.now.return_value = mock_now
         self.assertFalse(is_market_open_ist())
 
-    @patch('app.utils.datetime')
+    @patch("app.utils.datetime")
     def test_market_closed_weekend(self, mock_datetime):
-        ist = ZoneInfo('Asia/Kolkata')
+        ist = ZoneInfo("Asia/Kolkata")
         mock_now = datetime(2025, 11, 22, 10, 0, 0, tzinfo=ist)  # Saturday
         mock_datetime.now.return_value = mock_now
         self.assertFalse(is_market_open_ist())
@@ -477,6 +481,7 @@ class TestMarketHours(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # PinRateLimiter tests
 # ---------------------------------------------------------------------------
+
 
 class TestPinRateLimiter(unittest.TestCase):
     """Tests for the escalating PIN rate limiter."""
@@ -640,5 +645,5 @@ class TestSetPortfolioUpdatingWithError(unittest.TestCase):
         self.assertEqual(us["last_error"], "fetch failed")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

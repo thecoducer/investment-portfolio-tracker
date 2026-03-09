@@ -11,12 +11,12 @@ A Flask-based dashboard for tracking your complete investment portfolio — stoc
 ## Features
 
 - **Broker account sync** — connect multiple broker accounts and fetch holdings automatically (currently supports [Zerodha Kite Connect](https://kite.trade/))
-- **Real-time updates** via Server-Sent Events (SSE)
 - **Auto-refresh** during market hours (9:00–16:30 IST) with optional 24/7 mode
 - **Stocks & Mutual Funds** — holdings, P/L, day change, grouped by symbol across accounts
 - **SIPs** tracking with monthly total and smart date formatting
 - **Physical Gold** tracking via Google Sheets with live IBJA gold price P/L
 - **Fixed Deposits** tracking via Google Sheets with compound interest calculations
+- **Provident Fund** tracking via Google Sheets with month-by-month EPF corpus calculations
 - **Nifty 50** live prices page with NSE data
 - **Interactive UI** — dark/light theme, privacy mode, compact number format (Lakhs/Crores), search, sort, pagination
 - **Allocation percentages** across asset classes in summary cards
@@ -211,7 +211,7 @@ Open **http://127.0.0.1:8000/** in your browser.
 │   ├── flask-secret-key.txt        # Session secret (git-ignored)
 │   └── zerodha-token-secret.txt    # Token encryption key (git-ignored)
 ├── app/
-│   ├── server.py                   # Flask app, SSE, background fetch
+│   ├── server.py                   # Flask app factory, background fetch
 │   ├── routes.py                   # Route definitions
 │   ├── services.py                 # Portfolio data aggregation
 │   ├── fetchers.py                 # Data fetching orchestration
@@ -222,7 +222,6 @@ Open **http://127.0.0.1:8000/** in your browser.
 │   ├── firebase_store.py           # Firestore persistence
 │   ├── error_handler.py            # Exceptions & retry decorators
 │   ├── logging_config.py           # Logger setup
-│   ├── sse.py                      # Server-Sent Events manager
 │   ├── middleware.py               # Request middleware
 │   └── api/
 │       ├── auth.py                 # Zerodha OAuth authentication
@@ -235,6 +234,8 @@ Open **http://127.0.0.1:8000/** in your browser.
 │       ├── ibja_gold_price.py      # IBJA gold price scraper
 │       ├── physical_gold.py        # Physical gold P/L calculations
 │       ├── fixed_deposits.py       # FD compound interest calculations
+│       ├── provident_fund.py       # EPF corpus calculations
+│       ├── user_sheets.py          # Sheet tab configs (headers, fields)
 │       └── base_service.py         # Base class for data services
 ├── app/static/                     # CSS & JavaScript
 ├── app/templates/                  # HTML templates

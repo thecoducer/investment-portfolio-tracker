@@ -503,7 +503,7 @@ body.dark-theme .theme-toggle svg{color:#999}
 .arch-node-icon.n-firebase{background:rgba(245,158,11,.08);color:#f59e0b}
 .arch-node-icon.n-nse{background:rgba(59,130,246,.08);color:#3b82f6}
 .arch-node-icon.n-ibja{background:rgba(234,179,8,.08);color:#eab308}
-.arch-node-icon.n-sse{background:rgba(55,53,47,.08);color:#37352f}
+.arch-node-icon.n-api{background:rgba(55,53,47,.08);color:#37352f}
 .arch-node-icon.n-browser{background:rgba(100,116,139,.08);color:#64748b}
 
 .arch-node-label{
@@ -551,7 +551,6 @@ body.dark-theme .theme-toggle svg{color:#999}
 .tech-pill-dot.flask{background:#111}
 .tech-pill-dot.firebase{background:#f59e0b}
 .tech-pill-dot.gsheets{background:#0f9d58}
-.tech-pill-dot.sse{background:#37352f}
 .tech-pill-dot.zerodha{background:#ef4444}
 .tech-pill-dot.vanilla{background:#eab308}
 

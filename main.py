@@ -7,6 +7,7 @@ Usage:
 """
 
 from dotenv import load_dotenv
+
 load_dotenv()  # must run before any app imports that read os.environ
 
 from app.server import main

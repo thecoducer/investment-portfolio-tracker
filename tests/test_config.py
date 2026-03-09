@@ -1,6 +1,7 @@
 """
 Unit tests for config.py (AppConfig).
 """
+
 import os
 import unittest
 from unittest.mock import patch
@@ -41,8 +42,8 @@ class TestAppConfig(unittest.TestCase):
 
     def test_no_session_cache_file(self):
         """AppConfig should no longer have a session_cache_file attribute."""
-        self.assertFalse(hasattr(app_config, 'session_cache_file'))
+        self.assertFalse(hasattr(app_config, "session_cache_file"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

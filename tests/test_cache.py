@@ -1,13 +1,22 @@
 """
 Unit tests for cache.py (per-user PortfolioCacheManager, MarketCache, UserSheetsCache, ManualLTPCache).
 """
+
 import time
 import unittest
 
-from app.cache import (ManualLTPCache, MarketCache, PortfolioCacheManager,
-                       UserPortfolioData, UserSheetsCache, manual_ltp_cache,
-                       market_cache, nifty50_fetch_in_progress,
-                       portfolio_cache, user_sheets_cache)
+from app.cache import (
+    ManualLTPCache,
+    MarketCache,
+    PortfolioCacheManager,
+    UserPortfolioData,
+    UserSheetsCache,
+    manual_ltp_cache,
+    market_cache,
+    nifty50_fetch_in_progress,
+    portfolio_cache,
+    user_sheets_cache,
+)
 
 
 class TestUserPortfolioData(unittest.TestCase):
@@ -182,19 +191,22 @@ class TestUserSheetsCache(unittest.TestCase):
 
     def test_is_fully_cached_true_after_put_all(self):
         usc = UserSheetsCache(ttl=60)
-        usc.put_all("user1",
-                     physical_gold=[{"g": 1}],
-                     fixed_deposits=[{"fd": 1}],
-                     manual={"stocks": [{"s": 1}], "etfs": [],
-                             "mutual_funds": [], "sips": []})
+        usc.put_all(
+            "user1",
+            physical_gold=[{"g": 1}],
+            fixed_deposits=[{"fd": 1}],
+            manual={"stocks": [{"s": 1}], "etfs": [], "mutual_funds": [], "sips": []},
+        )
         self.assertTrue(usc.is_fully_cached("user1"))
 
     def test_is_fully_cached_false_after_ttl(self):
         usc = UserSheetsCache(ttl=0)
-        usc.put_all("user1",
-                     physical_gold=[], fixed_deposits=[],
-                     manual={"stocks": [], "etfs": [],
-                             "mutual_funds": [], "sips": []})
+        usc.put_all(
+            "user1",
+            physical_gold=[],
+            fixed_deposits=[],
+            manual={"stocks": [], "etfs": [], "mutual_funds": [], "sips": []},
+        )
         time.sleep(0.01)
         self.assertFalse(usc.is_fully_cached("user1"))
 
@@ -202,11 +214,12 @@ class TestUserSheetsCache(unittest.TestCase):
 
     def test_put_all_populates_gold_fd_and_manual(self):
         usc = UserSheetsCache(ttl=60)
-        usc.put_all("user1",
-                     physical_gold=[{"g": 1}],
-                     fixed_deposits=[{"fd": 1}],
-                     manual={"stocks": [{"s": 1}], "etfs": [{"e": 1}],
-                             "mutual_funds": [{"m": 1}], "sips": [{"p": 1}]})
+        usc.put_all(
+            "user1",
+            physical_gold=[{"g": 1}],
+            fixed_deposits=[{"fd": 1}],
+            manual={"stocks": [{"s": 1}], "etfs": [{"e": 1}], "mutual_funds": [{"m": 1}], "sips": [{"p": 1}]},
+        )
         entry = usc.get("user1")
         self.assertIsNotNone(entry)
         self.assertEqual(entry.physical_gold, [{"g": 1}])
@@ -218,7 +231,6 @@ class TestUserSheetsCache(unittest.TestCase):
 
 
 class TestGlobalThreadEvents(unittest.TestCase):
-
     def test_nifty50_fetch_in_progress_default_unset(self):
         self.assertFalse(nifty50_fetch_in_progress.is_set())
 
@@ -273,6 +285,7 @@ class TestManualLTPCache(unittest.TestCase):
 
     def test_cancel_flag_is_event(self):
         import threading
+
         self.assertIsInstance(self.cache.cancel_flag, threading.Event)
 
     def test_invalidate_clears_all(self):
@@ -329,5 +342,5 @@ class TestUserSheetsCacheManual(unittest.TestCase):
         self.assertIsNotNone(entry)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,18 +1,19 @@
 """
 Unit tests for api/provident_fund.py — EPF corpus calculation and auto-rate.
 """
+
 import unittest
 from datetime import date
 from unittest.mock import patch
 
+from app.api.google_sheets_client import DataError, ProvidentFundService
 from app.api.provident_fund import (
     _get_epf_rate,
     calculate_pf_corpus,
     resolve_epf_rate,
 )
-from app.utils import parse_date
-from app.api.google_sheets_client import ProvidentFundService, DataError
 from app.constants import EPF_DEFAULT_RATE, EPF_HISTORICAL_RATES
+from app.utils import parse_date
 
 
 class TestGetEpfRate(unittest.TestCase):
@@ -43,8 +44,9 @@ class TestGetEpfRate(unittest.TestCase):
         for fy_start, expected_rate in EPF_HISTORICAL_RATES.items():
             # July of the FY start year → should map to this rate
             self.assertEqual(
-                _get_epf_rate(fy_start, 7), expected_rate,
-                f"FY {fy_start}-{fy_start+1} rate mismatch",
+                _get_epf_rate(fy_start, 7),
+                expected_rate,
+                f"FY {fy_start}-{fy_start + 1} rate mismatch",
             )
 
 
@@ -122,12 +124,16 @@ class TestCalculatePfCorpus(unittest.TestCase):
         self.assertEqual(calculate_pf_corpus([]), [])
 
     def test_unparseable_dates_skipped(self):
-        result = calculate_pf_corpus([{
-            "company_name": "Test",
-            "start_date": "garbage",
-            "monthly_contribution": 5000,
-            "interest_rate": 8.5,
-        }])
+        result = calculate_pf_corpus(
+            [
+                {
+                    "company_name": "Test",
+                    "start_date": "garbage",
+                    "monthly_contribution": 5000,
+                    "interest_rate": 8.5,
+                }
+            ]
+        )
         self.assertEqual(result, [])
 
     @patch("app.api.provident_fund.date")
@@ -135,13 +141,15 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Infosys",
-            "start_date": "2023-04-01",
-            "end_date": "2024-03-31",
-            "monthly_contribution": 5000,
-            "interest_rate": 8.5,
-        }]
+        entries = [
+            {
+                "company_name": "Infosys",
+                "start_date": "2023-04-01",
+                "end_date": "2024-03-31",
+                "monthly_contribution": 5000,
+                "interest_rate": 8.5,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         self.assertEqual(len(result), 1)
 
@@ -159,13 +167,15 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Wipro",
-            "start_date": "2023-04-01",
-            "end_date": "2024-03-31",
-            "monthly_contribution": 5000,
-            "interest_rate": 0,  # auto
-        }]
+        entries = [
+            {
+                "company_name": "Wipro",
+                "start_date": "2023-04-01",
+                "end_date": "2024-03-31",
+                "monthly_contribution": 5000,
+                "interest_rate": 0,  # auto
+            }
+        ]
         result = calculate_pf_corpus(entries)
         self.assertEqual(len(result), 1)
 
@@ -183,13 +193,15 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
         # Span FY 2021-22 (rate 8.10) and FY 2022-23 (rate 8.15)
-        entries = [{
-            "company_name": "TCS",
-            "start_date": "2021-04-01",
-            "end_date": "2023-03-31",
-            "monthly_contribution": 10000,
-            "interest_rate": 0,  # auto
-        }]
+        entries = [
+            {
+                "company_name": "TCS",
+                "start_date": "2021-04-01",
+                "end_date": "2023-03-31",
+                "monthly_contribution": 10000,
+                "interest_rate": 0,  # auto
+            }
+        ]
         result = calculate_pf_corpus(entries)
         r = result[0]
         self.assertTrue(r["auto_rate"])
@@ -235,13 +247,15 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.today.return_value = date(2024, 6, 15)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Current Co",
-            "start_date": "2024-04-01",
-            "end_date": "",
-            "monthly_contribution": 6000,
-            "interest_rate": 8.25,
-        }]
+        entries = [
+            {
+                "company_name": "Current Co",
+                "start_date": "2024-04-01",
+                "end_date": "",
+                "monthly_contribution": 6000,
+                "interest_rate": 8.25,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["is_current"])
@@ -273,9 +287,7 @@ class TestCalculatePfCorpus(unittest.TestCase):
         # corpus_value should be identical on both entries
         self.assertEqual(result[0]["corpus_value"], result[1]["corpus_value"])
         # closing_balance should differ (per-entry)
-        self.assertNotEqual(
-            result[0]["closing_balance"], result[1]["closing_balance"]
-        )
+        self.assertNotEqual(result[0]["closing_balance"], result[1]["closing_balance"])
 
     @patch("app.api.provident_fund.date")
     def test_original_entries_not_mutated(self, mock_date):
@@ -306,14 +318,16 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Old Corp",
-            "start_date": "2023-04-01",
-            "end_date": "",
-            "monthly_contribution": 0,
-            "interest_rate": 8.25,
-            "opening_balance": 500000,
-        }]
+        entries = [
+            {
+                "company_name": "Old Corp",
+                "start_date": "2023-04-01",
+                "end_date": "",
+                "monthly_contribution": 0,
+                "interest_rate": 8.25,
+                "opening_balance": 500000,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         self.assertEqual(len(result), 1)
 
@@ -426,14 +440,16 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Old Corp",
-            "start_date": "2023-04-01",
-            "end_date": "",
-            "monthly_contribution": 0,
-            "interest_rate": 0,
-            "opening_balance": 500000,
-        }]
+        entries = [
+            {
+                "company_name": "Old Corp",
+                "start_date": "2023-04-01",
+                "end_date": "",
+                "monthly_contribution": 0,
+                "interest_rate": 0,
+                "opening_balance": 500000,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         r = result[0]
         self.assertTrue(r["auto_rate"])
@@ -449,13 +465,15 @@ class TestCalculatePfCorpus(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Old Corp",
-            "start_date": "",
-            "monthly_contribution": 0,
-            "interest_rate": 0,
-            "opening_balance": 500000,
-        }]
+        entries = [
+            {
+                "company_name": "Old Corp",
+                "start_date": "",
+                "monthly_contribution": 0,
+                "interest_rate": 0,
+                "opening_balance": 500000,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         self.assertEqual(len(result), 1)
 
@@ -541,15 +559,17 @@ class TestActualContributionPL(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Old Corp",
-            "start_date": "2023-04-01",
-            "end_date": "",
-            "monthly_contribution": 0,
-            "interest_rate": 8.25,
-            "opening_balance": 500000,
-            "actual_contribution": 350000,
-        }]
+        entries = [
+            {
+                "company_name": "Old Corp",
+                "start_date": "2023-04-01",
+                "end_date": "",
+                "monthly_contribution": 0,
+                "interest_rate": 8.25,
+                "opening_balance": 500000,
+                "actual_contribution": 350000,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         r = result[0]
         self.assertTrue(r["is_past_employer"])
@@ -571,14 +591,16 @@ class TestActualContributionPL(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Old Corp",
-            "start_date": "2023-04-01",
-            "end_date": "",
-            "monthly_contribution": 0,
-            "interest_rate": 8.25,
-            "opening_balance": 500000,
-        }]
+        entries = [
+            {
+                "company_name": "Old Corp",
+                "start_date": "2023-04-01",
+                "end_date": "",
+                "monthly_contribution": 0,
+                "interest_rate": 8.25,
+                "opening_balance": 500000,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         r = result[0]
         # Full lump sum as cost basis (conservative)
@@ -591,15 +613,17 @@ class TestActualContributionPL(unittest.TestCase):
         mock_date.today.return_value = date(2024, 3, 31)
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-        entries = [{
-            "company_name": "Old Corp",
-            "start_date": "2023-04-01",
-            "end_date": "",
-            "monthly_contribution": 0,
-            "interest_rate": 8.25,
-            "opening_balance": 500000,
-            "actual_contribution": 0,
-        }]
+        entries = [
+            {
+                "company_name": "Old Corp",
+                "start_date": "2023-04-01",
+                "end_date": "",
+                "monthly_contribution": 0,
+                "interest_rate": 8.25,
+                "opening_balance": 500000,
+                "actual_contribution": 0,
+            }
+        ]
         result = calculate_pf_corpus(entries)
         r = result[0]
         self.assertEqual(r["total_contribution"], 500000.0)

@@ -25,7 +25,8 @@ USER_SCOPES = [
 
 _LOCAL_CLIENT_SECRETS = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "config", "google-oauth-credentials.json",
+    "config",
+    "google-oauth-credentials.json",
 )
 
 
@@ -44,13 +45,11 @@ def _get_client_config() -> dict:
         try:
             return _json.loads(env_json)
         except _json.JSONDecodeError as exc:
-            raise ValueError(
-                f"GOOGLE_OAUTH_CREDENTIALS env var contains invalid JSON: {exc}"
-            ) from exc
+            raise ValueError(f"GOOGLE_OAUTH_CREDENTIALS env var contains invalid JSON: {exc}") from exc
 
     # 2. Local file
     if os.path.exists(_LOCAL_CLIENT_SECRETS):
-        with open(_LOCAL_CLIENT_SECRETS, "r") as fh:
+        with open(_LOCAL_CLIENT_SECRETS) as fh:
             return _json.load(fh)
 
     raise FileNotFoundError(
@@ -147,6 +146,7 @@ def persist_refreshed_credentials(creds: Credentials, google_id: str) -> None:
         return
     try:
         from ..firebase_store import update_google_credentials
+
         update_google_credentials(google_id, credentials_to_dict(creds))
         logger.debug("Persisted refreshed Google credentials for %s", google_id[:8])
     except Exception:

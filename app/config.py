@@ -5,8 +5,7 @@ Application configuration loaded from environment variables.
 import os
 from dataclasses import dataclass, field
 
-from .constants import (DEFAULT_REQUEST_TOKEN_TIMEOUT,
-                        DEFAULT_UI_HOST, DEFAULT_UI_PORT)
+from .constants import DEFAULT_REQUEST_TOKEN_TIMEOUT, DEFAULT_UI_HOST, DEFAULT_UI_PORT
 
 
 def _env_bool(key: str, default: bool = False) -> bool:
@@ -17,13 +16,14 @@ def _env_bool(key: str, default: bool = False) -> bool:
 @dataclass
 class AppConfig:
     """Application configuration loaded from environment variables."""
+
     ui_host: str
     ui_port: int
     request_token_timeout: int
     features: dict = field(default_factory=dict)
 
     @classmethod
-    def from_env(cls) -> 'AppConfig':
+    def from_env(cls) -> "AppConfig":
         """Build configuration from environment variables."""
         allow_browser_api = _env_bool("METRON_ALLOW_BROWSER_API_ACCESS", False)
         return cls(

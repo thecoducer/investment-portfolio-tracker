@@ -8,17 +8,23 @@ import platform
 import threading
 import time
 from base64 import urlsafe_b64encode
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from .constants import (MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE,
-                        MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE, STATE_ERROR,
-                        STATE_UPDATED, STATE_UPDATING, WEEKEND_SATURDAY)
+from .constants import (
+    MARKET_CLOSE_HOUR,
+    MARKET_CLOSE_MINUTE,
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+    STATE_ERROR,
+    STATE_UPDATED,
+    STATE_UPDATING,
+    WEEKEND_SATURDAY,
+)
 from .logging_config import logger
-
 
 # ---------------------------------------------------------------------------
 # Two-tier Fernet encryption
@@ -58,8 +64,11 @@ _base_secret: bytes = _get_base_secret()
 
 # ── Tier 1: Zerodha (server secret + PIN) ─────────────────────────────────
 
+
 def _derive_zerodha_cipher(pin: str) -> Fernet:
     """Derive a Fernet cipher from the server secret and user PIN."""
+    # HMAC-SHA256 produces 32 bytes; base64-encoding yields 44 chars,
+    # which is the exact format Fernet expects as a 256-bit key.
     key_material = hmac.new(_base_secret, pin.encode(), hashlib.sha256).digest()
     return Fernet(urlsafe_b64encode(key_material))
 
@@ -93,6 +102,7 @@ def verify_pin(pin_check_token: str, pin: str) -> bool:
 
 
 # ── Tier 2: Google OAuth creds (FLASK_SECRET_KEY, server-side only) ────────
+
 
 def _get_flask_secret() -> bytes:
     """Return the Flask secret key for Google credential encryption."""
@@ -136,8 +146,8 @@ class SessionManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._user_sessions: Dict[str, Dict[str, Dict[str, Any]]] = {}
-        self._user_pins: Dict[str, str] = {}  # google_id → PIN (memory only)
+        self._user_sessions: dict[str, dict[str, dict[str, Any]]] = {}
+        self._user_pins: dict[str, str] = {}  # google_id → PIN (memory only)
 
     # ── PIN management (in-memory only) ───────────────────────────
 
@@ -159,18 +169,21 @@ class SessionManager:
     # ── Encryption helpers ────────────────────────────────────────
 
     def _encrypt(self, token: str, google_id: str) -> str:
+        """Encrypt *token* using the user's in-memory PIN."""
         pin = self.get_pin(google_id)
         if not pin:
             raise ValueError("PIN required to encrypt Zerodha tokens")
         return encrypt_credential(token, pin)
 
     def _decrypt(self, encrypted: str, google_id: str) -> str:
+        """Decrypt *encrypted* using the user's in-memory PIN."""
         pin = self.get_pin(google_id)
         if not pin:
             raise ValueError("PIN required to decrypt Zerodha tokens")
         return decrypt_credential(encrypted, pin)
 
-    def _sessions_for(self, google_id: str) -> Dict[str, Dict[str, Any]]:
+    def _sessions_for(self, google_id: str) -> dict[str, dict[str, Any]]:
+        """Return the mutable session dict for *google_id*, creating it if absent."""
         with self._lock:
             return self._user_sessions.setdefault(google_id, {})
 
@@ -185,26 +198,26 @@ class SessionManager:
         t0 = time.monotonic()
         try:
             from .firebase_store import get_zerodha_sessions
+
             stored = get_zerodha_sessions(google_id)
         except Exception as e:
             logger.exception("Error loading sessions from Firestore: %s", e)
             return
 
-        sessions: Dict[str, Dict[str, Any]] = {}
+        sessions: dict[str, dict[str, Any]] = {}
         skipped = 0
         for name, info in stored.items():
             try:
                 expiry = datetime.fromisoformat(info.get("expiry", ""))
                 if expiry.tzinfo is None:
-                    expiry = expiry.replace(tzinfo=timezone.utc)
+                    expiry = expiry.replace(tzinfo=UTC)
             except (ValueError, TypeError):
                 skipped += 1
                 continue
             try:
                 access_token = self._decrypt(info.get("access_token", ""), google_id)
             except (InvalidToken, Exception):
-                logger.warning("Failed to decrypt session for %s/%s — skipping",
-                               google_id[:8], name)
+                logger.warning("Failed to decrypt session for %s/%s — skipping", google_id[:8], name)
                 skipped += 1
                 continue
             sessions[name] = {
@@ -216,12 +229,22 @@ class SessionManager:
             self._user_sessions[google_id] = sessions
         elapsed = time.monotonic() - t0
         if sessions:
-            logger.info("Loaded %d sessions for %s in %.2fs (skipped=%d): %s",
-                        len(sessions), google_id[:8], elapsed, skipped,
-                        ", ".join(sessions))
+            logger.info(
+                "Loaded %d sessions for %s in %.2fs (skipped=%d): %s",
+                len(sessions),
+                google_id[:8],
+                elapsed,
+                skipped,
+                ", ".join(sessions),
+            )
         elif stored:
-            logger.warning("No valid sessions loaded for %s (stored=%d skipped=%d) in %.2fs",
-                           google_id[:8], len(stored), skipped, elapsed)
+            logger.warning(
+                "No valid sessions loaded for %s (stored=%d skipped=%d) in %.2fs",
+                google_id[:8],
+                len(stored),
+                skipped,
+                elapsed,
+            )
 
     def save(self, google_id: str) -> None:
         """Persist encrypted session tokens to Firestore.  Requires PIN."""
@@ -237,40 +260,45 @@ class SessionManager:
             user_sessions = dict(self._user_sessions.get(google_id, {}))
 
         stored = {
-            name: {"access_token": self._encrypt(info["access_token"], google_id),
-                    "expiry": info["expiry"].isoformat()}
+            name: {"access_token": self._encrypt(info["access_token"], google_id), "expiry": info["expiry"].isoformat()}
             for name, info in user_sessions.items()
         }
         try:
             from .firebase_store import save_zerodha_sessions
+
             save_zerodha_sessions(google_id, stored)
-            logger.info("Saved %d sessions for %s in %.2fs",
-                        len(stored), google_id[:8], time.monotonic() - t0)
+            logger.info("Saved %d sessions for %s in %.2fs", len(stored), google_id[:8], time.monotonic() - t0)
         except Exception as e:
             logger.exception("Error saving sessions to Firestore: %s", e)
 
     def is_valid(self, google_id: str, account_name: str) -> bool:
+        """Return True if the session for *account_name* exists and has not expired."""
         sess = self._sessions_for(google_id).get(account_name)
-        return bool(sess and datetime.now(timezone.utc) < sess["expiry"])
+        return bool(sess and datetime.now(UTC) < sess["expiry"])
 
-    def set_token(self, google_id: str, account_name: str,
-                  access_token: str, hours: int = 23, minutes: int = 50) -> None:
+    def set_token(
+        self, google_id: str, account_name: str, access_token: str, hours: int = 23, minutes: int = 50
+    ) -> None:
+        """Store an access token for *account_name* with a default ~24-hour expiry."""
         self._sessions_for(google_id)[account_name] = {
             "access_token": access_token,
-            "expiry": datetime.now(timezone.utc) + timedelta(hours=hours, minutes=minutes),
+            "expiry": datetime.now(UTC) + timedelta(hours=hours, minutes=minutes),
         }
 
     def get_token(self, google_id: str, account_name: str) -> str:
+        """Return the stored access token for *account_name*, or None."""
         return self._sessions_for(google_id).get(account_name, {}).get("access_token")
 
     def invalidate(self, google_id: str, account_name: str) -> None:
+        """Remove the session for *account_name* and persist changes to Firestore."""
         sessions = self._sessions_for(google_id)
         if account_name in sessions:
             del sessions[account_name]
             logger.info("Invalidated session for %s/%s", google_id[:8], account_name)
             self.save(google_id)
 
-    def get_validity(self, google_id: str, all_accounts: List[str] = None) -> Dict[str, bool]:
+    def get_validity(self, google_id: str, all_accounts: list[str] = None) -> dict[str, bool]:
+        """Return a dict mapping account names to their session validity."""
         names = all_accounts or list(self._sessions_for(google_id))
         return {name: self.is_valid(google_id, name) for name in names}
 
@@ -282,36 +310,38 @@ class StateManager:
     Global:   ``nifty50``, ``physical_gold``, ``fixed_deposits``
     """
 
-    GLOBAL_STATE_TYPES = ('nifty50', 'physical_gold', 'fixed_deposits')
-    PER_USER_STATE_TYPE = 'portfolio'
-    STATE_TYPES = ('portfolio',) + GLOBAL_STATE_TYPES
+    GLOBAL_STATE_TYPES = ("nifty50", "physical_gold", "fixed_deposits")
+    PER_USER_STATE_TYPE = "portfolio"
+    STATE_TYPES = ("portfolio",) + GLOBAL_STATE_TYPES
 
     def __init__(self):
         self._lock = threading.Lock()
         for st in self.GLOBAL_STATE_TYPES:
-            setattr(self, f'{st}_state', None)
-            setattr(self, f'{st}_last_updated', None)
-        self._user_state: Dict[str, Dict[str, Any]] = {}
+            setattr(self, f"{st}_state", None)
+            setattr(self, f"{st}_last_updated", None)
+        self._user_state: dict[str, dict[str, Any]] = {}
         self.last_error: str = None
 
-    def _get_user_state(self, google_id: str) -> Dict[str, Any]:
+    def _get_user_state(self, google_id: str) -> dict[str, Any]:
+        """Return the mutable per-user state dict, creating it if absent."""
         with self._lock:
-            return self._user_state.setdefault(google_id, {
-                "portfolio_state": None,
-                "portfolio_last_updated": time.time(),
-                "last_error": None,
-                "manual_ltp_state": None,
-                "manual_ltp_last_updated": None,
-                "sheets_state": None,
-                "sheets_last_updated": None,
-            })
-
-    def add_change_listener(self, callback):
-        pass  # No-op: SSE broadcasting removed
+            return self._user_state.setdefault(
+                google_id,
+                {
+                    "portfolio_state": None,
+                    "portfolio_last_updated": time.time(),
+                    "last_error": None,
+                    "manual_ltp_state": None,
+                    "manual_ltp_last_updated": None,
+                    "sheets_state": None,
+                    "sheets_last_updated": None,
+                },
+            )
 
     # Per-user portfolio state
 
     def set_portfolio_updating(self, google_id: str = None, error: str = None):
+        """Mark portfolio fetch as in-progress for *google_id*."""
         if google_id:
             us = self._get_user_state(google_id)
             us["portfolio_state"] = STATE_UPDATING
@@ -319,6 +349,7 @@ class StateManager:
                 us["last_error"] = error
 
     def set_portfolio_updated(self, google_id: str = None, error: str = None):
+        """Mark portfolio fetch as complete, optionally recording an error."""
         if google_id:
             us = self._get_user_state(google_id)
             if error:
@@ -330,41 +361,50 @@ class StateManager:
                 us["portfolio_state"] = STATE_UPDATED
 
     def get_portfolio_state(self, google_id: str) -> Any:
+        """Return the current portfolio state string, or None."""
         return self._get_user_state(google_id).get("portfolio_state")
 
     def get_portfolio_last_updated(self, google_id: str) -> Any:
+        """Return the epoch timestamp of the last portfolio update."""
         return self._get_user_state(google_id).get("portfolio_last_updated")
 
     def get_user_last_error(self, google_id: str) -> Any:
+        """Return the last error message for *google_id*, or None."""
         return self._get_user_state(google_id).get("last_error")
 
     # Per-user manual LTP state
 
     def set_manual_ltp_updating(self, google_id: str) -> None:
+        """Mark manual LTP fetch as in-progress."""
         if google_id:
             us = self._get_user_state(google_id)
             us["manual_ltp_state"] = STATE_UPDATING
 
     def set_manual_ltp_updated(self, google_id: str) -> None:
+        """Mark manual LTP fetch as complete."""
         if google_id:
             us = self._get_user_state(google_id)
             us["manual_ltp_state"] = STATE_UPDATED
             us["manual_ltp_last_updated"] = time.time()
 
     def get_manual_ltp_state(self, google_id: str) -> Any:
+        """Return the current manual LTP fetch state."""
         return self._get_user_state(google_id).get("manual_ltp_state")
 
     def get_manual_ltp_last_updated(self, google_id: str) -> Any:
+        """Return epoch timestamp of the last manual LTP update."""
         return self._get_user_state(google_id).get("manual_ltp_last_updated")
 
     # Per-user sheets state
 
     def set_sheets_updating(self, google_id: str) -> None:
+        """Mark sheets prefetch as in-progress."""
         if google_id:
             us = self._get_user_state(google_id)
             us["sheets_state"] = STATE_UPDATING
 
     def set_sheets_updated(self, google_id: str, error: str = None) -> None:
+        """Mark sheets prefetch as complete, optionally recording an error."""
         if google_id:
             us = self._get_user_state(google_id)
             if error:
@@ -374,50 +414,61 @@ class StateManager:
                 us["sheets_last_updated"] = time.time()
 
     def get_sheets_state(self, google_id: str) -> Any:
+        """Return the current sheets prefetch state."""
         return self._get_user_state(google_id).get("sheets_state")
 
     def get_sheets_last_updated(self, google_id: str) -> Any:
+        """Return epoch timestamp of the last sheets update."""
         return self._get_user_state(google_id).get("sheets_last_updated")
 
     # Global state (dynamic set_<type>_updating / set_<type>_updated)
 
     def _set_updating(self, state_type: str, error: str = None):
-        setattr(self, f'{state_type}_state', STATE_UPDATING)
+        """Set a global state type to 'updating'."""
+        setattr(self, f"{state_type}_state", STATE_UPDATING)
         if error:
             self.last_error = error
 
     def _set_updated(self, state_type: str, error: str = None, clear_global_error: bool = False):
+        """Set a global state type to 'updated' or 'error'."""
         if error:
             self.last_error = error
-            setattr(self, f'{state_type}_state', STATE_ERROR)
+            setattr(self, f"{state_type}_state", STATE_ERROR)
         else:
-            setattr(self, f'{state_type}_last_updated', time.time())
+            setattr(self, f"{state_type}_last_updated", time.time())
             if clear_global_error:
                 self.last_error = None
-            setattr(self, f'{state_type}_state', STATE_UPDATED)
+            setattr(self, f"{state_type}_state", STATE_UPDATED)
 
     def __getattr__(self, name: str):
+        """Dynamic dispatch: generates ``set_<type>_updating`` / ``set_<type>_updated``
+        methods for each global state type (nifty50, physical_gold, fixed_deposits).
+        Uses ``_st=st`` default-arg capture to avoid late-binding closure issues.
+        """
         for st in self.GLOBAL_STATE_TYPES:
-            if name == f'set_{st}_updating':
+            if name == f"set_{st}_updating":
                 return lambda error=None, _st=st: self._set_updating(_st, error)
-            if name == f'set_{st}_updated':
+            if name == f"set_{st}_updated":
                 return lambda error=None, _st=st: self._set_updated(_st, error)
         raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
     def is_any_running(self, google_id: str = None) -> bool:
-        if any(getattr(self, f'{st}_state', None) == STATE_UPDATING for st in self.GLOBAL_STATE_TYPES):
+        """Return True if any global or per-user fetch is in progress."""
+        if any(getattr(self, f"{st}_state", None) == STATE_UPDATING for st in self.GLOBAL_STATE_TYPES):
             return True
         if google_id:
             return self._get_user_state(google_id).get("portfolio_state") == STATE_UPDATING
         return False
 
     def clear_error(self, google_id: str = None):
+        """Clear the last error for the given user and globally."""
         self.last_error = None
         if google_id:
             self._get_user_state(google_id)["last_error"] = None
 
 
 def format_timestamp(ts: float) -> str:
+    """Convert an epoch timestamp to an ISO 8601 UTC string, or None."""
     if ts is None:
         return None
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
@@ -434,12 +485,10 @@ def is_market_open_ist() -> bool:
     return market_open <= now <= market_close
 
 
-
-
-
 # ---------------------------------------------------------------------------
 # PIN Rate Limiter — escalating lockout on failed verify attempts
 # ---------------------------------------------------------------------------
+
 
 class PinRateLimiter:
     """Per-user rate limiter for PIN verification with escalating lockouts.
@@ -456,17 +505,18 @@ class PinRateLimiter:
 
     # (cumulative_attempts, lockout_seconds)
     LOCKOUT_TIERS = [
-        (3,  15 * 60),    # 15 minutes
-        (6,  60 * 60),    # 1 hour
-        (9,  4 * 60 * 60),  # 4 hours
+        (3, 15 * 60),  # 15 minutes
+        (6, 60 * 60),  # 1 hour
+        (9, 4 * 60 * 60),  # 4 hours
     ]
 
     def __init__(self):
         self._lock = threading.Lock()
         # {google_id: {"attempts": int, "locked_until": float|None}}
-        self._state: Dict[str, Dict] = {}
+        self._state: dict[str, dict] = {}
 
-    def _get(self, google_id: str) -> Dict:
+    def _get(self, google_id: str) -> dict:
+        """Return the mutable rate-limit state for *google_id*, creating it if absent."""
         if google_id not in self._state:
             self._state[google_id] = {"attempts": 0, "locked_until": None}
         return self._state[google_id]
@@ -505,6 +555,8 @@ class PinRateLimiter:
                 if attempts >= threshold:
                     lockout_secs = duration
 
+            # Apply lockout at every 3rd cumulative failure,
+            # or permanently once beyond the highest tier threshold.
             if lockout_secs and (attempts % 3 == 0 or attempts >= self.LOCKOUT_TIERS[-1][0]):
                 # Apply lockout on every 5th failure or beyond max tier
                 state["locked_until"] = time.time() + lockout_secs
@@ -583,12 +635,6 @@ def parse_date(raw):
     except (ValueError, OverflowError):
         return None
 
-    def get_attempts(self, google_id: str) -> int:
-        """Return current attempt count for a user."""
-        with self._lock:
-            return self._get(google_id)["attempts"]
-
 
 # Singleton instance
 pin_rate_limiter = PinRateLimiter()
-

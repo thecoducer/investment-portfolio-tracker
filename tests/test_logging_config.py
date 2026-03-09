@@ -1,12 +1,13 @@
 """
 Unit tests for logging_config.py — UTC formatter and configure().
 """
+
 import logging
 import time
 import unittest
 from unittest.mock import patch
 
-from app.logging_config import configure, logger, _UTCFormatter
+from app.logging_config import _UTCFormatter, configure, logger
 
 
 class TestUTCFormatter(unittest.TestCase):
@@ -16,8 +17,13 @@ class TestUTCFormatter(unittest.TestCase):
     def test_formats_record(self):
         formatter = _UTCFormatter(fmt="%(asctime)s %(message)s")
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="hello", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="hello",
+            args=(),
+            exc_info=None,
         )
         formatted = formatter.format(record)
         self.assertIn("hello", formatted)
@@ -66,8 +72,13 @@ class TestConfigure(unittest.TestCase):
         configure()
         handler = root.handlers[0]
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test", args=(), exc_info=None,
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test",
+            args=(),
+            exc_info=None,
         )
         formatted = handler.formatter.formatTime(record)
         self.assertTrue(formatted.endswith("Z"))
@@ -75,7 +86,7 @@ class TestConfigure(unittest.TestCase):
 
     def test_werkzeug_logger_suppressed(self):
         configure()
-        werkzeug_logger = logging.getLogger('werkzeug')
+        werkzeug_logger = logging.getLogger("werkzeug")
         self.assertEqual(werkzeug_logger.level, logging.WARNING)
 
     def test_logger_is_metron(self):
@@ -84,11 +95,12 @@ class TestConfigure(unittest.TestCase):
     def test_werkzeug_logger_exception_caught(self):
         """Cover lines 58-60: exception in werkzeug logger suppression."""
         import logging as _logging
-        werkzeug_logger = _logging.getLogger('werkzeug')
-        with patch.object(werkzeug_logger, 'setLevel', side_effect=Exception("boom")):
+
+        werkzeug_logger = _logging.getLogger("werkzeug")
+        with patch.object(werkzeug_logger, "setLevel", side_effect=Exception("boom")):
             # Should not raise — exception is caught
             configure()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

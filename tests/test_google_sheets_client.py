@@ -1,8 +1,9 @@
 """
 Unit tests for api/google_sheets_client.py — GoogleSheetsClient and services.
 """
+
 import unittest
-from unittest.mock import Mock, patch, MagicMock, PropertyMock
+from unittest.mock import Mock, patch
 
 from app.error_handler import APIError, DataError, NetworkError
 
@@ -12,18 +13,20 @@ class TestGoogleSheetsClient(unittest.TestCase):
 
     def _make_client(self):
         from app.api.google_sheets_client import GoogleSheetsClient
+
         mock_creds = Mock()
         client = GoogleSheetsClient(user_credentials=mock_creds)
         return client
 
     def test_init_no_credentials_raises(self):
         from app.api.google_sheets_client import GoogleSheetsClient
+
         with self.assertRaises(ValueError):
             GoogleSheetsClient(user_credentials=None)
 
-    @patch('app.api.google_sheets_client.build')
-    @patch('app.api.google_sheets_client.AuthorizedHttp')
-    @patch('app.api.google_sheets_client.httplib2.Http')
+    @patch("app.api.google_sheets_client.build")
+    @patch("app.api.google_sheets_client.AuthorizedHttp")
+    @patch("app.api.google_sheets_client.httplib2.Http")
     def test_authenticate(self, mock_http, mock_auth_http, mock_build):
         client = self._make_client()
         mock_build.return_value = Mock()
@@ -31,9 +34,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         self.assertTrue(result)
         self.assertTrue(client._is_authenticated)
 
-    @patch('app.api.google_sheets_client.build')
-    @patch('app.api.google_sheets_client.AuthorizedHttp')
-    @patch('app.api.google_sheets_client.httplib2.Http')
+    @patch("app.api.google_sheets_client.build")
+    @patch("app.api.google_sheets_client.AuthorizedHttp")
+    @patch("app.api.google_sheets_client.httplib2.Http")
     def test_authenticate_cached(self, mock_http, mock_auth_http, mock_build):
         client = self._make_client()
         client._is_authenticated = True
@@ -42,9 +45,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         self.assertTrue(result)
         mock_build.assert_not_called()
 
-    @patch('app.api.google_sheets_client.build')
-    @patch('app.api.google_sheets_client.AuthorizedHttp')
-    @patch('app.api.google_sheets_client.httplib2.Http')
+    @patch("app.api.google_sheets_client.build")
+    @patch("app.api.google_sheets_client.AuthorizedHttp")
+    @patch("app.api.google_sheets_client.httplib2.Http")
     def test_authenticate_failure(self, mock_http, mock_auth_http, mock_build):
         client = self._make_client()
         mock_build.side_effect = Exception("auth fail")
@@ -56,13 +59,14 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         client.service.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
-            'values': [['H1', 'H2'], ['D1', 'D2']]
+            "values": [["H1", "H2"], ["D1", "D2"]]
         }
         result = client.fetch_sheet_data("sid", "Sheet1!A:C")
         self.assertEqual(len(result), 2)
 
     def test_fetch_sheet_data_impl_http_error(self):
-        from app.api.google_sheets_client import GoogleSheetsClient, HttpError
+        from app.api.google_sheets_client import HttpError
+
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
@@ -76,7 +80,8 @@ class TestGoogleSheetsClient(unittest.TestCase):
             client._fetch_sheet_data_impl("sid", "Sheet1!A:C")
 
     def test_fetch_sheet_data_impl_http_error_4xx(self):
-        from app.api.google_sheets_client import GoogleSheetsClient, HttpError
+        from app.api.google_sheets_client import HttpError
+
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
@@ -114,7 +119,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
-        client.service.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = RuntimeError("unexpected")
+        client.service.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = (
+            RuntimeError("unexpected")
+        )
 
         with self.assertRaises(RuntimeError):
             client._fetch_sheet_data_impl("sid", "Sheet1!A:C")
@@ -124,12 +131,12 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         client.service.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
-            'values': [
-                ['H1', 'H2'],
-                ['A', 'B'],
-                ['C', 'D'],
-                ['', ''],  # blank row
-                ['E', 'F'],  # should be trimmed
+            "values": [
+                ["H1", "H2"],
+                ["A", "B"],
+                ["C", "D"],
+                ["", ""],  # blank row
+                ["E", "F"],  # should be trimmed
             ]
         }
         result = client.fetch_sheet_data_until_blank("sid", "Sheet1")
@@ -140,7 +147,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         client.service.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
-            'values': []
+            "values": []
         }
         result = client.fetch_sheet_data_until_blank("sid", "Sheet1")
         self.assertEqual(result, [])
@@ -150,9 +157,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         client.service.spreadsheets.return_value.values.return_value.batchGet.return_value.execute.return_value = {
-            'valueRanges': [
-                {'values': [['H'], ['A']]},
-                {'values': [['H2'], ['B']]},
+            "valueRanges": [
+                {"values": [["H"], ["A"]]},
+                {"values": [["H2"], ["B"]]},
             ]
         }
         result = client.batch_fetch_sheet_data("sid", ["Sheet1!A:C", "Sheet2!A:C"])
@@ -161,12 +168,15 @@ class TestGoogleSheetsClient(unittest.TestCase):
 
     def test_batch_fetch_impl_http_error(self):
         from app.api.google_sheets_client import HttpError
+
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
         resp = Mock()
         resp.status = 503
-        client.service.spreadsheets.return_value.values.return_value.batchGet.return_value.execute.side_effect = HttpError(resp, b"err")
+        client.service.spreadsheets.return_value.values.return_value.batchGet.return_value.execute.side_effect = (
+            HttpError(resp, b"err")
+        )
         with self.assertRaises(APIError):
             client._batch_fetch_impl("sid", ["Sheet1!A:C"])
 
@@ -184,7 +194,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
-        client.service.spreadsheets.return_value.values.return_value.batchGet.return_value.execute.side_effect = RuntimeError("x")
+        client.service.spreadsheets.return_value.values.return_value.batchGet.return_value.execute.side_effect = (
+            RuntimeError("x")
+        )
         with self.assertRaises(RuntimeError):
             client._batch_fetch_impl("sid", ["Sheet1!A:C"])
 
@@ -193,9 +205,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         client.service.spreadsheets.return_value.values.return_value.batchGet.return_value.execute.return_value = {
-            'valueRanges': [
-                {'values': [['H'], ['A'], ['', '']]},
-                {'values': [['H2'], ['B'], ['C']]},
+            "valueRanges": [
+                {"values": [["H"], ["A"], ["", ""]]},
+                {"values": [["H2"], ["B"], ["C"]]},
             ]
         }
         result = client.batch_fetch_sheet_data_until_blank("sid", ["Sheet1", "Sheet2"])
@@ -204,6 +216,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
 
     def test_parse_number(self):
         from app.api.google_sheets_client import GoogleSheetsClient
+
         self.assertEqual(GoogleSheetsClient.parse_number(""), 0.0)
         self.assertEqual(GoogleSheetsClient.parse_number(None), 0.0)
         self.assertEqual(GoogleSheetsClient.parse_number(42), 42.0)
@@ -213,6 +226,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
 
     def test_parse_yes_no(self):
         from app.api.google_sheets_client import GoogleSheetsClient
+
         self.assertTrue(GoogleSheetsClient.parse_yes_no("Yes"))
         self.assertTrue(GoogleSheetsClient.parse_yes_no("y"))
         self.assertTrue(GoogleSheetsClient.parse_yes_no("True"))
@@ -248,7 +262,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
-        client.service.spreadsheets.return_value.values.return_value.append.return_value.execute.side_effect = Exception("fail")
+        client.service.spreadsheets.return_value.values.return_value.append.return_value.execute.side_effect = (
+            Exception("fail")
+        )
         with self.assertRaises(Exception):
             client.append_row("sid", "Sheet", ["A"])
 
@@ -264,7 +280,9 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client = self._make_client()
         client._is_authenticated = True
         client.service = Mock()
-        client.service.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect = Exception("fail")
+        client.service.spreadsheets.return_value.values.return_value.update.return_value.execute.side_effect = (
+            Exception("fail")
+        )
         with self.assertRaises(Exception):
             client.update_row("sid", "Sheet", 5, ["A"])
 
@@ -274,9 +292,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client.service = Mock()
         # Mock _get_sheet_id
         mock_meta = Mock()
-        mock_meta.execute.return_value = {
-            "sheets": [{"properties": {"title": "Sheet", "sheetId": 42}}]
-        }
+        mock_meta.execute.return_value = {"sheets": [{"properties": {"title": "Sheet", "sheetId": 42}}]}
         client.service.spreadsheets.return_value.get.return_value = mock_meta
         client.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
 
@@ -288,9 +304,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         mock_meta = Mock()
-        mock_meta.execute.return_value = {
-            "sheets": [{"properties": {"title": "Sheet", "sheetId": 42}}]
-        }
+        mock_meta.execute.return_value = {"sheets": [{"properties": {"title": "Sheet", "sheetId": 42}}]}
         client.service.spreadsheets.return_value.get.return_value = mock_meta
         client.service.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = Exception("fail")
         with self.assertRaises(Exception):
@@ -315,9 +329,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         mock_meta = Mock()
-        mock_meta.execute.return_value = {
-            "sheets": [{"properties": {"title": "Gold", "sheetId": 0}}]
-        }
+        mock_meta.execute.return_value = {"sheets": [{"properties": {"title": "Gold", "sheetId": 0}}]}
         client.service.spreadsheets.return_value.get.return_value = mock_meta
         with self.assertRaises(ValueError):
             client._get_sheet_id("sid", "Missing")
@@ -327,9 +339,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         mock_meta = Mock()
-        mock_meta.execute.return_value = {
-            "sheets": [{"properties": {"title": "Stocks"}}]
-        }
+        mock_meta.execute.return_value = {"sheets": [{"properties": {"title": "Stocks"}}]}
         client.service.spreadsheets.return_value.get.return_value = mock_meta
         client.ensure_sheet_tab("sid", "Stocks", ["H1"])
         # Should not call addSheet if tab exists
@@ -340,9 +350,7 @@ class TestGoogleSheetsClient(unittest.TestCase):
         client._is_authenticated = True
         client.service = Mock()
         mock_meta = Mock()
-        mock_meta.execute.return_value = {
-            "sheets": [{"properties": {"title": "Other"}}]
-        }
+        mock_meta.execute.return_value = {"sheets": [{"properties": {"title": "Other"}}]}
         client.service.spreadsheets.return_value.get.return_value = mock_meta
         client.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
         client.service.spreadsheets.return_value.values.return_value.update.return_value.execute.return_value = {}
@@ -362,20 +370,24 @@ class TestGoogleSheetsClient(unittest.TestCase):
 class TestGoogleSheetsService(unittest.TestCase):
     def _make_service(self):
         from app.api.google_sheets_client import GoogleSheetsService
+
         mock_client = Mock()
         svc = GoogleSheetsService(mock_client)
         return svc, mock_client
 
     def test_safe_get_in_range(self):
         from app.api.google_sheets_client import GoogleSheetsService
+
         self.assertEqual(GoogleSheetsService._safe_get(["a", "b", "c"], 1), "b")
 
     def test_safe_get_out_of_range(self):
         from app.api.google_sheets_client import GoogleSheetsService
+
         self.assertEqual(GoogleSheetsService._safe_get(["a"], 5, "default"), "default")
 
     def test_safe_get_with_parser(self):
         from app.api.google_sheets_client import GoogleSheetsService
+
         result = GoogleSheetsService._safe_get(["42"], 0, 0, float)
         self.assertEqual(result, 42.0)
 
@@ -394,7 +406,9 @@ class TestGoogleSheetsService(unittest.TestCase):
     def test_fetch_and_parse_skip_empty_rows(self):
         svc, mock_client = self._make_service()
         mock_client.fetch_sheet_data.return_value = [
-            ["H1"], ["data"], [],
+            ["H1"],
+            ["data"],
+            [],
         ]
         svc._parse_row = Mock(return_value={"parsed": True})
         result = svc._fetch_and_parse("sid", "Sheet!A:B")
@@ -403,7 +417,9 @@ class TestGoogleSheetsService(unittest.TestCase):
     def test_fetch_and_parse_row_error_skipped(self):
         svc, mock_client = self._make_service()
         mock_client.fetch_sheet_data.return_value = [
-            ["H"], ["row1"], ["row2"],
+            ["H"],
+            ["row1"],
+            ["row2"],
         ]
         svc._parse_row = Mock(side_effect=[{"ok": True}, Exception("parse fail")])
         result = svc._fetch_and_parse("sid", "Sheet!A:B")
@@ -429,6 +445,7 @@ class TestGoogleSheetsService(unittest.TestCase):
 class TestPhysicalGoldService(unittest.TestCase):
     def test_fetch_holdings(self):
         from app.api.google_sheets_client import PhysicalGoldService
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [
             ["Date", "Type", "Outlet", "Purity", "Weight", "Rate"],
@@ -437,11 +454,12 @@ class TestPhysicalGoldService(unittest.TestCase):
         svc = PhysicalGoldService(mock_client)
         result = svc.fetch_holdings("sid", "Gold!A:F")
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['type'], 'Bar')
-        self.assertEqual(result[0]['weight_gms'], 10.0)
+        self.assertEqual(result[0]["type"], "Bar")
+        self.assertEqual(result[0]["weight_gms"], 10.0)
 
     def test_fetch_holdings_empty(self):
         from app.api.google_sheets_client import PhysicalGoldService
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = []
         svc = PhysicalGoldService(mock_client)
@@ -450,17 +468,19 @@ class TestPhysicalGoldService(unittest.TestCase):
 
     def test_parse_row(self):
         from app.api.google_sheets_client import PhysicalGoldService
+
         svc = PhysicalGoldService(Mock())
         row = ["2024-01-01", "Coin", "Shop", "916", "5", "4500"]
         result = svc._parse_row(row, 2)
-        self.assertEqual(result['date'], '2024-01-01')
-        self.assertEqual(result['purity'], '916')
-        self.assertEqual(result['row_number'], 2)
+        self.assertEqual(result["date"], "2024-01-01")
+        self.assertEqual(result["purity"], "916")
+        self.assertEqual(result["row_number"], 2)
 
 
 class TestFixedDepositsService(unittest.TestCase):
     def test_fetch_deposits(self):
         from app.api.google_sheets_client import FixedDepositsService
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [
             ["Date", "Reinvested", "Bank", "Year", "Month", "Day", "Amount", "Reinv Amt", "Rate", "Account"],
@@ -469,10 +489,11 @@ class TestFixedDepositsService(unittest.TestCase):
         svc = FixedDepositsService(mock_client)
         result = svc.fetch_deposits("sid", "FixedDeposits!A:K")
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['bank_name'], 'SBI')
+        self.assertEqual(result[0]["bank_name"], "SBI")
 
     def test_parse_row_missing_bank_raises(self):
         from app.api.google_sheets_client import FixedDepositsService
+
         svc = FixedDepositsService(Mock())
         row = ["2024-01-01", "", "", "1", "0", "0", "100000", "0", "7.5", ""]
         with self.assertRaises(DataError):
@@ -480,6 +501,7 @@ class TestFixedDepositsService(unittest.TestCase):
 
     def test_parse_row_zero_rate_raises(self):
         from app.api.google_sheets_client import FixedDepositsService
+
         svc = FixedDepositsService(Mock())
         row = ["2024-01-01", "", "Bank", "1", "0", "0", "100000", "0", "0", ""]
         with self.assertRaises(DataError):
@@ -491,6 +513,7 @@ class TestGoogleSheetsClientEdges(unittest.TestCase):
 
     def _make_authed_client(self):
         from app.api.google_sheets_client import GoogleSheetsClient
+
         client = GoogleSheetsClient(user_credentials=Mock())
         client._is_authenticated = True
         client.service = Mock()
@@ -499,6 +522,7 @@ class TestGoogleSheetsClientEdges(unittest.TestCase):
     def test_init_no_credentials(self):
         """Line 39: raise ValueError when credentials are empty."""
         from app.api.google_sheets_client import GoogleSheetsClient
+
         with self.assertRaises(ValueError):
             GoogleSheetsClient(user_credentials="")
 
@@ -520,10 +544,14 @@ class TestGoogleSheetsClientEdges(unittest.TestCase):
         """Lines 180-181: sheet with < 2 rows returns raw data as-is."""
         client = self._make_authed_client()
         # batch_fetch_sheet_data returns raw batch keyed by range
-        with patch.object(client, 'batch_fetch_sheet_data', return_value={
-            "ShortSheet!A1:Z1000": [["Header"]],
-            "EmptySheet!A1:Z1000": [],
-        }):
+        with patch.object(
+            client,
+            "batch_fetch_sheet_data",
+            return_value={
+                "ShortSheet!A1:Z1000": [["Header"]],
+                "EmptySheet!A1:Z1000": [],
+            },
+        ):
             result = client.batch_fetch_sheet_data_until_blank("sid", ["ShortSheet", "EmptySheet"])
         self.assertEqual(result["ShortSheet"], [["Header"]])
         self.assertEqual(result["EmptySheet"], [])
@@ -531,27 +559,32 @@ class TestGoogleSheetsClientEdges(unittest.TestCase):
     def test_parse_number_unusual_type(self):
         """Line 203: parse_number with non-str/int/float type returns 0.0."""
         from app.api.google_sheets_client import GoogleSheetsClient
+
         self.assertEqual(GoogleSheetsClient.parse_number([1, 2, 3]), 0.0)
         self.assertEqual(GoogleSheetsClient.parse_number({"a": 1}), 0.0)
 
     def test_init_google_libs_unavailable(self):
         """Line 39: raise ImportError when GOOGLE_SHEETS_AVAILABLE is False."""
         from app.api import google_sheets_client as gsc
-        with patch.object(gsc, 'GOOGLE_SHEETS_AVAILABLE', False):
+
+        with patch.object(gsc, "GOOGLE_SHEETS_AVAILABLE", False):
             with self.assertRaises(ImportError):
                 gsc.GoogleSheetsClient(user_credentials=Mock())
 
     def test_parse_rows_parse_exception_caught(self):
         """Lines 413-414: _parse_rows catches per-row parse exceptions."""
         from app.api.google_sheets_client import GoogleSheetsService
+
         svc = GoogleSheetsService(Mock())
         svc.entity_name = "test"
         call_count = [0]
+
         def _parse_row(row, idx):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise ValueError("bad row")
             return {"val": row[0]}
+
         svc._parse_row = _parse_row
         raw = [["Header"], ["bad"], ["good"]]
         result = svc._parse_rows(raw)
@@ -559,5 +592,5 @@ class TestGoogleSheetsClientEdges(unittest.TestCase):
         self.assertEqual(result[0]["val"], "good")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

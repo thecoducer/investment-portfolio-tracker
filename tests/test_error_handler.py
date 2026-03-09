@@ -1,23 +1,31 @@
 """
 Unit tests for error_handler.py — custom exceptions, decorators, and utilities.
 """
-import time
-import unittest
-from unittest.mock import Mock, patch, MagicMock
 
-from requests.exceptions import ConnectionError, HTTPError, Timeout, RequestException
+import unittest
+from unittest.mock import Mock, patch
+
+from requests.exceptions import ConnectionError, HTTPError, RequestException, Timeout
 
 from app.error_handler import (
-    ErrorCategory, PortfolioTrackerError, NetworkError, APIError,
-    AuthenticationError, DataError, ConfigurationError,
-    ErrorHandler, retry_on_transient_error, handle_errors,
-    safe_api_call, ErrorAggregator,
+    APIError,
+    AuthenticationError,
+    ConfigurationError,
+    DataError,
+    ErrorAggregator,
+    ErrorCategory,
+    ErrorHandler,
+    NetworkError,
+    PortfolioTrackerError,
+    handle_errors,
+    retry_on_transient_error,
+    safe_api_call,
 )
-
 
 # ---------------------------------------------------------------
 # Exception hierarchy
 # ---------------------------------------------------------------
+
 
 class TestErrorCategory(unittest.TestCase):
     def test_all_members(self):
@@ -93,6 +101,7 @@ class TestConfigurationError(unittest.TestCase):
 # ErrorHandler static methods
 # ---------------------------------------------------------------
 
+
 class TestErrorHandlerWrap(unittest.TestCase):
     def test_timeout_wrapped(self):
         orig = Timeout("slow")
@@ -139,49 +148,49 @@ class TestErrorHandlerWrap(unittest.TestCase):
 
 
 class TestErrorHandlerLog(unittest.TestCase):
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_network_error_uses_warning(self, mock_logger):
         e = NetworkError("net fail")
         ErrorHandler.log_error(e, "ctx")
         mock_logger.warning.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_api_error_5xx_uses_error(self, mock_logger):
         e = APIError("server err", status_code=502)
         ErrorHandler.log_error(e, "ctx")
         mock_logger.error.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_api_error_4xx_uses_warning(self, mock_logger):
         e = APIError("client err", status_code=400)
         ErrorHandler.log_error(e, "ctx")
         mock_logger.warning.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_api_error_no_status_uses_warning(self, mock_logger):
         e = APIError("api err")
         ErrorHandler.log_error(e, "ctx")
         mock_logger.warning.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_auth_error_uses_error(self, mock_logger):
         e = AuthenticationError("auth fail")
         ErrorHandler.log_error(e)
         mock_logger.error.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_config_error_uses_error(self, mock_logger):
         e = ConfigurationError("cfg fail")
         ErrorHandler.log_error(e, "setup")
         mock_logger.error.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_generic_exception_uses_exception(self, mock_logger):
         e = RuntimeError("boom")
         ErrorHandler.log_error(e, "somewhere")
         mock_logger.exception.assert_called_once()
 
-    @patch('app.error_handler.logger')
+    @patch("app.error_handler.logger")
     def test_log_no_context(self, mock_logger):
         e = NetworkError("net")
         ErrorHandler.log_error(e)
@@ -192,16 +201,18 @@ class TestErrorHandlerLog(unittest.TestCase):
 # retry_on_transient_error decorator
 # ---------------------------------------------------------------
 
+
 class TestRetryOnTransientError(unittest.TestCase):
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_no_retry_on_success(self, mock_sleep):
         @retry_on_transient_error(max_retries=2)
         def ok():
             return "ok"
+
         self.assertEqual(ok(), "ok")
         mock_sleep.assert_not_called()
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_retries_on_transient(self, mock_sleep):
         call_count = 0
 
@@ -218,7 +229,7 @@ class TestRetryOnTransientError(unittest.TestCase):
         self.assertEqual(call_count, 3)
         self.assertEqual(mock_sleep.call_count, 2)
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_raises_after_max_retries(self, mock_sleep):
         @retry_on_transient_error(max_retries=1, delay=0.1)
         def always_fail():
@@ -228,7 +239,7 @@ class TestRetryOnTransientError(unittest.TestCase):
             always_fail()
         self.assertEqual(mock_sleep.call_count, 1)
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_no_retry_on_4xx_api_error(self, mock_sleep):
         @retry_on_transient_error(max_retries=3)
         def client_error():
@@ -238,7 +249,7 @@ class TestRetryOnTransientError(unittest.TestCase):
             client_error()
         mock_sleep.assert_not_called()
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_retries_on_5xx_api_error(self, mock_sleep):
         call_count = 0
 
@@ -252,7 +263,7 @@ class TestRetryOnTransientError(unittest.TestCase):
             server_error()
         self.assertEqual(call_count, 2)
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_retries_on_os_error(self, mock_sleep):
         call_count = 0
 
@@ -266,7 +277,7 @@ class TestRetryOnTransientError(unittest.TestCase):
             os_fail()
         self.assertEqual(call_count, 2)
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_exponential_backoff(self, mock_sleep):
         @retry_on_transient_error(max_retries=3, delay=1.0, backoff=2.0)
         def fail():
@@ -282,10 +293,11 @@ class TestRetryOnTransientError(unittest.TestCase):
         def my_func():
             """My doc."""
             pass
+
         self.assertEqual(my_func.__name__, "my_func")
         self.assertEqual(my_func.__doc__, "My doc.")
 
-    @patch('app.error_handler.time.sleep')
+    @patch("app.error_handler.time.sleep")
     def test_api_error_no_status_retries(self, mock_sleep):
         """APIError with no status_code should be retried (not treated as 4xx)."""
         call_count = 0
@@ -305,12 +317,14 @@ class TestRetryOnTransientError(unittest.TestCase):
 # handle_errors decorator
 # ---------------------------------------------------------------
 
+
 class TestHandleErrors(unittest.TestCase):
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_returns_default_on_error(self, mock_log):
         @handle_errors(default_return=[])
         def fail():
             raise ValueError("oops")
+
         result = fail()
         self.assertEqual(result, [])
 
@@ -318,30 +332,34 @@ class TestHandleErrors(unittest.TestCase):
         @handle_errors(default_return=[])
         def ok():
             return [1, 2, 3]
+
         self.assertEqual(ok(), [1, 2, 3])
 
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_wraps_non_portfolio_error(self, mock_log):
         @handle_errors(default_return=None)
         def fail():
             raise RuntimeError("raw")
+
         fail()
         # Should have been called with a wrapped error
         mock_log.assert_called_once()
 
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_passes_portfolio_error_through(self, mock_log):
         @handle_errors(default_return=None, log_context="test")
         def fail():
             raise NetworkError("net")
+
         fail()
         args = mock_log.call_args
         self.assertIsInstance(args[0][0], NetworkError)
 
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_preserve_cache_returns_cached(self, mock_log):
         class Service:
             _cache = ["cached_data"]
+
             @handle_errors(default_return=[], preserve_cache=True, cache_attr="_cache")
             def fetch(self):
                 raise NetworkError("fail")
@@ -350,10 +368,11 @@ class TestHandleErrors(unittest.TestCase):
         result = svc.fetch()
         self.assertEqual(result, ["cached_data"])
 
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_preserve_cache_returns_default_when_no_cached_value(self, mock_log):
         class Service:
             _cache = None
+
             @handle_errors(default_return=[], preserve_cache=True, cache_attr="_cache")
             def fetch(self):
                 raise NetworkError("fail")
@@ -362,12 +381,14 @@ class TestHandleErrors(unittest.TestCase):
         result = svc.fetch()
         self.assertEqual(result, [])
 
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_preserve_cache_no_attr(self, mock_log):
         """preserve_cache True but no cache_attr should return default."""
+
         @handle_errors(default_return="default", preserve_cache=True)
         def fail():
             raise RuntimeError("err")
+
         self.assertEqual(fail(), "default")
 
     def test_preserves_function_metadata(self):
@@ -375,12 +396,14 @@ class TestHandleErrors(unittest.TestCase):
         def my_func():
             """My doc."""
             pass
+
         self.assertEqual(my_func.__name__, "my_func")
 
 
 # ---------------------------------------------------------------
 # safe_api_call
 # ---------------------------------------------------------------
+
 
 class TestSafeApiCall(unittest.TestCase):
     def test_success(self):
@@ -391,6 +414,7 @@ class TestSafeApiCall(unittest.TestCase):
     def test_error(self):
         def fail():
             raise ValueError("nope")
+
         result, error = safe_api_call(fail)
         self.assertIsNone(result)
         self.assertIsInstance(error, ValueError)
@@ -398,6 +422,7 @@ class TestSafeApiCall(unittest.TestCase):
     def test_with_kwargs(self):
         def fn(a, b=10):
             return a + b
+
         result, error = safe_api_call(fn, 5, b=20)
         self.assertEqual(result, 25)
         self.assertIsNone(error)
@@ -406,6 +431,7 @@ class TestSafeApiCall(unittest.TestCase):
 # ---------------------------------------------------------------
 # ErrorAggregator
 # ---------------------------------------------------------------
+
 
 class TestErrorAggregator(unittest.TestCase):
     def test_empty(self):
@@ -436,7 +462,7 @@ class TestErrorAggregator(unittest.TestCase):
         self.assertIn("ctx1", summary)
         self.assertIn("err2", summary)
 
-    @patch('app.error_handler.ErrorHandler.log_error')
+    @patch("app.error_handler.ErrorHandler.log_error")
     def test_log_all(self, mock_log):
         agg = ErrorAggregator()
         agg.add(ValueError("a"), "ctx_a")
@@ -445,5 +471,5 @@ class TestErrorAggregator(unittest.TestCase):
         self.assertEqual(mock_log.call_count, 2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

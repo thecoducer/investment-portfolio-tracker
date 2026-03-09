@@ -129,13 +129,15 @@ def pin_required(f):
 
         # Ensure the PIN is still in server memory (lost on restart).
         from .services import session_manager
+
         user = session.get("user")
         if user:
             google_id = user.get("google_id", "")
             if google_id and not session_manager.get_pin(google_id):
                 logger.info(
                     "pin_required: in-memory PIN lost for %s %s — clearing session flag",
-                    request.method, request.path,
+                    request.method,
+                    request.path,
                 )
                 session["pin_verified"] = False
                 session.modified = True

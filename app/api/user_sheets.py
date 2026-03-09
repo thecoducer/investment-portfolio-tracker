@@ -112,29 +112,41 @@ SHEET_CONFIGS = {
     "sips": {
         "sheet_name": SIPS_SHEET_NAME,
         "headers": SIPS_HEADERS,
-        "fields": ["fund", "amount", "frequency", "installments",
-                    "completed", "status", "next_due", "account"],
+        "fields": ["fund", "amount", "frequency", "installments", "completed", "status", "next_due", "account"],
     },
     "physical_gold": {
         "sheet_name": GOLD_SHEET_NAME,
         "headers": GOLD_HEADERS,
-        "fields": ["date", "type", "retail_outlet", "purity",
-                    "weight_gms", "bought_ibja_rate_per_gm"],
+        "fields": ["date", "type", "retail_outlet", "purity", "weight_gms", "bought_ibja_rate_per_gm"],
     },
     "fixed_deposits": {
         "sheet_name": FD_SHEET_NAME,
         "headers": FD_HEADERS,
-        "fields": ["original_investment_date", "reinvested_date",
-                    "bank_name", "deposit_year", "deposit_month",
-                    "deposit_day", "original_amount", "reinvested_amount",
-                    "interest_rate", "account"],
+        "fields": [
+            "original_investment_date",
+            "reinvested_date",
+            "bank_name",
+            "deposit_year",
+            "deposit_month",
+            "deposit_day",
+            "original_amount",
+            "reinvested_amount",
+            "interest_rate",
+            "account",
+        ],
     },
     "provident_fund": {
         "sheet_name": PF_SHEET_NAME,
         "headers": PF_HEADERS,
-        "fields": ["company_name", "start_date", "end_date",
-                    "monthly_contribution", "interest_rate",
-                    "opening_balance", "actual_contribution"],
+        "fields": [
+            "company_name",
+            "start_date",
+            "end_date",
+            "monthly_contribution",
+            "interest_rate",
+            "opening_balance",
+            "actual_contribution",
+        ],
     },
 }
 
@@ -150,8 +162,7 @@ ALL_SHEETS = [
 ]
 
 
-def create_portfolio_sheet(credentials: Credentials,
-                           title: str = "Metron") -> str:
+def create_portfolio_sheet(credentials: Credentials, title: str = "Metron") -> str:
     """Create a brand‑new spreadsheet in the user's Drive and populate headers.
 
     Args:
@@ -177,9 +188,7 @@ def create_portfolio_sheet(credentials: Credentials,
         ],
     }
 
-    resp = sheets_service.spreadsheets().create(
-        body=body, fields="spreadsheetId"
-    ).execute()
+    resp = sheets_service.spreadsheets().create(body=body, fields="spreadsheetId").execute()
     spreadsheet_id = resp["spreadsheetId"]
     logger.info("Created new spreadsheet %s for user", spreadsheet_id)
 
@@ -207,10 +216,7 @@ def create_portfolio_sheet(credentials: Credentials,
 
 def _format_headers(sheets_service, spreadsheet_id: str) -> None:
     """Apply bold + background colour to the header row in each sheet."""
-    meta = sheets_service.spreadsheets().get(
-        spreadsheetId=spreadsheet_id,
-        fields="sheets.properties"
-    ).execute()
+    meta = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id, fields="sheets.properties").execute()
 
     # Build a lookup from sheet name → header count
     header_counts = {name: len(headers) for name, headers, _idx in ALL_SHEETS}
@@ -222,28 +228,30 @@ def _format_headers(sheets_service, spreadsheet_id: str) -> None:
         col_count = header_counts.get(title)
         if col_count is None:
             continue
-        requests.append({
-            "repeatCell": {
-                "range": {
-                    "sheetId": sheet_id,
-                    "startRowIndex": 0,
-                    "endRowIndex": 1,
-                    "startColumnIndex": 0,
-                    "endColumnIndex": col_count,
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "textFormat": {"bold": True},
-                        "backgroundColor": {
-                            "red": 0.9,
-                            "green": 0.93,
-                            "blue": 0.98,
-                        },
-                    }
-                },
-                "fields": "userEnteredFormat(textFormat,backgroundColor)",
+        requests.append(
+            {
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": 0,
+                        "endRowIndex": 1,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": col_count,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "textFormat": {"bold": True},
+                            "backgroundColor": {
+                                "red": 0.9,
+                                "green": 0.93,
+                                "blue": 0.98,
+                            },
+                        }
+                    },
+                    "fields": "userEnteredFormat(textFormat,backgroundColor)",
+                }
             }
-        })
+        )
 
     if requests:
         sheets_service.spreadsheets().batchUpdate(

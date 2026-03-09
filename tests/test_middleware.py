@@ -39,6 +39,7 @@ def _inject_user(client, user=None):
         sess["pin_verified"] = True
     # Also store a PIN in server memory so pin_required decorator passes
     from app.services import session_manager
+
     session_manager.set_pin(u["google_id"], "test01")
 
 
@@ -86,7 +87,8 @@ class TestAppOnly(unittest.TestCase):
         self.client = self.app.test_client()
         # Ensure browser API access is disabled for tests
         from app.config import app_config
-        app_config.features['allow_browser_api_access'] = False
+
+        app_config.features["allow_browser_api_access"] = False
 
     def test_no_header_returns_403(self):
         """Request without X-Requested-With header returns 403."""
@@ -171,7 +173,8 @@ class TestProtectedApi(unittest.TestCase):
         self.app.testing = True
         self.client = self.app.test_client()
         from app.config import app_config
-        app_config.features['allow_browser_api_access'] = False
+
+        app_config.features["allow_browser_api_access"] = False
 
     def test_unauthenticated_without_header_returns_401(self):
         """Auth check runs first — 401 before 403."""
@@ -240,7 +243,8 @@ class TestProtectedEndpoints(unittest.TestCase):
         self.app.testing = True
         self.client = self.app.test_client()
         from app.config import app_config
-        app_config.features['allow_browser_api_access'] = False
+
+        app_config.features["allow_browser_api_access"] = False
 
     def test_protected_get_endpoints_require_auth(self):
         """All user-data GET endpoints return 401 without session."""
@@ -337,6 +341,7 @@ class TestPinRequired(unittest.TestCase):
         """When the server restarts and in-memory PIN is gone,
         pin_required should clear the session flag and return 403."""
         from app.services import session_manager
+
         _inject_user(self.client)
         # Simulate server restart: remove the in-memory PIN
         session_manager._user_pins.pop("test123", None)
@@ -427,8 +432,6 @@ class TestLoginRequiredDirect(unittest.TestCase):
     """Direct unit test for @login_required decorator to hit lines 70-71."""
 
     def test_unauthenticated_via_decorator(self):
-        from app.middleware import login_required
-
         @login_required
         def dummy_view():
             return "ok"
@@ -442,10 +445,9 @@ class TestAppOnlyDirect(unittest.TestCase):
     """Direct unit test for @app_only decorator to hit line 99."""
 
     def test_non_app_request_via_decorator(self):
-        from app.middleware import app_only
         from app.config import app_config
 
-        app_config.features['allow_browser_api_access'] = False
+        app_config.features["allow_browser_api_access"] = False
 
         @app_only
         def dummy_view():
@@ -460,11 +462,11 @@ class TestProtectedApiDenyNonApp(unittest.TestCase):
     """Test protected_api rejects authenticated but non-app request (line 99)."""
 
     def test_authenticated_but_non_app_request(self):
-        from app.middleware import protected_api
-        from app.config import app_config
         from flask import session as flask_session
 
-        app_config.features['allow_browser_api_access'] = False
+        from app.config import app_config
+
+        app_config.features["allow_browser_api_access"] = False
 
         @protected_api
         def dummy_view():

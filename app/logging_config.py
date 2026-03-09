@@ -1,6 +1,5 @@
 import logging
 import time
-from typing import Optional
 
 # Shared logger for the project. Modules can import this `logger` to avoid
 # defining `logging.getLogger(__name__)` in every file. This logger uses a
@@ -15,7 +14,7 @@ class _UTCFormatter(logging.Formatter):
     converter = time.gmtime  # force UTC regardless of server timezone
 
 
-def configure(level: int = logging.INFO, fmt: Optional[str] = None) -> None:
+def configure(level: int = logging.INFO, fmt: str | None = None) -> None:
     """Configure root logging for the application.
 
     Call this once from the entry point (e.g., `server.main()`).
@@ -23,12 +22,10 @@ def configure(level: int = logging.INFO, fmt: Optional[str] = None) -> None:
     """
     if fmt is None:
         fmt = "%(asctime)s %(levelname)s %(name)s: %(message)s"
-    datefmt = "%Y-%m-%dT%H:%M:%S.%%03dZ"  # placeholder; msecs handled below
 
     # Build a UTC-aware formatter with millisecond precision
     formatter = _UTCFormatter(fmt=fmt, datefmt="%Y-%m-%dT%H:%M:%SZ")
     # Override formatTime to include milliseconds in ISO-8601 UTC
-    _orig_formatTime = formatter.formatTime
 
     def _utc_format_time(record, datefmt=None):
         ct = time.gmtime(record.created)
@@ -54,7 +51,7 @@ def configure(level: int = logging.INFO, fmt: Optional[str] = None) -> None:
     # by default; keep them at WARNING so normal request lines aren't logged
     # at INFO level unless the app or environment configures it otherwise.
     try:
-        logging.getLogger('werkzeug').setLevel(logging.WARNING)
+        logging.getLogger("werkzeug").setLevel(logging.WARNING)
     except Exception:
         # Non-critical; if werkzeug isn't available just continue
         pass

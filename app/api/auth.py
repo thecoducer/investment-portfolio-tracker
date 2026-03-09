@@ -1,6 +1,6 @@
 """Zerodha KiteConnect authentication and session management."""
 
-from typing import Any, Dict
+from typing import Any
 
 from kiteconnect import KiteConnect
 from requests.exceptions import ConnectionError, ReadTimeout
@@ -18,6 +18,7 @@ class AuthenticationManager:
         self.session_manager = session_manager
 
     def _validate_token(self, kite: KiteConnect, google_id: str, name: str) -> bool:
+        """Check if the current token is valid by calling the profile API."""
         try:
             kite.profile()
             return True
@@ -29,6 +30,7 @@ class AuthenticationManager:
             return False
 
     def _try_cached_token(self, kite: KiteConnect, google_id: str, name: str) -> bool:
+        """Try to authenticate using a cached, non-expired session token."""
         token = self.session_manager.get_token(google_id, name)
         if not token or not self.session_manager.is_valid(google_id, name):
             return False
@@ -37,11 +39,13 @@ class AuthenticationManager:
         return self._validate_token(kite, google_id, name)
 
     def _store_token(self, kite: KiteConnect, google_id: str, name: str, token: str) -> None:
+        """Store a new access token and persist it to Firestore."""
         kite.set_access_token(token)
         self.session_manager.set_token(google_id, name, token)
         self.session_manager.save(google_id)
 
     def _try_renew_token(self, kite: KiteConnect, google_id: str, name: str, api_secret: str) -> bool:
+        """Attempt to renew an expired token using Kite's renewal API."""
         old_token = self.session_manager.get_token(google_id, name)
         if not old_token:
             return False
@@ -59,7 +63,7 @@ class AuthenticationManager:
             logger.warning("Renewal failed for %s: %s", name, e)
             return False
 
-    def authenticate(self, account_config: Dict[str, Any]) -> KiteConnect:
+    def authenticate(self, account_config: dict[str, Any]) -> KiteConnect:
         """Return an authenticated KiteConnect instance.
 
         Tries cached token, then renewal. Raises RuntimeError if both fail.

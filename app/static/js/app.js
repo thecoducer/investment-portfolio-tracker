@@ -48,7 +48,7 @@ class PortfolioApp {
     } else {
       this._renderEmptyStates();
       this._hasInitialData = false;
-      Log.info('App', 'Cold start — waiting for SSE + fetch');
+      Log.info('App', 'Cold start — waiting for data fetch');
     }
 
     // Check if a security PIN is required before fetching data.

@@ -10,11 +10,11 @@ Development usage:
 """
 
 import signal
-import sys
 import threading
 import time
 
 from dotenv import load_dotenv
+
 load_dotenv()  # read .env into os.environ before any config is accessed
 
 from flask import Flask
@@ -28,6 +28,7 @@ from .routes import app_ui
 # SERVER MANAGEMENT
 # --------------------------
 
+
 def start_server(app: Flask, host: str, port: int) -> threading.Thread:
     """Start a Flask application in a background daemon thread.
 
@@ -39,6 +40,7 @@ def start_server(app: Flask, host: str, port: int) -> threading.Thread:
     Returns:
         Thread running the Flask server.
     """
+
     def _run_server():
         app.run(host=host, port=port, debug=False, use_reloader=False)
 

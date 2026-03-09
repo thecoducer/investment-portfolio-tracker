@@ -1,16 +1,21 @@
 """
 Unit tests for api/google_auth.py — OAuth flow helpers.
 """
+
 import json
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from app.api.google_auth import (
-    _get_client_config, build_oauth_flow,
-    exchange_code_for_credentials, credentials_from_dict,
-    credentials_to_dict, get_user_info, USER_SCOPES,
+    USER_SCOPES,
+    _get_client_config,
+    build_oauth_flow,
+    credentials_from_dict,
+    credentials_to_dict,
+    exchange_code_for_credentials,
+    get_user_info,
 )
 
 
@@ -28,24 +33,24 @@ class TestGetClientConfig(unittest.TestCase):
     @patch.dict(os.environ, {}, clear=True)
     def test_from_local_file(self):
         config_data = {"web": {"client_id": "local_id"}}
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(config_data, f)
             f.flush()
-            with patch('app.api.google_auth._LOCAL_CLIENT_SECRETS', f.name):
+            with patch("app.api.google_auth._LOCAL_CLIENT_SECRETS", f.name):
                 result = _get_client_config()
                 self.assertEqual(result, config_data)
             os.unlink(f.name)
 
     @patch.dict(os.environ, {}, clear=True)
-    @patch('os.path.exists', return_value=False)
+    @patch("os.path.exists", return_value=False)
     def test_no_config_raises(self, mock_exists):
         with self.assertRaises(FileNotFoundError):
             _get_client_config()
 
 
 class TestBuildOAuthFlow(unittest.TestCase):
-    @patch('app.api.google_auth._get_client_config')
-    @patch('app.api.google_auth.Flow.from_client_config')
+    @patch("app.api.google_auth._get_client_config")
+    @patch("app.api.google_auth.Flow.from_client_config")
     def test_build_flow(self, mock_from_config, mock_get_config):
         mock_get_config.return_value = {"web": {"client_id": "id"}}
         mock_flow = Mock()
@@ -62,7 +67,7 @@ class TestBuildOAuthFlow(unittest.TestCase):
 
 
 class TestExchangeCodeForCredentials(unittest.TestCase):
-    @patch('app.api.google_auth.build_oauth_flow')
+    @patch("app.api.google_auth.build_oauth_flow")
     def test_exchange(self, mock_build):
         mock_flow = Mock()
         mock_flow.credentials = Mock()
@@ -125,12 +130,15 @@ class TestCredentialsToDict(unittest.TestCase):
 
 
 class TestGetUserInfo(unittest.TestCase):
-    @patch('googleapiclient.discovery.build')
+    @patch("googleapiclient.discovery.build")
     def test_fetches_user_info(self, mock_build):
         mock_service = Mock()
         mock_build.return_value = mock_service
         mock_service.userinfo.return_value.get.return_value.execute.return_value = {
-            "id": "123", "email": "test@test.com", "name": "Test", "picture": "pic.jpg"
+            "id": "123",
+            "email": "test@test.com",
+            "name": "Test",
+            "picture": "pic.jpg",
         }
 
         creds = Mock()
@@ -141,5 +149,5 @@ class TestGetUserInfo(unittest.TestCase):
         self.assertEqual(result["email"], "test@test.com")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

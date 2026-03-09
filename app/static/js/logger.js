@@ -7,12 +7,12 @@
  *  - error()  → console.error  (always visible — real errors only)
  *  - time()/timeEnd() → lightweight timing helpers
  *
- * All messages are prefixed with a tag, e.g. [SSE], [Data], [PIN], [Auth].
+ * All messages are prefixed with a tag, e.g. [Data], [PIN], [Auth].
  * Timestamps are added automatically.
  *
  * Usage:
  *   import { Log } from './logger.js';
- *   Log.debug('SSE', 'Connection established');
+ *   Log.debug('Data', 'Fetch started');
  *   Log.warn('Auth', 'Session expired');
  *   Log.time('Data', 'allDataFetch');
  *   // ... fetch ...
@@ -28,7 +28,7 @@ function _ts() {
 const Log = Object.freeze({
   /**
    * Verbose debug — hidden in production DevTools by default.
-   * @param {string} tag  Category tag (e.g. 'SSE', 'Data', 'PIN')
+   * @param {string} tag  Category tag (e.g. 'Data', 'PIN')
    * @param {...any} args  Message parts
    */
   debug(tag, ...args) {

@@ -1,0 +1,31 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long — handled by formatter
+    "E402",  # module-import-not-at-top — intentional lazy imports to avoid circular deps
+    "B007",  # unused-loop-control-variable — tuple unpacking often leaves vars unused
+    "B017",  # assert-raises-exception — acceptable in test patterns
+    "B904",  # raise-without-from — original_error is passed via constructor instead
+    "B905",  # zip-without-strict — not needed for this codebase
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short -q"

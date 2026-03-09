@@ -1,14 +1,27 @@
 """
 Unit tests for api/user_sheets.py — sheet templates, configs, and creation.
 """
+
 import unittest
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch
 
 from app.api.user_sheets import (
-    GOLD_SHEET_NAME, GOLD_HEADERS, FD_SHEET_NAME, FD_HEADERS,
-    STOCKS_SHEET_NAME, STOCKS_HEADERS, ETFS_SHEET_NAME, ETFS_HEADERS,
-    MF_SHEET_NAME, MF_HEADERS, SIPS_SHEET_NAME, SIPS_HEADERS,
-    SHEET_CONFIGS, ALL_SHEETS, create_portfolio_sheet, _format_headers,
+    ALL_SHEETS,
+    ETFS_HEADERS,
+    ETFS_SHEET_NAME,
+    FD_HEADERS,
+    FD_SHEET_NAME,
+    GOLD_HEADERS,
+    GOLD_SHEET_NAME,
+    MF_HEADERS,
+    MF_SHEET_NAME,
+    SHEET_CONFIGS,
+    SIPS_HEADERS,
+    SIPS_SHEET_NAME,
+    STOCKS_HEADERS,
+    STOCKS_SHEET_NAME,
+    _format_headers,
+    create_portfolio_sheet,
 )
 
 
@@ -51,8 +64,7 @@ class TestSheetConfigs(unittest.TestCase):
 
     def test_fields_count_matches_headers(self):
         for stype, cfg in SHEET_CONFIGS.items():
-            self.assertEqual(len(cfg["fields"]), len(cfg["headers"]),
-                             f"{stype}: fields count != headers count")
+            self.assertEqual(len(cfg["fields"]), len(cfg["headers"]), f"{stype}: fields count != headers count")
 
 
 class TestAllSheets(unittest.TestCase):
@@ -65,8 +77,8 @@ class TestAllSheets(unittest.TestCase):
 
 
 class TestCreatePortfolioSheet(unittest.TestCase):
-    @patch('app.api.user_sheets._format_headers')
-    @patch('app.api.user_sheets.google_build')
+    @patch("app.api.user_sheets._format_headers")
+    @patch("app.api.user_sheets.google_build")
     def test_create_and_populate(self, mock_build, mock_format):
         mock_service = Mock()
         mock_build.return_value = mock_service
@@ -89,8 +101,8 @@ class TestCreatePortfolioSheet(unittest.TestCase):
         mock_service.spreadsheets.return_value.create.assert_called_once()
         mock_format.assert_called_once()
 
-    @patch('app.api.user_sheets._format_headers')
-    @patch('app.api.user_sheets.google_build')
+    @patch("app.api.user_sheets._format_headers")
+    @patch("app.api.user_sheets.google_build")
     def test_default_title(self, mock_build, mock_format):
         mock_service = Mock()
         mock_build.return_value = mock_service
@@ -147,5 +159,5 @@ class TestFormatHeaders(unittest.TestCase):
         mock_service.spreadsheets.return_value.batchUpdate.assert_not_called()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,11 +1,11 @@
 """
 Google Sheets API client for fetching portfolio data.
 """
-from typing import Any, Dict, List
+
+from typing import Any
 
 from ..constants import GOOGLE_SHEETS_TIMEOUT
-from ..error_handler import (APIError, DataError, ErrorHandler, NetworkError,
-                             retry_on_transient_error)
+from ..error_handler import APIError, DataError, ErrorHandler, NetworkError, retry_on_transient_error
 from ..logging_config import logger
 
 try:
@@ -13,10 +13,18 @@ try:
     from google_auth_httplib2 import AuthorizedHttp
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
+
     GOOGLE_SHEETS_AVAILABLE = True
 except ImportError:  # pragma: no cover
     GOOGLE_SHEETS_AVAILABLE = False  # pragma: no cover
-    logger.warning("Google Sheets API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")  # pragma: no cover
+    logger.warning(
+        "Google Sheets API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client"
+    )  # pragma: no cover
+
+
+def is_blank_row(row: list) -> bool:
+    """Return True if a sheet row is empty or contains only whitespace."""
+    return not row or all(not v or str(v).strip() == "" for v in row)
 
 
 class GoogleSheetsClient:
@@ -25,149 +33,158 @@ class GoogleSheetsClient:
     Authenticates using per-user OAuth credentials obtained from the
     Google sign-in flow.
     """
-    
+
     TIMEOUT_SECONDS = GOOGLE_SHEETS_TIMEOUT
-    
+
     def __init__(self, user_credentials: Any = None):
         """Initialize Google Sheets client.
-        
+
         Args:
             user_credentials: A google.oauth2.credentials.Credentials object
                               obtained from the per-user OAuth flow.
         """
         if not GOOGLE_SHEETS_AVAILABLE:
             raise ImportError("Google Sheets libraries not installed")
-        
+
         if not user_credentials:
             raise ValueError("user_credentials is required")
-            
+
         self._user_credentials = user_credentials
         self.credentials = None
         self.service = None
         self._is_authenticated = False
-    
+
     def authenticate(self) -> bool:
         """Authenticate with Google Sheets API (cached for connection pooling)."""
         if self._is_authenticated and self.service:
             return True
-        
+
         try:
             self.credentials = self._user_credentials
-            
+
             http = httplib2.Http(timeout=self.TIMEOUT_SECONDS, cache=None)
-            self.service = build('sheets', 'v4', 
-                                http=AuthorizedHttp(self.credentials, http=http), 
-                                cache_discovery=False)
+            self.service = build(
+                "sheets", "v4", http=AuthorizedHttp(self.credentials, http=http), cache_discovery=False
+            )
             self._is_authenticated = True
             logger.info("Successfully authenticated with Google Sheets API")
             return True
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to authenticate with Google Sheets")
             raise
-    
-    def fetch_sheet_data(self, spreadsheet_id: str, range_name: str,
-                         max_retries: int = 2) -> List[List[Any]]:
+
+    def fetch_sheet_data(self, spreadsheet_id: str, range_name: str, max_retries: int = 2) -> list[list[Any]]:
         """Fetch data from Google Sheet with retry logic."""
         self.authenticate()
-        
+
         @retry_on_transient_error(max_retries=max_retries, delay=1.0)
         def _fetch():
             return self._fetch_sheet_data_impl(spreadsheet_id, range_name)
-        
+
         try:
             return _fetch()
         except Exception as e:
             ErrorHandler.log_error(e, context=f"Fetching Google Sheets range {range_name}")
             raise
-    
-    def _fetch_sheet_data_impl(self, spreadsheet_id: str, range_name: str) -> List[List[Any]]:
+
+    def _fetch_sheet_data_impl(self, spreadsheet_id: str, range_name: str) -> list[list[Any]]:
+        """Execute the Sheets API values.get call and return raw row data."""
         try:
-            result = self.service.spreadsheets().values().get(
-                spreadsheetId=spreadsheet_id, range=range_name,
-                valueRenderOption='FORMATTED_VALUE').execute()
-            values = result.get('values', [])
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .get(spreadsheetId=spreadsheet_id, range=range_name, valueRenderOption="FORMATTED_VALUE")
+                .execute()
+            )
+            values = result.get("values", [])
             logger.info("Fetched %d rows from Google Sheets range %s", len(values), range_name)
             return values
         except HttpError as e:
-            status = e.resp.status if hasattr(e, 'resp') else None
+            status = e.resp.status if hasattr(e, "resp") else None
             error_type = "transient error" if status and status >= 500 else "error"
             raise APIError(f"Google Sheets API {error_type}", status_code=status, original_error=e)
         except OSError as e:
             if e.errno == 49:
                 logger.warning("Network port exhaustion - usually temporary")
             raise NetworkError(f"Network connection error: {e}", original_error=e)
-        except Exception as e:
+        except Exception:
             logger.exception("Unexpected error fetching Google Sheets data")
             raise
-    
-    def fetch_sheet_data_until_blank(self, spreadsheet_id: str, sheet_name: str,
-                                      max_rows: int = 1000, max_retries: int = 2) -> List[List[Any]]:
+
+    def fetch_sheet_data_until_blank(
+        self, spreadsheet_id: str, sheet_name: str, max_rows: int = 1000, max_retries: int = 2
+    ) -> list[list[Any]]:
         """Fetch data from sheet, trimming at first completely empty row."""
         raw_data = self.fetch_sheet_data(spreadsheet_id, f"{sheet_name}!A1:Z{max_rows}", max_retries)
-        
+
         if not raw_data or len(raw_data) < 2:
             return raw_data
-        
+
         trimmed_data = [raw_data[0]]
         for row in raw_data[1:]:
-            if not row or all(not v or str(v).strip() == '' for v in row):
+            if is_blank_row(row):
                 break
             trimmed_data.append(row)
-        
+
         logger.info("Fetched and trimmed to %d rows", len(trimmed_data))
         return trimmed_data
-    
-    def batch_fetch_sheet_data(self, spreadsheet_id: str, ranges: List[str],
-                               max_retries: int = 2) -> Dict[str, List[List[Any]]]:
+
+    def batch_fetch_sheet_data(
+        self, spreadsheet_id: str, ranges: list[str], max_retries: int = 2
+    ) -> dict[str, list[list[Any]]]:
         """Fetch multiple ranges in a single batch request."""
         self.authenticate()
-        
+
         @retry_on_transient_error(max_retries=max_retries, delay=1.0)
         def _batch_fetch():
             return self._batch_fetch_impl(spreadsheet_id, ranges)
-        
+
         try:
             return _batch_fetch()
         except Exception as e:
             ErrorHandler.log_error(e, context=f"Batch fetching ranges: {ranges}")
             raise
-    
-    def _batch_fetch_impl(self, spreadsheet_id: str, ranges: List[str]) -> Dict[str, List[List[Any]]]:
+
+    def _batch_fetch_impl(self, spreadsheet_id: str, ranges: list[str]) -> dict[str, list[list[Any]]]:
+        """Execute the Sheets API values.batchGet call and key results by input range."""
         try:
-            result = self.service.spreadsheets().values().batchGet(
-                spreadsheetId=spreadsheet_id, ranges=ranges,
-                valueRenderOption='FORMATTED_VALUE').execute()
-            
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .batchGet(spreadsheetId=spreadsheet_id, ranges=ranges, valueRenderOption="FORMATTED_VALUE")
+                .execute()
+            )
+
             # Key results by the input range names (using index-based
             # matching — the API guarantees valueRanges order matches
             # the input ranges order).  This avoids mismatches caused
             # by the API quoting/normalising range strings.
-            value_ranges = result.get('valueRanges', [])
+            value_ranges = result.get("valueRanges", [])
             batch_data = {}
             for i, input_range in enumerate(ranges):
-                values = value_ranges[i].get('values', []) if i < len(value_ranges) else []
+                values = value_ranges[i].get("values", []) if i < len(value_ranges) else []
                 batch_data[input_range] = values
                 logger.info("Batch fetched %d rows from range %s", len(values), input_range)
             return batch_data
         except HttpError as e:
-            status = e.resp.status if hasattr(e, 'resp') else None
+            status = e.resp.status if hasattr(e, "resp") else None
             error_type = "transient error" if status and status >= 500 else "error"
             raise APIError(f"Google Sheets API {error_type}", status_code=status, original_error=e)
         except OSError as e:
             if e.errno == 49:
                 logger.warning("Network port exhaustion - usually temporary")
             raise NetworkError(f"Network connection error: {e}", original_error=e)
-        except Exception as e:
+        except Exception:
             logger.exception("Unexpected error batch fetching Google Sheets data")
             raise
-    
+
     def batch_fetch_sheet_data_until_blank(
         self,
         spreadsheet_id: str,
-        sheet_names: List[str],
+        sheet_names: list[str],
         max_rows: int = 1000,
         max_retries: int = 2,
-    ) -> Dict[str, List[List[Any]]]:
+    ) -> dict[str, list[list[Any]]]:
         """Fetch multiple sheets in one batchGet, trimming each at the first blank row.
 
         Returns a dict keyed by sheet name → list of rows (including header).
@@ -175,7 +192,7 @@ class GoogleSheetsClient:
         ranges = [f"{name}!A1:Z{max_rows}" for name in sheet_names]
         raw_batch = self.batch_fetch_sheet_data(spreadsheet_id, ranges, max_retries)
 
-        trimmed: Dict[str, List[List[Any]]] = {}
+        trimmed: dict[str, list[list[Any]]] = {}
         for name, range_key in zip(sheet_names, ranges):
             raw_data = raw_batch.get(range_key, [])
             if not raw_data or len(raw_data) < 2:
@@ -183,65 +200,74 @@ class GoogleSheetsClient:
                 continue
             rows = [raw_data[0]]
             for row in raw_data[1:]:
-                if not row or all(not v or str(v).strip() == '' for v in row):
+                if is_blank_row(row):
                     break
                 rows.append(row)
             trimmed[name] = rows
         return trimmed
 
     @staticmethod
+    def is_blank_row(row: list) -> bool:
+        """Return True if a sheet row is empty or contains only whitespace."""
+        return is_blank_row(row)
+
+    @staticmethod
     def parse_number(value: Any) -> float:
         """Parse cell value to float, handling various formats."""
-        if not value or value == '':
+        if not value or value == "":
             return 0.0
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return float(value)
         if isinstance(value, str):
             try:
-                cleaned = value.strip().translate(str.maketrans('', '', '₹,%s '))
+                cleaned = value.strip().translate(str.maketrans("", "", "₹,%s "))
                 return float(cleaned)
             except (ValueError, AttributeError):
                 return 0.0
         return 0.0
-    
+
     @staticmethod
     def parse_yes_no(value: Any) -> bool:
         """Parse cell value to boolean for Yes/No fields."""
-        return isinstance(value, str) and value.strip().lower() in ('yes', 'y', 'true', '1')
+        return isinstance(value, str) and value.strip().lower() in ("yes", "y", "true", "1")
 
     # ── Write operations for CRUD ─────────────────────────────────
 
-    def append_row(self, spreadsheet_id: str, sheet_name: str,
-                   values: List[Any]) -> int:
+    def append_row(self, spreadsheet_id: str, sheet_name: str, values: list[Any]) -> int:
         """Append a single row to the end of a sheet.
 
         Returns the 1-based row number of the newly appended row.
         """
         self.authenticate()
         try:
-            result = self.service.spreadsheets().values().append(
-                spreadsheetId=spreadsheet_id,
-                range=f"{sheet_name}!A:Z",
-                valueInputOption="RAW",
-                insertDataOption="INSERT_ROWS",
-                body={"values": [values]},
-            ).execute()
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .append(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"{sheet_name}!A:Z",
+                    valueInputOption="RAW",
+                    insertDataOption="INSERT_ROWS",
+                    body={"values": [values]},
+                )
+                .execute()
+            )
             # Parse row number from updatedRange, e.g. "Gold!A8:F8" → 8
             updated_range = result.get("updates", {}).get("updatedRange", "")
             import re
-            m = re.search(r'(\d+)', updated_range.split("!")[-1])
+
+            m = re.search(r"(\d+)", updated_range.split("!")[-1])
             row_num = int(m.group(1)) if m else -1
             logger.info("Appended row %d to %s", row_num, sheet_name)
             return row_num
-        except Exception as e:
+        except Exception:
             logger.exception("Error appending row to %s", sheet_name)
             raise
 
-    def update_row(self, spreadsheet_id: str, sheet_name: str,
-                   row_number: int, values: List[Any]) -> None:
+    def update_row(self, spreadsheet_id: str, sheet_name: str, row_number: int, values: list[Any]) -> None:
         """Overwrite a specific row (1-based) with new values."""
         self.authenticate()
-        col_end = chr(ord('A') + len(values) - 1)
+        col_end = chr(ord("A") + len(values) - 1)
         range_str = f"{sheet_name}!A{row_number}:{col_end}{row_number}"
         try:
             self.service.spreadsheets().values().update(
@@ -251,12 +277,11 @@ class GoogleSheetsClient:
                 body={"values": [values]},
             ).execute()
             logger.info("Updated row %d in %s", row_number, sheet_name)
-        except Exception as e:
+        except Exception:
             logger.exception("Error updating row %d in %s", row_number, sheet_name)
             raise
 
-    def delete_row(self, spreadsheet_id: str, sheet_name: str,
-                   row_number: int) -> None:
+    def delete_row(self, spreadsheet_id: str, sheet_name: str, row_number: int) -> None:
         """Delete a specific row (1-based) from a sheet."""
         self.authenticate()
         # Need the internal sheetId for batchUpdate
@@ -264,52 +289,68 @@ class GoogleSheetsClient:
         try:
             self.service.spreadsheets().batchUpdate(
                 spreadsheetId=spreadsheet_id,
-                body={"requests": [{
-                    "deleteDimension": {
-                        "range": {
-                            "sheetId": sheet_id,
-                            "dimension": "ROWS",
-                            "startIndex": row_number - 1,  # 0-based
-                            "endIndex": row_number,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": "ROWS",
+                                    "startIndex": row_number - 1,  # 0-based
+                                    "endIndex": row_number,
+                                }
+                            }
                         }
-                    }
-                }]},
+                    ]
+                },
             ).execute()
             logger.info("Deleted row %d from %s", row_number, sheet_name)
-        except Exception as e:
+        except Exception:
             logger.exception("Error deleting row %d from %s", row_number, sheet_name)
             raise
 
     def _get_sheet_id(self, spreadsheet_id: str, sheet_name: str) -> int:
         """Return the internal numeric sheetId for a named tab."""
-        meta = self.service.spreadsheets().get(
-            spreadsheetId=spreadsheet_id,
-            fields="sheets.properties",
-        ).execute()
+        meta = (
+            self.service.spreadsheets()
+            .get(
+                spreadsheetId=spreadsheet_id,
+                fields="sheets.properties",
+            )
+            .execute()
+        )
         for s in meta.get("sheets", []):
             if s["properties"]["title"] == sheet_name:
                 return s["properties"]["sheetId"]
         raise ValueError(f"Sheet tab '{sheet_name}' not found")
 
-    def ensure_sheet_tab(self, spreadsheet_id: str, sheet_name: str,
-                         headers: List[str]) -> None:
+    def ensure_sheet_tab(self, spreadsheet_id: str, sheet_name: str, headers: list[str]) -> None:
         """Create the tab with header row if it does not already exist.
         If the tab exists but has fewer headers than expected, update the
         header row so new columns are visible to the user."""
         self.authenticate()
         try:
-            meta = self.service.spreadsheets().get(
-                spreadsheetId=spreadsheet_id,
-                fields="sheets.properties.title",
-            ).execute()
+            meta = (
+                self.service.spreadsheets()
+                .get(
+                    spreadsheetId=spreadsheet_id,
+                    fields="sheets.properties.title",
+                )
+                .execute()
+            )
             existing = {s["properties"]["title"] for s in meta.get("sheets", [])}
             if sheet_name in existing:
                 # Check whether the header row needs new columns
                 try:
-                    result = self.service.spreadsheets().values().get(
-                        spreadsheetId=spreadsheet_id,
-                        range=f"{sheet_name}!1:1",
-                    ).execute()
+                    result = (
+                        self.service.spreadsheets()
+                        .values()
+                        .get(
+                            spreadsheetId=spreadsheet_id,
+                            range=f"{sheet_name}!1:1",
+                        )
+                        .execute()
+                    )
                     current = result.get("values", [[]])[0]
                     if len(current) < len(headers):
                         self.service.spreadsheets().values().update(
@@ -318,22 +359,27 @@ class GoogleSheetsClient:
                             valueInputOption="USER_ENTERED",
                             body={"values": [headers]},
                         ).execute()
-                        logger.info("Updated headers for sheet '%s' (%d → %d columns)",
-                                    sheet_name, len(current), len(headers))
+                        logger.info(
+                            "Updated headers for sheet '%s' (%d → %d columns)", sheet_name, len(current), len(headers)
+                        )
                 except Exception:
                     logger.debug("Could not check/update headers for '%s'", sheet_name)
                 return
 
             self.service.spreadsheets().batchUpdate(
                 spreadsheetId=spreadsheet_id,
-                body={"requests": [{
-                    "addSheet": {
-                        "properties": {
-                            "title": sheet_name,
-                            "gridProperties": {"frozenRowCount": 1},
+                body={
+                    "requests": [
+                        {
+                            "addSheet": {
+                                "properties": {
+                                    "title": sheet_name,
+                                    "gridProperties": {"frozenRowCount": 1},
+                                }
+                            }
                         }
-                    }
-                }]},
+                    ]
+                },
             ).execute()
 
             self.service.spreadsheets().values().update(
@@ -343,7 +389,7 @@ class GoogleSheetsClient:
                 body={"values": [headers]},
             ).execute()
             logger.info("Created sheet tab '%s' with headers", sheet_name)
-        except Exception as e:
+        except Exception:
             logger.exception("Error ensuring sheet tab '%s'", sheet_name)
             raise
 
@@ -358,7 +404,7 @@ class GoogleSheetsService:
         self.client = google_sheets_client
 
     @staticmethod
-    def _safe_get(row: List[Any], index: int, default: Any = '', parser=None) -> Any:
+    def _safe_get(row: list[Any], index: int, default: Any = "", parser=None) -> Any:
         """Safely get a cell value from a row with optional parsing.
 
         Args:
@@ -374,7 +420,7 @@ class GoogleSheetsService:
             return default
         return parser(row[index]) if parser else row[index]
 
-    def _parse_row(self, row: List[Any], idx: int) -> Dict[str, Any]:
+    def _parse_row(self, row: list[Any], idx: int) -> dict[str, Any]:
         """Parse a single row. Subclasses must override this."""
         raise NotImplementedError
 
@@ -382,7 +428,7 @@ class GoogleSheetsService:
         self,
         spreadsheet_id: str,
         range_name: str,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch sheet data and parse rows using the subclass parser.
 
         Args:
@@ -410,19 +456,19 @@ class GoogleSheetsService:
         logger.info("Parsed %d %s", len(items), self.entity_name)
         return items
 
-    def _fetch_and_parse_until_blank(self, spreadsheet_id: str, sheet_name: str) -> List[Dict[str, Any]]:
+    def _fetch_and_parse_until_blank(self, spreadsheet_id: str, sheet_name: str) -> list[dict[str, Any]]:
         """Fetch and parse sheet data until blank row."""
         raw_data = self.client.fetch_sheet_data_until_blank(spreadsheet_id, sheet_name)
         return self._parse_rows(raw_data)
 
-    def _parse_rows(self, raw_data: List[List[Any]]) -> List[Dict[str, Any]]:
+    def _parse_rows(self, raw_data: list[list[Any]]) -> list[dict[str, Any]]:
         """Trim empty rows and parse data."""
         if not raw_data or len(raw_data) < 2:
             return []
 
         trimmed_data = [raw_data[0]]
         for row in raw_data[1:]:
-            if not row or all(not v or str(v).strip() == '' for v in row):
+            if is_blank_row(row):
                 break
             trimmed_data.append(row)
 
@@ -436,7 +482,7 @@ class GoogleSheetsService:
                 logger.warning("Error parsing %s row %d: %s", self.entity_name, idx, e)
         return items
 
-    def _parse_batch_data(self, raw_data: List[List[Any]]) -> List[Dict[str, Any]]:
+    def _parse_batch_data(self, raw_data: list[list[Any]]) -> list[dict[str, Any]]:
         """Parse batch-fetched sheet data, trimming at first empty row."""
         return self._parse_rows(raw_data)
 
@@ -444,53 +490,55 @@ class GoogleSheetsService:
 class PhysicalGoldService(GoogleSheetsService):
     entity_name = "physical gold holdings"
 
-    def fetch_holdings(self, spreadsheet_id: str, range_name: str = 'Sheet1!A:F') -> List[Dict[str, Any]]:
+    def fetch_holdings(self, spreadsheet_id: str, range_name: str = "Sheet1!A:F") -> list[dict[str, Any]]:
         """Fetch physical gold holdings from Google Sheets."""
-        sheet_name = range_name.split('!')[0] if '!' in range_name else range_name
+        sheet_name = range_name.split("!")[0] if "!" in range_name else range_name
         return self._fetch_and_parse_until_blank(spreadsheet_id, sheet_name)
 
-    def _parse_row(self, row: List[Any], idx: int) -> Dict[str, Any]:
+    def _parse_row(self, row: list[Any], idx: int) -> dict[str, Any]:
+        """Parse a single gold holding row: date, type, outlet, purity, weight, rate."""
         g = self._safe_get
         p = GoogleSheetsClient.parse_number
         return {
-            'date': g(row, 0),
-            'type': g(row, 1),
-            'retail_outlet': g(row, 2),
-            'purity': g(row, 3),
-            'weight_gms': g(row, 4, 0, p),
-            'bought_ibja_rate_per_gm': g(row, 5, 0, p),
-            'row_number': idx,
+            "date": g(row, 0),
+            "type": g(row, 1),
+            "retail_outlet": g(row, 2),
+            "purity": g(row, 3),
+            "weight_gms": g(row, 4, 0, p),
+            "bought_ibja_rate_per_gm": g(row, 5, 0, p),
+            "row_number": idx,
         }
 
 
 class FixedDepositsService(GoogleSheetsService):
     entity_name = "fixed deposits"
 
-    def fetch_deposits(self, spreadsheet_id: str, range_name: str = 'FixedDeposits!A:K') -> List[Dict[str, Any]]:
+    def fetch_deposits(self, spreadsheet_id: str, range_name: str = "FixedDeposits!A:K") -> list[dict[str, Any]]:
         """Fetch fixed deposits from Google Sheets."""
-        sheet_name = range_name.split('!')[0] if '!' in range_name else range_name
+        sheet_name = range_name.split("!")[0] if "!" in range_name else range_name
         return self._fetch_and_parse_until_blank(spreadsheet_id, sheet_name)
 
-    def _parse_row(self, row: List[Any], idx: int) -> Dict[str, Any]:
+    def _parse_row(self, row: list[Any], idx: int) -> dict[str, Any]:
+        """Parse a single FD row: dates, bank, tenure, amounts, rate, account."""
         g = self._safe_get
         p = GoogleSheetsClient.parse_number
 
         deposit = {
-            'original_investment_date': g(row, 0),
-            'reinvested_date': g(row, 1),
-            'bank_name': g(row, 2),
-            'deposit_year': g(row, 3, 0, p),
-            'deposit_month': g(row, 4, 0, p),
-            'deposit_day': g(row, 5, 0, p),
-            'original_amount': g(row, 6, 0, p),
-            'reinvested_amount': g(row, 7, 0, p),
-            'interest_rate': g(row, 8, 0, p),
-            'account': g(row, 9),
-            'row_number': idx,
+            "original_investment_date": g(row, 0),
+            "reinvested_date": g(row, 1),
+            "bank_name": g(row, 2),
+            "deposit_year": g(row, 3, 0, p),
+            "deposit_month": g(row, 4, 0, p),
+            "deposit_day": g(row, 5, 0, p),
+            "original_amount": g(row, 6, 0, p),
+            "reinvested_amount": g(row, 7, 0, p),
+            "interest_rate": g(row, 8, 0, p),
+            "account": g(row, 9),
+            "row_number": idx,
         }
-        if not deposit['bank_name']:
+        if not deposit["bank_name"]:
             raise DataError("Missing bank name in fixed deposit row")
-        if deposit['interest_rate'] <= 0:
+        if deposit["interest_rate"] <= 0:
             raise DataError(f"Invalid interest rate for deposit at {deposit['bank_name']}")
         return deposit
 
@@ -498,31 +546,32 @@ class FixedDepositsService(GoogleSheetsService):
 class ProvidentFundService(GoogleSheetsService):
     entity_name = "provident fund entries"
 
-    def fetch_entries(self, spreadsheet_id: str, range_name: str = 'ProvidentFund!A:G') -> List[Dict[str, Any]]:
+    def fetch_entries(self, spreadsheet_id: str, range_name: str = "ProvidentFund!A:G") -> list[dict[str, Any]]:
         """Fetch provident fund entries from Google Sheets."""
-        sheet_name = range_name.split('!')[0] if '!' in range_name else range_name
+        sheet_name = range_name.split("!")[0] if "!" in range_name else range_name
         return self._fetch_and_parse_until_blank(spreadsheet_id, sheet_name)
 
-    def _parse_row(self, row: List[Any], idx: int) -> Dict[str, Any]:
+    def _parse_row(self, row: list[Any], idx: int) -> dict[str, Any]:
+        """Parse a single PF row: company, dates, contribution, rate, balances."""
         g = self._safe_get
         p = GoogleSheetsClient.parse_number
         entry = {
-            'company_name': g(row, 0),
-            'start_date': g(row, 1),
-            'end_date': g(row, 2),
-            'monthly_contribution': g(row, 3, 0, p),
-            'interest_rate': g(row, 4, 0, p),
-            'opening_balance': g(row, 5, 0, p),
-            'actual_contribution': g(row, 6, 0, p),
-            'row_number': idx,
+            "company_name": g(row, 0),
+            "start_date": g(row, 1),
+            "end_date": g(row, 2),
+            "monthly_contribution": g(row, 3, 0, p),
+            "interest_rate": g(row, 4, 0, p),
+            "opening_balance": g(row, 5, 0, p),
+            "actual_contribution": g(row, 6, 0, p),
+            "row_number": idx,
         }
-        if not entry['company_name']:
+        if not entry["company_name"]:
             raise DataError("Missing company name in provident fund row")
         # Past employer entries: opening_balance > 0, monthly_contribution = 0
-        if entry['opening_balance'] > 0 and entry['monthly_contribution'] <= 0:
+        if entry["opening_balance"] > 0 and entry["monthly_contribution"] <= 0:
             pass  # valid past employer entry
-        elif entry['monthly_contribution'] <= 0:
+        elif entry["monthly_contribution"] <= 0:
             raise DataError(f"Invalid monthly contribution for {entry['company_name']}")
-        if entry['interest_rate'] < 0:
+        if entry["interest_rate"] < 0:
             raise DataError(f"Invalid interest rate for {entry['company_name']}")
         return entry

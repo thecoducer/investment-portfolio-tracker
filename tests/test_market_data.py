@@ -1,11 +1,10 @@
 """Unit tests for app.api.market_data – MarketDataClient."""
-import time
-import unittest
-from unittest.mock import Mock, patch, MagicMock
-import threading
 
-import requests
-from requests.exceptions import ConnectionError, Timeout, RequestException
+import threading
+import unittest
+from unittest.mock import Mock, patch
+
+from requests.exceptions import ConnectionError, RequestException, Timeout
 
 from app.api.market_data import MarketDataClient
 
@@ -56,9 +55,7 @@ class TestFetchNifty50Symbols(unittest.TestCase):
         mock_sess = Mock()
         mock_resp = Mock()
         mock_resp.status_code = 200
-        mock_resp.json.return_value = {
-            "data": [{"symbol": "NIFTY 50"}, {"symbol": "INFY"}, {"symbol": "TCS"}]
-        }
+        mock_resp.json.return_value = {"data": [{"symbol": "NIFTY 50"}, {"symbol": "INFY"}, {"symbol": "TCS"}]}
         mock_sess.get.return_value = mock_resp
         mock_create.return_value = mock_sess
 
@@ -130,14 +127,18 @@ class TestFetchStockQuote(unittest.TestCase):
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
             "chart": {
-                "result": [{
-                    "meta": {
-                        "regularMarketPrice": 1500,
-                        "previousClose": 1490,
-                        "shortName": "Infosys",
-                    },
-                    "indicators": {"quote": [{"open": [1490.0], "high": [1510.0], "low": [1480.0], "close": [1500.0]}]}
-                }]
+                "result": [
+                    {
+                        "meta": {
+                            "regularMarketPrice": 1500,
+                            "previousClose": 1490,
+                            "shortName": "Infosys",
+                        },
+                        "indicators": {
+                            "quote": [{"open": [1490.0], "high": [1510.0], "low": [1480.0], "close": [1500.0]}]
+                        },
+                    }
+                ]
             }
         }
         mock_get.return_value = mock_resp
@@ -204,7 +205,7 @@ class TestFetchStockQuote(unittest.TestCase):
         mock_logger.error.assert_called()
         error_call = mock_logger.error.call_args
         self.assertIn("Unexpected error", error_call[0][0])
-        self.assertTrue(error_call[1].get('exc_info'))
+        self.assertTrue(error_call[1].get("exc_info"))
 
     @patch("app.api.market_data.logger")
     @patch("app.api.market_data.time.sleep")
@@ -213,7 +214,9 @@ class TestFetchStockQuote(unittest.TestCase):
         rate_resp = Mock(status_code=429)
         ok_resp = Mock(status_code=200)
         ok_resp.json.return_value = {
-            "chart": {"result": [{"meta": {"regularMarketPrice": 100, "previousClose": 95}, "indicators": {"quote": [{}]}}]}
+            "chart": {
+                "result": [{"meta": {"regularMarketPrice": 100, "previousClose": 95}, "indicators": {"quote": [{}]}}]
+            }
         }
         mock_get.side_effect = [rate_resp, ok_resp]
         result = self.client.fetch_stock_quote("INFY")
@@ -330,10 +333,12 @@ class TestFetchYfIndex(unittest.TestCase):
         mock_resp.status_code = 200
         mock_resp.json.return_value = {
             "chart": {
-                "result": [{
-                    "meta": {"regularMarketPrice": 22000, "previousClose": 21900},
-                    "indicators": {"quote": [{"close": [21950.0, 21975.0, 22000.0]}]}
-                }]
+                "result": [
+                    {
+                        "meta": {"regularMarketPrice": 22000, "previousClose": 21900},
+                        "indicators": {"quote": [{"close": [21950.0, 21975.0, 22000.0]}]},
+                    }
+                ]
             }
         }
         mock_get.return_value = mock_resp
@@ -469,5 +474,5 @@ class TestParseYfChart(unittest.TestCase):
         self.assertEqual(result["open"], 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

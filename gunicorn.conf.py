@@ -1,7 +1,4 @@
-"""Gunicorn configuration for production deployment.
-
-Optimised for request/response workloads (no SSE / long-lived connections).
-"""
+"""Gunicorn configuration for production deployment."""
 
 import os
 
@@ -11,7 +8,7 @@ bind = "0.0.0.0:" + os.environ.get("PORT", "8080")
 # --- Worker processes ---
 workers = int(os.environ.get("WEB_CONCURRENCY", 1))
 
-# Default sync worker — no gevent needed without SSE.
+# Default sync worker.
 # worker_class defaults to "sync"
 
 # --- Timeouts ---

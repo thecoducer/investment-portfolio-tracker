@@ -1,13 +1,14 @@
 """
 Unit tests for routes.py (Flask route definitions) — multi-tenant version.
 """
+
 import json
 import unittest
-from unittest.mock import Mock, PropertyMock, patch, MagicMock
+from unittest.mock import Mock, patch
 
-from app.routes import _json_response, app_ui
-from app.cache import PortfolioCacheManager, MarketCache, UserPortfolioData
+from app.cache import UserPortfolioData
 from app.middleware import APP_REQUEST_HEADER, APP_REQUEST_HEADER_VALUE
+from app.routes import _json_response, app_ui
 
 # Reusable test user dict (simulates Flask session["user"])
 _TEST_USER = {
@@ -31,6 +32,7 @@ def _inject_user(client, user=None):
         sess["pin_verified"] = True
     # Also store a PIN in server memory so pin_required decorator passes
     from app.services import session_manager
+
     session_manager.set_pin(u["google_id"], "test01")
 
 
@@ -43,24 +45,26 @@ class TestUIServerRoutes(unittest.TestCase):
 
     def test_status_endpoint(self):
         """Test /api/status endpoint returns correct structure."""
-        with patch('app.services.state_manager') as mock_state, \
-             patch('app.services.session_manager') as mock_session, \
-             patch('app.services.format_timestamp') as mock_format, \
-             patch('app.services.is_market_open_ist') as mock_market, \
-             patch('app.services.get_user_accounts', return_value=[]):
+        with (
+            patch("app.services.state_manager") as mock_state,
+            patch("app.services.session_manager") as mock_session,
+            patch("app.services.format_timestamp") as mock_format,
+            patch("app.services.is_market_open_ist") as mock_market,
+            patch("app.services.get_user_accounts", return_value=[]),
+        ):
             mock_state.last_error = None
-            mock_state.get_portfolio_state.return_value = 'updated'
+            mock_state.get_portfolio_state.return_value = "updated"
             mock_state.get_portfolio_last_updated.return_value = None
             mock_state.get_user_last_error.return_value = None
             mock_state.get_manual_ltp_state.return_value = None
             mock_state.get_manual_ltp_last_updated.return_value = None
             mock_state.get_sheets_state.return_value = None
             mock_state.get_sheets_last_updated.return_value = None
-            mock_state.nifty50_state = 'updated'
+            mock_state.nifty50_state = "updated"
             mock_state.nifty50_last_updated = None
-            mock_state.physical_gold_state = 'updated'
+            mock_state.physical_gold_state = "updated"
             mock_state.physical_gold_last_updated = None
-            mock_state.fixed_deposits_state = 'updated'
+            mock_state.fixed_deposits_state = "updated"
             mock_state.fixed_deposits_last_updated = None
 
             mock_session.is_valid.return_value = True
@@ -68,24 +72,23 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_market.return_value = False
 
             _inject_user(self.client)
-            response = self.client.get('/api/status', headers=_APP_HEADERS)
+            response = self.client.get("/api/status", headers=_APP_HEADERS)
 
             self.assertEqual(response.status_code, 200)
             data = json.loads(response.data)
-            self.assertIn('portfolio_state', data)
-            self.assertIn('session_validity', data)
-            self.assertIn('has_zerodha_accounts', data)
-            self.assertIn('authenticated_accounts', data)
-            self.assertIn('unauthenticated_accounts', data)
+            self.assertIn("portfolio_state", data)
+            self.assertIn("session_validity", data)
+            self.assertIn("has_zerodha_accounts", data)
+            self.assertIn("authenticated_accounts", data)
+            self.assertIn("unauthenticated_accounts", data)
             self.assertEqual(
-                response.headers.get('Cache-Control'),
-                'no-cache, no-store, must-revalidable'
-                if False else 'no-cache, no-store, must-revalidate',
+                response.headers.get("Cache-Control"),
+                "no-cache, no-store, must-revalidable" if False else "no-cache, no-store, must-revalidate",
             )
 
     def test_stocks_data_endpoint_authenticated(self):
         """Authenticated user gets their own stocks."""
-        with patch('app.routes.portfolio_cache') as mock_pcache:
+        with patch("app.routes.portfolio_cache") as mock_pcache:
             mock_data = UserPortfolioData(
                 stocks=[
                     {"tradingsymbol": "INFY", "quantity": 10},
@@ -95,7 +98,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.get.return_value = mock_data
 
             _inject_user(self.client)
-            response = self.client.get('/api/stocks_data', headers=_APP_HEADERS)
+            response = self.client.get("/api/stocks_data", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -104,12 +107,12 @@ class TestUIServerRoutes(unittest.TestCase):
 
     def test_stocks_data_unauthenticated(self):
         """Unauthenticated user gets 401."""
-        response = self.client.get('/api/stocks_data', headers=_APP_HEADERS)
+        response = self.client.get("/api/stocks_data", headers=_APP_HEADERS)
         self.assertEqual(response.status_code, 401)
 
     def test_mf_holdings_data_endpoint(self):
         """Authenticated user gets their MF holdings."""
-        with patch('app.routes.portfolio_cache') as mock_pcache:
+        with patch("app.routes.portfolio_cache") as mock_pcache:
             mock_data = UserPortfolioData(
                 mf_holdings=[
                     {"tradingsymbol": "MF2", "fund": "Fund B"},
@@ -119,7 +122,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.get.return_value = mock_data
 
             _inject_user(self.client)
-            response = self.client.get('/api/mf_holdings_data', headers=_APP_HEADERS)
+            response = self.client.get("/api/mf_holdings_data", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -128,7 +131,7 @@ class TestUIServerRoutes(unittest.TestCase):
 
     def test_sips_data_endpoint(self):
         """Authenticated user gets their SIPs."""
-        with patch('app.routes.portfolio_cache') as mock_pcache:
+        with patch("app.routes.portfolio_cache") as mock_pcache:
             mock_data = UserPortfolioData(
                 sips=[
                     {"tradingsymbol": "SIP2", "status": "inactive"},
@@ -138,7 +141,7 @@ class TestUIServerRoutes(unittest.TestCase):
             mock_pcache.get.return_value = mock_data
 
             _inject_user(self.client)
-            response = self.client.get('/api/sips_data', headers=_APP_HEADERS)
+            response = self.client.get("/api/sips_data", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -147,9 +150,9 @@ class TestUIServerRoutes(unittest.TestCase):
 
     def test_nifty50_data_endpoint(self):
         """Nifty 50 is global — no user context needed."""
-        with patch('app.routes.market_cache') as mock_mc:
+        with patch("app.routes.market_cache") as mock_mc:
             mock_mc.nifty50 = [{"symbol": "TCS", "ltp": 3500}]
-            response = self.client.get('/api/nifty50_data', headers=_APP_HEADERS)
+            response = self.client.get("/api/nifty50_data", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
@@ -157,115 +160,114 @@ class TestUIServerRoutes(unittest.TestCase):
 
     def test_portfolio_page_unauthenticated(self):
         """Root page renders landing page when not signed in."""
-        response = self.client.get('/')
+        response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Continue with Google', response.data)
+        self.assertIn(b"Continue with Google", response.data)
 
     def test_portfolio_page_authenticated(self):
         """Root page renders portfolio dashboard when signed in."""
-        with patch('app.routes.portfolio_cache') as mock_pcache, \
-             patch('app.routes.ensure_user_loaded'), \
-             patch('app.routes._build_status_response', return_value={}), \
-             patch('app.firebase_store.has_pin', return_value=False), \
-             patch('app.routes.user_sheets_cache') as mock_usc:
+        with (
+            patch("app.routes.portfolio_cache") as mock_pcache,
+            patch("app.routes.ensure_user_loaded"),
+            patch("app.routes._build_status_response", return_value={}),
+            patch("app.firebase_store.has_pin", return_value=False),
+            patch("app.routes.user_sheets_cache") as mock_usc,
+        ):
             mock_pcache.get.return_value = UserPortfolioData()
             mock_usc.is_fully_cached.return_value = False
             _inject_user(self.client)
-            response = self.client.get('/')
+            response = self.client.get("/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'html', response.data.lower())
+        self.assertIn(b"html", response.data.lower())
         # ensure gold section displays subtitle and rhythm strip
-        self.assertIn(b'(ETFs + Physical + SGBs)', response.data)
-        self.assertIn(b'gold-rhythm', response.data)
-        self.assertIn(b'gold_proportion_bar', response.data)
+        self.assertIn(b"(ETFs + Physical + SGBs)", response.data)
+        self.assertIn(b"gold-rhythm", response.data)
+        self.assertIn(b"gold_proportion_bar", response.data)
 
     def test_nifty50_page(self):
-        response = self.client.get('/nifty50')
+        response = self.client.get("/nifty50")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'html', response.data.lower())
+        self.assertIn(b"html", response.data.lower())
 
     def test_refresh_route_success(self):
         """Test /api/refresh endpoint triggers per-user refresh."""
-        with patch('app.routes.portfolio_cache') as mock_pcache, \
-             patch('app.routes.ensure_user_loaded'), \
-             patch('app.routes.user_sheets_cache') as mock_usc, \
-             patch('app.routes.get_authenticated_accounts', return_value=[{"name": "test"}]), \
-             patch('app.fetchers.run_background_fetch') as mock_fetch:
-
+        with (
+            patch("app.routes.portfolio_cache") as mock_pcache,
+            patch("app.routes.ensure_user_loaded"),
+            patch("app.routes.user_sheets_cache"),
+            patch("app.routes.get_authenticated_accounts", return_value=[{"name": "test"}]),
+            patch("app.fetchers.run_background_fetch") as mock_fetch,
+        ):
             mock_pcache.is_fetch_in_progress.return_value = False
 
             _inject_user(self.client)
-            response = self.client.post('/api/refresh', headers=_APP_HEADERS)
+            response = self.client.post("/api/refresh", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 202)
         data = json.loads(response.data)
-        self.assertEqual(data['status'], 'started')
+        self.assertEqual(data["status"], "started")
         mock_fetch.assert_called_once_with(
             is_manual=True, accounts=[{"name": "test"}], google_id="test123", manual_symbols=[]
         )
 
     def test_refresh_route_conflict(self):
         """Test /api/refresh returns conflict when fetch in progress for this user."""
-        with patch('app.routes.portfolio_cache') as mock_pcache:
+        with patch("app.routes.portfolio_cache") as mock_pcache:
             mock_pcache.is_fetch_in_progress.return_value = True
 
             _inject_user(self.client)
-            response = self.client.post('/api/refresh', headers=_APP_HEADERS)
+            response = self.client.post("/api/refresh", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 409)
         data = json.loads(response.data)
-        self.assertIn('error', data)
+        self.assertIn("error", data)
 
     def test_refresh_route_no_authenticated_accounts(self):
         """Refresh still triggers (gold/nifty) even without authenticated accounts."""
-        with patch('app.routes.portfolio_cache') as mock_pcache, \
-             patch('app.routes.ensure_user_loaded'), \
-             patch('app.routes.user_sheets_cache') as mock_usc, \
-             patch('app.routes.get_authenticated_accounts', return_value=[]), \
-             patch('app.fetchers.run_background_fetch') as mock_fetch:
-
+        with (
+            patch("app.routes.portfolio_cache") as mock_pcache,
+            patch("app.routes.ensure_user_loaded"),
+            patch("app.routes.user_sheets_cache"),
+            patch("app.routes.get_authenticated_accounts", return_value=[]),
+            patch("app.fetchers.run_background_fetch") as mock_fetch,
+        ):
             mock_pcache.is_fetch_in_progress.return_value = False
 
             _inject_user(self.client)
-            response = self.client.post('/api/refresh', headers=_APP_HEADERS)
+            response = self.client.post("/api/refresh", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 202)
         data = json.loads(response.data)
-        self.assertEqual(data['status'], 'started')
-        mock_fetch.assert_called_once_with(
-            is_manual=True, accounts=[], google_id="test123", manual_symbols=[]
-        )
+        self.assertEqual(data["status"], "started")
+        mock_fetch.assert_called_once_with(is_manual=True, accounts=[], google_id="test123", manual_symbols=[])
 
     def test_remove_zerodha_account_success(self):
         """Deleting a Zerodha account clears session and portfolio cache."""
-        with patch('app.firebase_store.remove_zerodha_account') as mock_remove, \
-             patch('app.routes.session_manager') as mock_session, \
-             patch('app.routes.portfolio_cache') as mock_pcache:
-
+        with (
+            patch("app.firebase_store.remove_zerodha_account") as mock_remove,
+            patch("app.routes.session_manager") as mock_session,
+            patch("app.routes.portfolio_cache") as mock_pcache,
+        ):
             _inject_user(self.client)
-            response = self.client.delete(
-                '/api/settings/zerodha/MyAccount', headers=_APP_HEADERS)
+            response = self.client.delete("/api/settings/zerodha/MyAccount", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
-        self.assertEqual(data['status'], 'removed')
+        self.assertEqual(data["status"], "removed")
         mock_remove.assert_called_once_with("test123", "MyAccount")
         mock_session.invalidate.assert_called_once_with("test123", "MyAccount")
         mock_pcache.clear.assert_called_once_with("test123")
 
     def test_remove_zerodha_account_not_found(self):
         """Deleting a non-existent account returns 404."""
-        with patch('app.firebase_store.remove_zerodha_account',
-                   side_effect=ValueError("Account 'Bad' not found")):
-
+        with patch("app.firebase_store.remove_zerodha_account", side_effect=ValueError("Account 'Bad' not found")):
             _inject_user(self.client)
-            response = self.client.delete(
-                '/api/settings/zerodha/Bad', headers=_APP_HEADERS)
+            response = self.client.delete("/api/settings/zerodha/Bad", headers=_APP_HEADERS)
 
         self.assertEqual(response.status_code, 404)
         data = json.loads(response.data)
-        self.assertIn('error', data)
+        self.assertIn("error", data)
 
 
 class TestJsonResponse(unittest.TestCase):
@@ -276,8 +278,8 @@ class TestJsonResponse(unittest.TestCase):
         with app_ui.app_context():
             response = _json_response(data)
         self.assertEqual(
-            response.headers.get('Cache-Control'),
-            'no-cache, no-store, must-revalidate',
+            response.headers.get("Cache-Control"),
+            "no-cache, no-store, must-revalidate",
         )
 
     def test_with_sorting(self):
@@ -289,13 +291,14 @@ class TestJsonResponse(unittest.TestCase):
         self.assertEqual(result_data[2]["name"], "C")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
 
 
 # ---------------------------------------------------------------------------
 # PIN Verify Rate Limiting Integration Tests
 # ---------------------------------------------------------------------------
+
 
 class TestPinVerifyRateLimiting(unittest.TestCase):
     """Integration tests for the rate-limited /api/pin/verify endpoint."""
@@ -334,8 +337,7 @@ class TestPinVerifyRateLimiting(unittest.TestCase):
     @patch("app.routes.session_manager")
     @patch("app.routes.verify_user_pin", return_value=True)
     @patch("app.routes.pin_rate_limiter")
-    def test_success_clears_limiter(self, mock_limiter, mock_verify_pin,
-                                     mock_sm, mock_eul):
+    def test_success_clears_limiter(self, mock_limiter, mock_verify_pin, mock_sm, mock_eul):
         """Successful verify calls record_success to clear rate state."""
         mock_limiter.check.return_value = (True, None)
         self._inject_user()
@@ -373,8 +375,7 @@ class TestPinVerifyRateLimiting(unittest.TestCase):
     @patch("app.routes.pin_rate_limiter")
     @patch("app.routes.session_manager")
     @patch("app.routes.portfolio_cache")
-    def test_pin_reset_clears_rate_limiter(self, mock_pcache, mock_sm,
-                                            mock_limiter, mock_reset):
+    def test_pin_reset_clears_rate_limiter(self, mock_pcache, mock_sm, mock_limiter, mock_reset):
         """PIN reset must clear the rate limiter for the user."""
         self._inject_user(pin_verified=True)
         resp = self.client.post("/api/pin/reset", headers=_APP_HEADERS)
@@ -574,8 +575,7 @@ class TestDataRoutes(unittest.TestCase):
     @patch("app.routes._build_gold_data", return_value=[])
     @patch("app.routes._build_fd_data", return_value=[])
     @patch("app.routes._build_status_response", return_value={})
-    def test_all_data(self, mock_status, mock_fd, mock_gold, mock_sips,
-                      mock_mf, mock_stocks):
+    def test_all_data(self, mock_status, mock_fd, mock_gold, mock_sips, mock_mf, mock_stocks):
         _inject_user(self.client)
         resp = self.client.get("/api/all_data", headers=_APP_HEADERS)
         self.assertEqual(resp.status_code, 200)
@@ -789,8 +789,7 @@ class TestSheetsCRUD(unittest.TestCase):
     @patch("app.routes._validate_nse_symbol", return_value={"ltp": 100})
     @patch("app.routes.manual_ltp_cache")
     @patch("app.routes._get_sheets_client")
-    def test_sheets_add_stocks(self, mock_get_client, mock_ltp, mock_validate,
-                                mock_build, mock_refresh, mock_uncached):
+    def test_sheets_add_stocks(self, mock_get_client, mock_ltp, mock_validate, mock_build, mock_refresh, mock_uncached):
         mock_client = Mock()
         mock_client.ensure_sheet_tab.return_value = None
         mock_client.append_row.return_value = 5
@@ -888,9 +887,7 @@ class TestSheetsCRUD(unittest.TestCase):
     @patch("app.routes._refresh_single_sheet_cache")
     @patch("app.routes._build_data_for_type", return_value={})
     @patch("app.routes._get_sheets_client")
-    def test_sheets_add_refresh_error_returns_401(self, mock_get_client,
-                                                   mock_build, mock_refresh,
-                                                   mock_uncached):
+    def test_sheets_add_refresh_error_returns_401(self, mock_get_client, mock_build, mock_refresh, mock_uncached):
         mock_client = Mock()
         mock_client.ensure_sheet_tab.side_effect = type("RefreshError", (Exception,), {})("expired")
         mock_get_client.return_value = (mock_client, "sid", None)
@@ -906,8 +903,7 @@ class TestSheetsCRUD(unittest.TestCase):
     @patch("app.routes._build_data_for_type", return_value={})
     @patch("app.routes._refresh_single_sheet_cache")
     @patch("app.routes._get_sheets_client")
-    def test_sheets_delete_refresh_error_returns_401(self, mock_get_client,
-                                                      mock_refresh, mock_build):
+    def test_sheets_delete_refresh_error_returns_401(self, mock_get_client, mock_refresh, mock_build):
         mock_client = Mock()
         mock_client.delete_row.side_effect = type("RefreshError", (Exception,), {})("expired")
         mock_get_client.return_value = (mock_client, "sid", None)
@@ -926,6 +922,7 @@ class TestRouteHelpers(unittest.TestCase):
 
     def test_get_user_fetch_lock(self):
         from app.fetchers import _get_user_fetch_lock
+
         lock1 = _get_user_fetch_lock("user1")
         lock2 = _get_user_fetch_lock("user1")
         self.assertIs(lock1, lock2)  # same lock for same user
@@ -935,8 +932,10 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.firebase_store.get_google_credentials", return_value=None)
     def test_get_sheets_client_no_creds(self, mock_get_creds):
         from app.routes import _get_sheets_client, app_ui
+
         with app_ui.test_request_context("/"):
             from flask import session
+
             session["user"] = {"google_id": "g1"}
             client, sid, err = _get_sheets_client()
             self.assertIsNone(client)
@@ -947,6 +946,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes.market_cache")
     def test_build_gold_data(self, mock_mc, mock_enrich, mock_fetch):
         from app.routes import _build_gold_data
+
         mock_mc.gold_prices = {}
         result = _build_gold_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
@@ -954,35 +954,56 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes._fetch_user_sheets_data", return_value=(None, None, None))
     def test_build_gold_data_none(self, mock_fetch):
         from app.routes import _build_gold_data
+
         result = _build_gold_data({"google_id": "g1"})
         self.assertEqual(result, [])
 
     @patch("app.routes._fetch_user_sheets_data", return_value=(None, [{"deposited_on": "2024-01-01"}], None))
     def test_build_fd_data(self, mock_fetch):
         from app.routes import _build_fd_data
+
         result = _build_fd_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
 
     @patch("app.routes._fetch_user_sheets_data", return_value=(None, None, None))
     def test_build_fd_data_none(self, mock_fetch):
         from app.routes import _build_fd_data
+
         result = _build_fd_data({"google_id": "g1"})
         self.assertEqual(result, [])
 
     @patch("app.routes._fetch_manual_entries", return_value=[])
     @patch("app.routes.portfolio_cache")
     def test_build_mf_data(self, mock_pc, mock_manual):
-        from app.routes import _build_mf_data
         from app.cache import UserPortfolioData
+        from app.routes import _build_mf_data
+
         mock_pc.get.return_value = UserPortfolioData(mf_holdings=[{"fund": "A", "tradingsymbol": "A"}])
         result = _build_mf_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
 
-    @patch("app.routes._fetch_manual_entries", return_value=[{"fund": "B", "qty": "10", "amount": "500", "frequency": "MONTHLY", "installments": "12", "completed": "3", "status": "ACTIVE", "next_due": "2025-01-01", "account": "Manual", "row_number": 2}])
+    @patch(
+        "app.routes._fetch_manual_entries",
+        return_value=[
+            {
+                "fund": "B",
+                "qty": "10",
+                "amount": "500",
+                "frequency": "MONTHLY",
+                "installments": "12",
+                "completed": "3",
+                "status": "ACTIVE",
+                "next_due": "2025-01-01",
+                "account": "Manual",
+                "row_number": 2,
+            }
+        ],
+    )
     @patch("app.routes.portfolio_cache")
     def test_build_sips_data_with_manual(self, mock_pc, mock_manual):
-        from app.routes import _build_sips_data
         from app.cache import UserPortfolioData
+        from app.routes import _build_sips_data
+
         mock_pc.get.return_value = UserPortfolioData(sips=[])
         result = _build_sips_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
@@ -992,8 +1013,9 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes._fetch_manual_entries")
     @patch("app.routes.portfolio_cache")
     def test_build_stocks_data_with_manual(self, mock_pc, mock_manual, mock_enrich):
-        from app.routes import _build_stocks_data
         from app.cache import UserPortfolioData
+        from app.routes import _build_stocks_data
+
         mock_pc.get.return_value = UserPortfolioData(stocks=[])
         mock_manual.side_effect = [
             [{"symbol": "INFY", "qty": "10", "avg_price": "1500", "exchange": "NSE", "account": "A", "row_number": 2}],
@@ -1006,6 +1028,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes.manual_ltp_cache")
     def test_enrich_manual_entries_with_ltp(self, mock_cache):
         from app.routes import _enrich_manual_entries_with_ltp
+
         mock_cache.get.return_value = {"ltp": 1600, "change": 5, "pChange": 0.3}
         entries = [{"tradingsymbol": "INFY", "last_price": 1500, "day_change": 0, "day_change_percentage": 0}]
         _enrich_manual_entries_with_ltp(entries)
@@ -1014,6 +1037,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes.manual_ltp_cache")
     def test_enrich_manual_entries_no_ltp(self, mock_cache):
         from app.routes import _enrich_manual_entries_with_ltp
+
         mock_cache.get.return_value = None
         entries = [{"tradingsymbol": "UNKNOWN", "last_price": 100, "day_change": 0, "day_change_percentage": 0}]
         _enrich_manual_entries_with_ltp(entries)
@@ -1021,11 +1045,13 @@ class TestRouteHelpers(unittest.TestCase):
 
     def test_enrich_manual_entries_empty(self):
         from app.routes import _enrich_manual_entries_with_ltp
+
         _enrich_manual_entries_with_ltp([])  # should not raise
 
     @patch("app.api.market_data.MarketDataClient")
     def test_validate_nse_symbol_valid(self, mock_client_cls):
         from app.routes import _validate_nse_symbol
+
         mock_client_cls.return_value.fetch_stock_quote.return_value = {"ltp": 1500}
         result = _validate_nse_symbol("INFY")
         self.assertIsNotNone(result)
@@ -1034,6 +1060,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.api.market_data.MarketDataClient")
     def test_validate_nse_symbol_invalid(self, mock_client_cls):
         from app.routes import _validate_nse_symbol
+
         mock_client_cls.return_value.fetch_stock_quote.return_value = {"ltp": 0}
         result = _validate_nse_symbol("FAKE")
         self.assertIsNone(result)
@@ -1042,6 +1069,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.api.market_data.MarketDataClient")
     def test_validate_nse_symbol_exception(self, mock_client_cls):
         from app.routes import _validate_nse_symbol
+
         mock_client_cls.return_value.fetch_stock_quote.side_effect = Exception("err")
         result = _validate_nse_symbol("FAIL")
         self.assertIsNone(result)
@@ -1049,17 +1077,20 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes._build_stocks_data", return_value=[{"s": 1}])
     def test_build_data_for_type_stocks(self, mock_build):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "stocks")
         self.assertIn("stocks", result)
 
     def test_build_data_for_type_unknown(self):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "unknown")
         self.assertEqual(result, {})
 
     @patch("app.routes.user_sheets_cache")
     def test_refresh_single_sheet_cache_gold(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [["H"], ["A"]]
         with patch("app.api.google_sheets_client.PhysicalGoldService") as mock_gold_svc:
@@ -1070,10 +1101,13 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_refresh_single_sheet_cache_fd(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [["H"], ["A"]]
-        with patch("app.api.google_sheets_client.FixedDepositsService") as mock_fd_svc, \
-             patch("app.api.fixed_deposits.calculate_current_value", return_value=[{"fd": 1}]):
+        with (
+            patch("app.api.google_sheets_client.FixedDepositsService") as mock_fd_svc,
+            patch("app.api.fixed_deposits.calculate_current_value", return_value=[{"fd": 1}]),
+        ):
             mock_fd_svc.return_value._parse_batch_data.return_value = [{"fd": 1}]
             _refresh_single_sheet_cache(mock_client, "sid", "g1", "fixed_deposits")
         mock_usc.put.assert_called_once()
@@ -1081,6 +1115,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_refresh_single_sheet_cache_manual(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [
             ["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
@@ -1092,6 +1127,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_refresh_single_sheet_cache_error(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.side_effect = Exception("fail")
         _refresh_single_sheet_cache(mock_client, "sid", "g1", "stocks")
@@ -1101,6 +1137,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes._get_google_creds_dict", return_value={"token": "t"})
     def test_prefetch_all_user_sheets_already_cached(self, mock_creds, mock_usc):
         from app.routes import _prefetch_all_user_sheets
+
         mock_usc.is_fully_cached.return_value = True
         _prefetch_all_user_sheets({"google_id": "g1", "spreadsheet_id": "sid"})
         # Should return early, no batch fetch
@@ -1109,11 +1146,13 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes._get_google_creds_dict", return_value=None)
     def test_prefetch_no_creds_noop(self, mock_creds, mock_usc):
         from app.routes import _prefetch_all_user_sheets
+
         _prefetch_all_user_sheets({"google_id": "g1", "spreadsheet_id": "sid"})
 
     @patch("app.routes._get_google_creds_dict", return_value=None)
     def test_fetch_manual_entries_no_creds(self, mock_creds):
         from app.routes import _fetch_manual_entries
+
         result = _fetch_manual_entries({"google_id": "g1"}, "stocks")
         self.assertEqual(result, [])
 
@@ -1126,15 +1165,20 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.firebase_store.get_user", return_value={"spreadsheet_id": "new_sid"})
     def test_sync_spreadsheet_id_fills_missing(self, mock_get_user):
         from app.routes import app_ui
+
         client = app_ui.test_client()
         with client.session_transaction() as sess:
             sess["user"] = {
-                "google_id": "g1", "email": "e", "name": "N",
-                "picture": "", "spreadsheet_id": "",
+                "google_id": "g1",
+                "email": "e",
+                "name": "N",
+                "picture": "",
+                "spreadsheet_id": "",
                 "google_credentials": {},
             }
             sess["pin_verified"] = True
         from app.services import session_manager
+
         session_manager.set_pin("g1", "test01")
         # Any request triggers before_request
         resp = client.get("/healthz")
@@ -1145,6 +1189,7 @@ class TestRouteHelpers(unittest.TestCase):
     @patch("app.routes._fetch_manual_entries", return_value=[{"symbol": "INFY"}])
     def test_fetch_uncached_manual_ltps(self, mock_manual, mock_client_cls, mock_cache):
         from app.routes import _fetch_uncached_manual_ltps
+
         mock_cache.get.return_value = None
         mock_cache.is_negative.return_value = False
         mock_client_cls.return_value.fetch_stock_quotes.return_value = {"INFY": {"ltp": 100}}
@@ -1164,7 +1209,7 @@ class TestZerodhaCallback(unittest.TestCase):
     def test_callback_no_token(self):
         resp = self.client.get("/api/callback")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b'html', resp.data.lower())
+        self.assertIn(b"html", resp.data.lower())
 
     def test_callback_no_session(self):
         resp = self.client.get("/api/callback?request_token=tok123")
@@ -1226,17 +1271,18 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
     @patch("app.api.google_sheets_client.PhysicalGoldService")
     @patch("app.api.google_sheets_client.FixedDepositsService")
     @patch("app.api.fixed_deposits.calculate_current_value", return_value=[])
-    def test_prefetch_full_batch(self, mock_calc, mock_fd_svc, mock_gold_svc,
-                                  mock_gsc, mock_creds, mock_get_creds, mock_usc):
+    def test_prefetch_full_batch(
+        self, mock_calc, mock_fd_svc, mock_gold_svc, mock_gsc, mock_creds, mock_get_creds, mock_usc
+    ):
         from app.routes import _prefetch_all_user_sheets
+
         mock_usc.is_fully_cached.return_value = False
         mock_client = Mock()
         mock_gsc.return_value = mock_client
         mock_client.batch_fetch_sheet_data_until_blank.return_value = {
             "Gold": [["H"], ["r1"]],
             "FixedDeposits": [["H"], ["r1"]],
-            "Stocks": [["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
-                       ["INFY", "10", "1500", "NSE", "Manual"]],
+            "Stocks": [["Symbol", "Qty", "AvgPrice", "Exchange", "Account"], ["INFY", "10", "1500", "NSE", "Manual"]],
             "ETFs": [],
             "MutualFunds": [],
             "SIPs": [],
@@ -1252,17 +1298,20 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
     @patch("app.api.google_auth.credentials_from_dict", side_effect=Exception("boom"))
     def test_prefetch_exception(self, mock_creds, mock_get_creds, mock_usc):
         from app.routes import _prefetch_all_user_sheets
+
         mock_usc.is_fully_cached.return_value = False
         _prefetch_all_user_sheets({"google_id": "g1234567", "spreadsheet_id": "sid"})
         # Should not raise
 
     @patch("app.fetchers.user_sheets_cache")
     @patch("app.fetchers.get_google_creds_dict", return_value={"token": "t"})
-    @patch("app.api.google_auth.credentials_from_dict",
-           side_effect=type("RefreshError", (Exception,), {})("creds expired"))
+    @patch(
+        "app.api.google_auth.credentials_from_dict", side_effect=type("RefreshError", (Exception,), {})("creds expired")
+    )
     def test_prefetch_refresh_error_logs_warning(self, mock_creds, mock_get_creds, mock_usc):
         """RefreshError is caught gracefully with a warning, not a full traceback."""
         from app.routes import _prefetch_all_user_sheets
+
         mock_usc.is_fully_cached.return_value = False
         # Should not raise
         _prefetch_all_user_sheets({"google_id": "g1234567", "spreadsheet_id": "sid"})
@@ -1270,21 +1319,22 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
 
     def test_is_google_auth_error(self):
         from app.routes import _is_google_auth_error
-        self.assertTrue(_is_google_auth_error(
-            type("RefreshError", (Exception,), {})("bad")))
-        self.assertTrue(_is_google_auth_error(
-            type("InvalidGrantError", (Exception,), {})("revoked")))
+
+        self.assertTrue(_is_google_auth_error(type("RefreshError", (Exception,), {})("bad")))
+        self.assertTrue(_is_google_auth_error(type("InvalidGrantError", (Exception,), {})("revoked")))
         self.assertFalse(_is_google_auth_error(ValueError("nope")))
 
     @patch("app.routes._current_user", return_value=None)
     def test_get_google_creds_dict_none_user(self, mock_cu):
         from app.routes import _get_google_creds_dict
+
         with app_ui.test_request_context():
             result = _get_google_creds_dict(None)
             self.assertIsNone(result)
 
     def test_get_google_creds_dict_dict_value(self):
         from app.routes import _get_google_creds_dict
+
         user = {"google_credentials": {"token": "t"}}
         result = _get_google_creds_dict(user)
         self.assertEqual(result, {"token": "t"})
@@ -1292,6 +1342,7 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
     @patch("app.firebase_store.get_google_credentials", return_value={"token": "stored"})
     def test_get_google_creds_dict_fallback(self, mock_get):
         from app.routes import _get_google_creds_dict
+
         user = {"google_id": "g1", "google_credentials": "encrypted_str"}
         result = _get_google_creds_dict(user)
         self.assertEqual(result, {"token": "stored"})
@@ -1299,16 +1350,17 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_fetch_user_sheets_data_cached(self, mock_usc):
         from app.routes import _fetch_user_sheets_data
+
         cached_entry = Mock(physical_gold=[{"g": 1}], fixed_deposits=[{"fd": 1}], provident_fund=[{"pf": 1}])
         mock_usc.get.return_value = cached_entry
-        user = {"google_id": "g1", "spreadsheet_id": "sid",
-                "google_credentials": {"token": "t"}}
+        user = {"google_id": "g1", "spreadsheet_id": "sid", "google_credentials": {"token": "t"}}
         gold, fds, pf = _fetch_user_sheets_data(user)
         self.assertEqual(gold, [{"g": 1}])
 
     @patch("app.routes.user_sheets_cache")
     def test_fetch_user_sheets_data_no_cache(self, mock_usc):
         from app.routes import _fetch_user_sheets_data
+
         mock_usc.get.return_value = None
         gold, fds, pf = _fetch_user_sheets_data({"google_id": "g1"})
         self.assertIsNone(gold)
@@ -1316,6 +1368,7 @@ class TestRoutePrefetchAndBatchFetch(unittest.TestCase):
 
     def test_fetch_lock_eviction(self):
         from app.fetchers import _get_user_fetch_lock, _user_fetch_locks
+
         _user_fetch_locks.clear()
         for i in range(600):
             _get_user_fetch_lock(f"user_{i}")
@@ -1334,8 +1387,7 @@ class TestRefreshRoute(unittest.TestCase):
     @patch("app.routes.manual_ltp_cache")
     @patch("app.routes.portfolio_cache")
     @patch("app.routes.ensure_user_loaded")
-    def test_refresh_success(self, mock_eul, mock_pc, mock_ltp, mock_usc,
-                              mock_auth, mock_collect, mock_bg):
+    def test_refresh_success(self, mock_eul, mock_pc, mock_ltp, mock_usc, mock_auth, mock_collect, mock_bg):
         mock_pc.is_fetch_in_progress.return_value = False
         _inject_user(self.client)
         resp = self.client.post("/api/refresh", headers=_APP_HEADERS)
@@ -1376,10 +1428,9 @@ class TestPortfolioPage(unittest.TestCase):
     @patch("app.routes._build_stocks_data", return_value=[])
     @patch("app.routes.user_sheets_cache")
     @patch("app.routes.ensure_user_loaded")
-    def test_authenticated_with_inlined_data(self, mock_eul, mock_usc,
-                                              mock_stocks, mock_mf, mock_sips,
-                                              mock_gold, mock_fd, mock_status,
-                                              mock_has_pin):
+    def test_authenticated_with_inlined_data(
+        self, mock_eul, mock_usc, mock_stocks, mock_mf, mock_sips, mock_gold, mock_fd, mock_status, mock_has_pin
+    ):
         mock_usc.is_fully_cached.return_value = True
         _inject_user(self.client)
         resp = self.client.get("/")
@@ -1396,8 +1447,7 @@ class TestPinVerifyRoute(unittest.TestCase):
     @patch("app.routes.pin_rate_limiter")
     @patch("app.firebase_store.has_pin", return_value=True)
     @patch("app.firebase_store.store_pin_check")
-    def test_pin_verify_success(self, mock_store, mock_has, mock_limiter,
-                                 mock_verify, mock_eul):
+    def test_pin_verify_success(self, mock_store, mock_has, mock_limiter, mock_verify, mock_eul):
         mock_limiter.check.return_value = (True, None)
         _inject_user(self.client)
         resp = self.client.post(
@@ -1581,6 +1631,7 @@ class TestFetchManualEntries(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_fetch_manual_entries_unknown_type(self, mock_usc):
         from app.routes import _fetch_manual_entries
+
         mock_usc.get_manual.return_value = None
         result = _fetch_manual_entries({"google_id": "g1"}, "nonexistent")
         self.assertEqual(result, [])
@@ -1588,17 +1639,17 @@ class TestFetchManualEntries(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_fetch_manual_entries_no_cache(self, mock_usc):
         from app.routes import _fetch_manual_entries
+
         mock_usc.get_manual.return_value = None
-        result = _fetch_manual_entries(
-            {"google_id": "g1", "spreadsheet_id": "sid"}, "stocks")
+        result = _fetch_manual_entries({"google_id": "g1", "spreadsheet_id": "sid"}, "stocks")
         self.assertEqual(result, [])
 
     @patch("app.routes.user_sheets_cache")
     def test_fetch_manual_entries_cached(self, mock_usc):
         from app.routes import _fetch_manual_entries
+
         mock_usc.get_manual.return_value = [{"symbol": "INFY"}]
-        result = _fetch_manual_entries(
-            {"google_id": "g1", "spreadsheet_id": "sid"}, "stocks")
+        result = _fetch_manual_entries({"google_id": "g1", "spreadsheet_id": "sid"}, "stocks")
         self.assertEqual(result, [{"symbol": "INFY"}])
 
 
@@ -1606,15 +1657,16 @@ class TestEnrichManualEntriesWithLtp(unittest.TestCase):
     @patch("app.routes.manual_ltp_cache")
     def test_enrich_with_cached_ltp(self, mock_cache):
         from app.routes import _enrich_manual_entries_with_ltp
+
         mock_cache.get.return_value = {"ltp": 1500, "change": 10, "pChange": 0.67}
-        entries = [{"tradingsymbol": "INFY", "last_price": 0, "day_change": 0,
-                    "day_change_percentage": 0}]
+        entries = [{"tradingsymbol": "INFY", "last_price": 0, "day_change": 0, "day_change_percentage": 0}]
         _enrich_manual_entries_with_ltp(entries)
         self.assertEqual(entries[0]["last_price"], 1500)
 
     @patch("app.routes.manual_ltp_cache")
     def test_enrich_no_symbols(self, mock_cache):
         from app.routes import _enrich_manual_entries_with_ltp
+
         entries = [{"tradingsymbol": "", "last_price": 0}]
         _enrich_manual_entries_with_ltp(entries)
         self.assertEqual(entries[0]["last_price"], 0)
@@ -1622,6 +1674,7 @@ class TestEnrichManualEntriesWithLtp(unittest.TestCase):
     @patch("app.routes.manual_ltp_cache")
     def test_enrich_all_uncached(self, mock_cache):
         from app.routes import _enrich_manual_entries_with_ltp
+
         mock_cache.get.return_value = None
         entries = [{"tradingsymbol": "XYZ", "last_price": 0}]
         _enrich_manual_entries_with_ltp(entries)
@@ -1633,6 +1686,7 @@ class TestRefreshSingleSheetCache(unittest.TestCase):
     @patch("app.api.google_sheets_client.PhysicalGoldService")
     def test_refresh_physical_gold(self, mock_gold_svc, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [["H"], ["r1"]]
         mock_gold_svc.return_value._parse_batch_data.return_value = [{"g": 1}]
@@ -1644,6 +1698,7 @@ class TestRefreshSingleSheetCache(unittest.TestCase):
     @patch("app.api.fixed_deposits.calculate_current_value", return_value=[])
     def test_refresh_fixed_deposits(self, mock_calc, mock_fd_svc, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [["H"], ["r1"]]
         mock_fd_svc.return_value._parse_batch_data.return_value = [{"fd": 1}]
@@ -1653,6 +1708,7 @@ class TestRefreshSingleSheetCache(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_refresh_manual_type(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [
             ["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
@@ -1664,6 +1720,7 @@ class TestRefreshSingleSheetCache(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_refresh_exception(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.side_effect = Exception("fail")
         _refresh_single_sheet_cache(mock_client, "sid", "g1234567", "stocks")
@@ -1671,6 +1728,7 @@ class TestRefreshSingleSheetCache(unittest.TestCase):
 
     def test_refresh_unknown_type(self):
         from app.routes import _refresh_single_sheet_cache
+
         _refresh_single_sheet_cache(Mock(), "sid", "g1234567", "unknown")
         # Should return early
 
@@ -1679,17 +1737,20 @@ class TestBuildDataForType(unittest.TestCase):
     @patch("app.routes._build_stocks_data", return_value=[{"s": 1}])
     def test_build_data_for_stocks(self, mock_build):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "stocks")
         self.assertEqual(result, {"stocks": [{"s": 1}]})
 
     def test_build_data_unknown_type(self):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "nonexistent")
         self.assertEqual(result, {})
 
     @patch("app.routes._build_stocks_data", side_effect=Exception("boom"))
     def test_build_data_exception(self, mock_build):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "stocks")
         self.assertEqual(result, {})
 
@@ -1792,8 +1853,7 @@ class TestSheetsAddRoute(unittest.TestCase):
     @patch("app.routes._build_data_for_type", return_value={"stocks": []})
     @patch("app.routes._refresh_single_sheet_cache")
     @patch("app.routes._get_sheets_client")
-    def test_add_stock_with_ltp(self, mock_gsc, mock_refresh, mock_build,
-                                 mock_fetch_ltps, mock_validate):
+    def test_add_stock_with_ltp(self, mock_gsc, mock_refresh, mock_build, mock_fetch_ltps, mock_validate):
         mock_client = Mock()
         mock_client.append_row.return_value = 5
         mock_gsc.return_value = (mock_client, "sid", None)
@@ -1801,8 +1861,9 @@ class TestSheetsAddRoute(unittest.TestCase):
         resp = self.client.post(
             "/api/sheets/stocks",
             headers={**_APP_HEADERS, "Content-Type": "application/json"},
-            data=json.dumps({"symbol": "INFY", "qty": "10", "avg_price": "1500",
-                            "exchange": "NSE", "account": "Manual"}),
+            data=json.dumps(
+                {"symbol": "INFY", "qty": "10", "avg_price": "1500", "exchange": "NSE", "account": "Manual"}
+            ),
         )
         self.assertEqual(resp.status_code, 200)
 
@@ -1843,11 +1904,6 @@ class TestSheetsAddRoute(unittest.TestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn("Google credentials", json.loads(resp.data)["error"])
 
-
-    def setUp(self):
-        self.client = app_ui.test_client()
-        app_ui.testing = True
-
     @patch("app.routes._build_data_for_type", return_value={})
     @patch("app.routes._refresh_single_sheet_cache")
     @patch("app.routes._get_sheets_client")
@@ -1879,8 +1935,7 @@ class TestSheetsAddRoute(unittest.TestCase):
     @patch("app.routes._build_data_for_type", return_value={"stocks": []})
     @patch("app.routes._refresh_single_sheet_cache")
     @patch("app.routes._get_sheets_client")
-    def test_update_stock_with_validation(self, mock_gsc, mock_refresh,
-                                          mock_build, mock_validate):
+    def test_update_stock_with_validation(self, mock_gsc, mock_refresh, mock_build, mock_validate):
         mock_client = Mock()
         mock_gsc.return_value = (mock_client, "sid", None)
         _inject_user(self.client)
@@ -1987,6 +2042,7 @@ class TestValidateNseSymbol(unittest.TestCase):
     @patch("app.api.market_data.MarketDataClient")
     def test_valid_symbol(self, mock_mdc):
         from app.routes import _validate_nse_symbol
+
         mock_inst = mock_mdc.return_value
         mock_inst.fetch_stock_quote.return_value = {"ltp": 1500}
         result = _validate_nse_symbol("INFY")
@@ -1996,6 +2052,7 @@ class TestValidateNseSymbol(unittest.TestCase):
     @patch("app.api.market_data.MarketDataClient")
     def test_invalid_symbol(self, mock_mdc):
         from app.routes import _validate_nse_symbol
+
         mock_inst = mock_mdc.return_value
         mock_inst.fetch_stock_quote.return_value = None
         result = _validate_nse_symbol("FAKE")
@@ -2004,6 +2061,7 @@ class TestValidateNseSymbol(unittest.TestCase):
     @patch("app.api.market_data.MarketDataClient", side_effect=Exception("err"))
     def test_exception(self, mock_mdc):
         from app.routes import _validate_nse_symbol
+
         result = _validate_nse_symbol("FAIL")
         self.assertIsNone(result)
 
@@ -2014,6 +2072,7 @@ class TestFetchUncachedManualLtps(unittest.TestCase):
     @patch("app.routes._fetch_manual_entries", return_value=[{"symbol": "INFY"}])
     def test_fetch_and_cache(self, mock_entries, mock_cache, mock_mdc):
         from app.routes import _fetch_uncached_manual_ltps
+
         mock_cache.get.return_value = None
         mock_cache.is_negative.return_value = False
         mock_mdc.return_value.fetch_stock_quotes.return_value = {"INFY": {"ltp": 1500}}
@@ -2024,6 +2083,7 @@ class TestFetchUncachedManualLtps(unittest.TestCase):
     @patch("app.routes._fetch_manual_entries", return_value=[])
     def test_nothing_to_fetch(self, mock_entries, mock_cache):
         from app.routes import _fetch_uncached_manual_ltps
+
         mock_cache.get.return_value = {"ltp": 100}
         _fetch_uncached_manual_ltps({"google_id": "g1", "spreadsheet_id": "sid"})
 
@@ -2050,8 +2110,7 @@ class TestZerodhaCallbackEdgeCases(unittest.TestCase):
     @patch("app.routes.get_user_accounts")
     @patch("app.routes.ensure_user_loaded")
     @patch("app.routes.session_manager")
-    def test_callback_session_generation_exception(self, mock_sm, mock_eul,
-                                                    mock_accs, mock_kite):
+    def test_callback_session_generation_exception(self, mock_sm, mock_eul, mock_accs, mock_kite):
         """Cover the except branch when kite.generate_session fails."""
         mock_sm.get_pin.return_value = "123456"
         mock_sm.is_valid.return_value = False
@@ -2072,14 +2131,14 @@ class TestGoogleCallbackEdgeCases(unittest.TestCase):
     @patch("app.firebase_store.upsert_user")
     @patch("app.firebase_store.get_user", return_value=None)
     @patch("app.api.google_auth.credentials_to_dict", return_value={"token": "t"})
-    @patch("app.api.google_auth.get_user_info", return_value={
-        "id": "g1234567890", "email": "test@example.com",
-        "name": "Test", "picture": "http://pic.jpg"})
+    @patch(
+        "app.api.google_auth.get_user_info",
+        return_value={"id": "g1234567890", "email": "test@example.com", "name": "Test", "picture": "http://pic.jpg"},
+    )
     @patch("app.api.google_auth.exchange_code_for_credentials")
-    def test_callback_no_spreadsheet_creates_bg(self, mock_exchange, mock_info,
-                                                  mock_creds_dict, mock_get_user,
-                                                  mock_upsert, mock_update_sid,
-                                                  mock_thread):
+    def test_callback_no_spreadsheet_creates_bg(
+        self, mock_exchange, mock_info, mock_creds_dict, mock_get_user, mock_upsert, mock_update_sid, mock_thread
+    ):
         """Cover the background sheet creation branch (no spreadsheet_id)."""
         mock_exchange.return_value = Mock()
         resp = self.client.get("/api/auth/google/callback?code=abc123")
@@ -2096,8 +2155,7 @@ class TestPortfolioPageEdgeCases(unittest.TestCase):
     @patch("app.routes._build_status_response", side_effect=Exception("boom"))
     @patch("app.routes.user_sheets_cache")
     @patch("app.routes.ensure_user_loaded")
-    def test_initial_data_exception(self, mock_eul, mock_usc, mock_status,
-                                     mock_has_pin):
+    def test_initial_data_exception(self, mock_eul, mock_usc, mock_status, mock_has_pin):
         """Cover the except branch when building initial_data fails."""
         mock_usc.is_fully_cached.return_value = True
         _inject_user(self.client)
@@ -2116,9 +2174,9 @@ class TestFetchUserSheetsDataCacheMiss(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_cache_miss_returns_none(self, mock_usc):
         from app.routes import _fetch_user_sheets_data
+
         mock_usc.get.return_value = None  # cache miss
-        user = {"google_id": "g1", "spreadsheet_id": "sid",
-                "google_credentials": {"token": "t"}}
+        user = {"google_id": "g1", "spreadsheet_id": "sid", "google_credentials": {"token": "t"}}
         gold, fds, pf = _fetch_user_sheets_data(user)
         self.assertIsNone(gold)
         self.assertIsNone(fds)
@@ -2132,6 +2190,7 @@ class TestPrefetchDoubleCheckAfterLock(unittest.TestCase):
     @patch("app.fetchers.get_google_creds_dict", return_value={"token": "t"})
     def test_lock_double_check_returns_early(self, mock_creds, mock_usc):
         from app.routes import _prefetch_all_user_sheets
+
         # First call: not cached; inside lock: cached
         mock_usc.is_fully_cached.side_effect = [False, True]
         _prefetch_all_user_sheets({"google_id": "g1234567", "spreadsheet_id": "sid"})
@@ -2148,19 +2207,26 @@ class TestPrefetchBlankRowBreak(unittest.TestCase):
     @patch("app.api.google_sheets_client.PhysicalGoldService")
     @patch("app.api.google_sheets_client.FixedDepositsService")
     @patch("app.api.fixed_deposits.calculate_current_value", return_value=[])
-    def test_blank_row_in_manual_tab(self, mock_calc, mock_fd_svc, mock_gold_svc,
-                                      mock_gsc, mock_creds, mock_get_creds, mock_usc):
+    def test_blank_row_in_manual_tab(
+        self, mock_calc, mock_fd_svc, mock_gold_svc, mock_gsc, mock_creds, mock_get_creds, mock_usc
+    ):
         from app.routes import _prefetch_all_user_sheets
+
         mock_usc.is_fully_cached.return_value = False
         mock_client = Mock()
         mock_gsc.return_value = mock_client
         mock_client.batch_fetch_sheet_data_until_blank.return_value = {
-            "Gold": [], "FixedDeposits": [],
-            "Stocks": [["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
-                       ["INFY", "10", "1500", "NSE", "Manual"],
-                       ["", "", "", "", ""],  # blank row triggers break
-                       ["SHOULD_NOT_APPEAR", "1", "1", "NSE", "X"]],
-            "ETFs": [], "MutualFunds": [], "SIPs": [],
+            "Gold": [],
+            "FixedDeposits": [],
+            "Stocks": [
+                ["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
+                ["INFY", "10", "1500", "NSE", "Manual"],
+                ["", "", "", "", ""],  # blank row triggers break
+                ["SHOULD_NOT_APPEAR", "1", "1", "NSE", "X"],
+            ],
+            "ETFs": [],
+            "MutualFunds": [],
+            "SIPs": [],
         }
         mock_gold_svc.return_value._parse_batch_data.return_value = []
         mock_fd_svc.return_value._parse_batch_data.return_value = []
@@ -2180,14 +2246,14 @@ class TestBackgroundSheetCreation(unittest.TestCase):
     @patch("app.firebase_store.upsert_user")
     @patch("app.firebase_store.get_user", return_value=None)
     @patch("app.api.google_auth.credentials_to_dict", return_value={"token": "t"})
-    @patch("app.api.google_auth.get_user_info", return_value={
-        "id": "g1234567890", "email": "test@example.com",
-        "name": "Test", "picture": "http://pic.jpg"})
+    @patch(
+        "app.api.google_auth.get_user_info",
+        return_value={"id": "g1234567890", "email": "test@example.com", "name": "Test", "picture": "http://pic.jpg"},
+    )
     @patch("app.api.google_auth.exchange_code_for_credentials")
-    def test_create_sheet_bg_success(self, mock_exchange, mock_info,
-                                      mock_creds_dict, mock_get_user,
-                                      mock_upsert, mock_update_sid,
-                                      mock_create_sheet):
+    def test_create_sheet_bg_success(
+        self, mock_exchange, mock_info, mock_creds_dict, mock_get_user, mock_upsert, mock_update_sid, mock_create_sheet
+    ):
         """Execute the background thread function synchronously."""
         mock_exchange.return_value = Mock()
         captured = {}
@@ -2214,14 +2280,14 @@ class TestBackgroundSheetCreation(unittest.TestCase):
     @patch("app.firebase_store.upsert_user")
     @patch("app.firebase_store.get_user", return_value=None)
     @patch("app.api.google_auth.credentials_to_dict", return_value={"token": "t"})
-    @patch("app.api.google_auth.get_user_info", return_value={
-        "id": "g1234567890", "email": "test@example.com",
-        "name": "Test", "picture": "http://pic.jpg"})
+    @patch(
+        "app.api.google_auth.get_user_info",
+        return_value={"id": "g1234567890", "email": "test@example.com", "name": "Test", "picture": "http://pic.jpg"},
+    )
     @patch("app.api.google_auth.exchange_code_for_credentials")
-    def test_create_sheet_bg_exception(self, mock_exchange, mock_info,
-                                        mock_creds_dict, mock_get_user,
-                                        mock_upsert, mock_update_sid,
-                                        mock_create_sheet):
+    def test_create_sheet_bg_exception(
+        self, mock_exchange, mock_info, mock_creds_dict, mock_get_user, mock_upsert, mock_update_sid, mock_create_sheet
+    ):
         """Cover except branch inside _create_sheet_bg."""
         mock_exchange.return_value = Mock()
         captured = {}
@@ -2248,6 +2314,7 @@ class TestFetchUncachedLTPsException(unittest.TestCase):
     @patch("app.routes._fetch_manual_entries", return_value=[{"symbol": "INFY"}])
     def test_exception_caught(self, mock_entries, mock_client_cls, mock_cache):
         from app.routes import _fetch_uncached_manual_ltps
+
         mock_cache.get.return_value = None
         mock_cache.is_negative.return_value = False
         # Should not raise despite MarketDataClient failing
@@ -2262,6 +2329,7 @@ class TestFetchUncachedLTPsNegativeBatch(unittest.TestCase):
     @patch("app.routes._fetch_manual_entries", return_value=[{"symbol": "MISS"}])
     def test_missed_symbols_negative_cached(self, mock_entries, mock_client_cls, mock_cache):
         from app.routes import _fetch_uncached_manual_ltps
+
         mock_cache.get.return_value = None
         mock_cache.is_negative.return_value = False
         mock_client_cls.return_value.fetch_stock_quotes.return_value = {}  # nothing fetched
@@ -2272,13 +2340,15 @@ class TestFetchUncachedLTPsNegativeBatch(unittest.TestCase):
 class TestBuildMfDataWithManual(unittest.TestCase):
     """Lines 955-957: _build_mf_data loop body with manual entries."""
 
-    @patch("app.routes._fetch_manual_entries", return_value=[
-        {"fund": "AXIS", "qty": "100", "avg_nav": "50", "account": "Manual", "row_number": 2}
-    ])
+    @patch(
+        "app.routes._fetch_manual_entries",
+        return_value=[{"fund": "AXIS", "qty": "100", "avg_nav": "50", "account": "Manual", "row_number": 2}],
+    )
     @patch("app.routes.portfolio_cache")
     def test_manual_entries_merged(self, mock_pc, mock_manual):
-        from app.routes import _build_mf_data
         from app.cache import UserPortfolioData
+        from app.routes import _build_mf_data
+
         mock_pc.get.return_value = UserPortfolioData(mf_holdings=[])
         result = _build_mf_data({"google_id": "g1"})
         self.assertEqual(len(result), 1)
@@ -2293,11 +2363,16 @@ class TestGetSheetsClientNoSpreadsheet(unittest.TestCase):
     @patch("app.api.google_sheets_client.GoogleSheetsClient")
     def test_no_spreadsheet_id(self, mock_gsc, mock_creds):
         from app.routes import _get_sheets_client, app_ui
+
         with app_ui.test_request_context("/"):
             from flask import session
+
             session["user"] = {
-                "google_id": "g1", "email": "e", "name": "N",
-                "picture": "", "spreadsheet_id": "",
+                "google_id": "g1",
+                "email": "e",
+                "name": "N",
+                "picture": "",
+                "spreadsheet_id": "",
                 "google_credentials": {"token": "t"},
             }
             client, sid, err = _get_sheets_client()
@@ -2309,14 +2384,19 @@ class TestGetSheetsClientNoSpreadsheet(unittest.TestCase):
     def test_success(self, mock_gsc_cls, mock_creds):
         """Line 1385: _get_sheets_client success return."""
         from app.routes import _get_sheets_client, app_ui
+
         mock_creds.return_value = Mock()
         mock_client_instance = Mock()
         mock_gsc_cls.return_value = mock_client_instance
         with app_ui.test_request_context("/"):
             from flask import session
+
             session["user"] = {
-                "google_id": "g1", "email": "e", "name": "N",
-                "picture": "", "spreadsheet_id": "sheet123",
+                "google_id": "g1",
+                "email": "e",
+                "name": "N",
+                "picture": "",
+                "spreadsheet_id": "sheet123",
                 "google_credentials": {"token": "t"},
             }
             client, sid, err = _get_sheets_client()
@@ -2331,6 +2411,7 @@ class TestRefreshSingleSheetCacheBlankRow(unittest.TestCase):
     @patch("app.routes.user_sheets_cache")
     def test_manual_blank_row_break(self, mock_usc):
         from app.routes import _refresh_single_sheet_cache
+
         mock_client = Mock()
         mock_client.fetch_sheet_data_until_blank.return_value = [
             ["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
@@ -2350,6 +2431,7 @@ class TestBuildDataForTypeSuccess(unittest.TestCase):
     @patch("app.routes._build_mf_data", return_value=[{"fund": "A"}])
     def test_mf_builder_success(self, mock_build):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "mutual_funds")
         self.assertIn("mfHoldings", result)
         self.assertEqual(result["mfHoldings"], [{"fund": "A"}])
@@ -2357,12 +2439,14 @@ class TestBuildDataForTypeSuccess(unittest.TestCase):
     @patch("app.routes._build_gold_data", return_value=[{"g": 1}])
     def test_gold_builder_success(self, mock_build):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "physical_gold")
         self.assertIn("physicalGold", result)
 
     @patch("app.routes._build_fd_data", side_effect=Exception("fail"))
     def test_builder_exception(self, mock_build):
         from app.routes import _build_data_for_type
+
         result = _build_data_for_type({"google_id": "g1"}, "fixed_deposits")
         self.assertEqual(result, {})
 
@@ -2392,7 +2476,7 @@ class TestSheetsListEmptyData(unittest.TestCase):
         mock_client.fetch_sheet_data_until_blank.return_value = [
             ["Symbol", "Qty", "AvgPrice", "Exchange", "Account"],
             ["INFY", "10", "1500", "NSE", "Manual"],
-            ["", "", "", "", ""],    # blank row → break
+            ["", "", "", "", ""],  # blank row → break
             ["TCS", "5", "3000", "NSE", "Manual"],
         ]
         mock_get_client.return_value = (mock_client, "sid", None)
@@ -2416,9 +2500,9 @@ class TestSheetsAddSuccessPaths(unittest.TestCase):
     @patch("app.routes._validate_nse_symbol", return_value={"ltp": 100})
     @patch("app.routes.manual_ltp_cache")
     @patch("app.routes._get_sheets_client")
-    def test_add_stock_with_data_refresh(self, mock_get_client, mock_ltp,
-                                          mock_validate, mock_refresh,
-                                          mock_uncached, mock_build):
+    def test_add_stock_with_data_refresh(
+        self, mock_get_client, mock_ltp, mock_validate, mock_refresh, mock_uncached, mock_build
+    ):
         mock_client = Mock()
         mock_client.append_row.return_value = 3
         mock_get_client.return_value = (mock_client, "sid", None)
@@ -2426,8 +2510,7 @@ class TestSheetsAddSuccessPaths(unittest.TestCase):
         resp = self.client.post(
             "/api/sheets/stocks",
             headers={**_APP_HEADERS, "Content-Type": "application/json"},
-            data=json.dumps({"symbol": "TCS", "qty": "5", "avg_price": "3000",
-                             "exchange": "NSE", "account": "A"}),
+            data=json.dumps({"symbol": "TCS", "qty": "5", "avg_price": "3000", "exchange": "NSE", "account": "A"}),
         )
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
@@ -2476,16 +2559,14 @@ class TestSheetsUpdateSuccessPaths(unittest.TestCase):
     @patch("app.routes._validate_nse_symbol", return_value={"ltp": 200})
     @patch("app.routes.manual_ltp_cache")
     @patch("app.routes._get_sheets_client")
-    def test_update_stock_with_validation(self, mock_get_client, mock_ltp,
-                                           mock_validate, mock_refresh, mock_build):
+    def test_update_stock_with_validation(self, mock_get_client, mock_ltp, mock_validate, mock_refresh, mock_build):
         mock_client = Mock()
         mock_get_client.return_value = (mock_client, "sid", None)
         _inject_user(self.client)
         resp = self.client.put(
             "/api/sheets/stocks/3",
             headers={**_APP_HEADERS, "Content-Type": "application/json"},
-            data=json.dumps({"symbol": "INFY", "qty": "20", "avg_price": "1600",
-                             "exchange": "NSE", "account": "B"}),
+            data=json.dumps({"symbol": "INFY", "qty": "20", "avg_price": "1600", "exchange": "NSE", "account": "B"}),
         )
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.data)
@@ -2500,8 +2581,7 @@ class TestSheetsUpdateSuccessPaths(unittest.TestCase):
         resp = self.client.put(
             "/api/sheets/etfs/3",
             headers={**_APP_HEADERS, "Content-Type": "application/json"},
-            data=json.dumps({"symbol": "FAKE", "qty": "10", "avg_price": "100",
-                             "exchange": "NSE", "account": "A"}),
+            data=json.dumps({"symbol": "FAKE", "qty": "10", "avg_price": "100", "exchange": "NSE", "account": "A"}),
         )
         self.assertEqual(resp.status_code, 400)
 
