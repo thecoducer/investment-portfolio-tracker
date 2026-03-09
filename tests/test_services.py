@@ -77,22 +77,19 @@ class TestBuildStatusResponse(unittest.TestCase):
 class TestEnsureUserLoaded(unittest.TestCase):
     """Test ensure_user_loaded idempotency."""
 
-    @patch("app.services._loaded_users", new_callable=set)
-    @patch("app.services.session_manager")
-    @patch("app.services.run_background_fetch", create=True)
-    def test_first_call_loads_sessions(self, mock_fetch, mock_session, mock_loaded):
-        with patch("app.services._loaded_users", set()):
-            with patch("app.services.session_manager") as mock_sm:
-                # Reset module state for clean test
-                import app.services as svc
+    def test_first_call_loads_sessions(self):
+        import app.services as svc
 
-                original = svc._loaded_users.copy()
-                svc._loaded_users.clear()
-                try:
-                    ensure_user_loaded("testuser")
-                    mock_sm.load_user.assert_called_once_with("testuser")
-                finally:
-                    svc._loaded_users = original
+        original = svc._loaded_users.copy()
+        svc._loaded_users.clear()
+        try:
+            with patch("app.services.session_manager") as mock_sm, \
+                 patch("app.fetchers.run_background_fetch"):
+                mock_sm.get_pin.return_value = None
+                ensure_user_loaded("testuser")
+                mock_sm.load_user.assert_called_once_with("testuser")
+        finally:
+            svc._loaded_users = original
 
     def test_empty_google_id_noop(self):
         """Should not raise or do anything with empty string."""
@@ -106,7 +103,9 @@ class TestEnsureUserLoaded(unittest.TestCase):
         original = svc._loaded_users.copy()
         svc._loaded_users.add("forceuser")
         try:
-            with patch("app.services.session_manager") as mock_sm:
+            with patch("app.services.session_manager") as mock_sm, \
+                 patch("app.fetchers.run_background_fetch"):
+                mock_sm.get_pin.return_value = None
                 ensure_user_loaded("forceuser", force=True)
                 mock_sm.load_user.assert_called_once()
         finally:

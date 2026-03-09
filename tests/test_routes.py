@@ -1133,8 +1133,8 @@ class TestRouteHelpers(unittest.TestCase):
         _refresh_single_sheet_cache(mock_client, "sid", "g1", "stocks")
         mock_usc.invalidate.assert_called_once_with("g1")
 
-    @patch("app.routes.user_sheets_cache")
-    @patch("app.routes._get_google_creds_dict", return_value={"token": "t"})
+    @patch("app.fetchers.user_sheets_cache")
+    @patch("app.fetchers.get_google_creds_dict", return_value={"token": "t"})
     def test_prefetch_all_user_sheets_already_cached(self, mock_creds, mock_usc):
         from app.routes import _prefetch_all_user_sheets
 
@@ -1142,8 +1142,8 @@ class TestRouteHelpers(unittest.TestCase):
         _prefetch_all_user_sheets({"google_id": "g1", "spreadsheet_id": "sid"})
         # Should return early, no batch fetch
 
-    @patch("app.routes.user_sheets_cache")
-    @patch("app.routes._get_google_creds_dict", return_value=None)
+    @patch("app.fetchers.user_sheets_cache")
+    @patch("app.fetchers.get_google_creds_dict", return_value=None)
     def test_prefetch_no_creds_noop(self, mock_creds, mock_usc):
         from app.routes import _prefetch_all_user_sheets
 
@@ -1225,7 +1225,8 @@ class TestZerodhaCallback(unittest.TestCase):
         mock_sm.is_valid.side_effect = [False, True]  # not valid initially, then valid
         mock_pc.is_fetch_in_progress.return_value = False
 
-        with patch("kiteconnect.KiteConnect") as mock_kite_cls:
+        with patch("kiteconnect.KiteConnect") as mock_kite_cls, \
+             patch("app.fetchers.run_background_fetch"):
             mock_kite = Mock()
             mock_kite.generate_session.return_value = {"access_token": "tok_abc"}
             mock_kite_cls.return_value = mock_kite
