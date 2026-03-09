@@ -520,13 +520,18 @@ class CrudManager {
         deps.forEach(({ el, value, fieldDef }) => {
           const visible = currentValue === value;
           el.style.display = visible ? '' : 'none';
-          // Toggle required attribute based on visibility
+          // Toggle required + disabled based on visibility.
+          // Disabled fields are excluded from browser constraint
+          // validation, preventing "not focusable" errors on hidden
+          // inputs that still carry min/step constraints.
           const input = el.querySelector('.crud-inline-input');
           if (input && fieldDef) {
-            if (visible && fieldDef.required) {
-              input.setAttribute('required', '');
+            if (visible) {
+              input.removeAttribute('disabled');
+              if (fieldDef.required) input.setAttribute('required', '');
             } else {
               input.removeAttribute('required');
+              input.setAttribute('disabled', '');
             }
           }
         });
