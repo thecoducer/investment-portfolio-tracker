@@ -22,14 +22,15 @@ class IndexTicker {
     await this.fetchAndRender();
   }
 
-  async fetchAndRender(retries = 1) {
+  async fetchAndRender(retries = 4) {
     try {
       const res = await metronFetch('/api/market_indices');
       if (!res.ok) return;
       const data = await res.json();
       if (!Object.keys(data).length && retries > 0) {
-        // Cache not yet populated (background fetch in flight) — retry once.
-        setTimeout(() => this.fetchAndRender(retries - 1), 3000);
+        // Cache not yet populated (background fetch in flight) — retry with escalating delay.
+        const delay = (5 - retries) * 2000; // 2s, 4s, 6s, 8s
+        setTimeout(() => this.fetchAndRender(retries - 1), delay);
         return;
       }
       this._ensureDOM(data);

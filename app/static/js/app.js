@@ -676,6 +676,7 @@ class PortfolioApp {
         const finalStatus = await this._pollIncremental(status);
         this._updateRefreshButton(false);
         this._pollForManualLTPs(finalStatus);
+        this.indexTicker.fetchAndRender();
       } else if (this._hasDataReady(status)) {
         // Data already fetched (pill navigation) — just grab it
         Log.info('App', 'Data already available — loading');
@@ -697,6 +698,7 @@ class PortfolioApp {
         const finalStatus = await this._pollIncremental(afterTrigger);
         this._updateRefreshButton(false);
         this._pollForManualLTPs(finalStatus);
+        this.indexTicker.fetchAndRender();
       }
     } catch (error) {
       Log.error('App', 'Initial load error:', error);
@@ -1280,6 +1282,7 @@ class PortfolioApp {
       const finalStatus = await this._pollIncremental(afterTrigger);
       this._updateRefreshButton(false);
       this._pollForManualLTPs(finalStatus);
+      this.indexTicker.fetchAndRender();
     } catch (error) {
       Log.error('Refresh', 'Error during polling/fetch:', error);
       this._updateRefreshButton(false);
