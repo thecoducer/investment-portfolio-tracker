@@ -311,8 +311,6 @@ class StateManager:
     """
 
     GLOBAL_STATE_TYPES = ("nifty50", "physical_gold", "fixed_deposits")
-    PER_USER_STATE_TYPE = "portfolio"
-    STATE_TYPES = ("portfolio",) + GLOBAL_STATE_TYPES
 
     def __init__(self):
         self._lock = threading.Lock()

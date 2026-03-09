@@ -1225,8 +1225,7 @@ class TestZerodhaCallback(unittest.TestCase):
         mock_sm.is_valid.side_effect = [False, True]  # not valid initially, then valid
         mock_pc.is_fetch_in_progress.return_value = False
 
-        with patch("kiteconnect.KiteConnect") as mock_kite_cls, \
-             patch("app.fetchers.run_background_fetch"):
+        with patch("kiteconnect.KiteConnect") as mock_kite_cls, patch("app.fetchers.run_background_fetch"):
             mock_kite = Mock()
             mock_kite.generate_session.return_value = {"access_token": "tok_abc"}
             mock_kite_cls.return_value = mock_kite

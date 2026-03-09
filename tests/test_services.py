@@ -83,8 +83,7 @@ class TestEnsureUserLoaded(unittest.TestCase):
         original = svc._loaded_users.copy()
         svc._loaded_users.clear()
         try:
-            with patch("app.services.session_manager") as mock_sm, \
-                 patch("app.fetchers.run_background_fetch"):
+            with patch("app.services.session_manager") as mock_sm, patch("app.fetchers.run_background_fetch"):
                 mock_sm.get_pin.return_value = None
                 ensure_user_loaded("testuser")
                 mock_sm.load_user.assert_called_once_with("testuser")
@@ -103,8 +102,7 @@ class TestEnsureUserLoaded(unittest.TestCase):
         original = svc._loaded_users.copy()
         svc._loaded_users.add("forceuser")
         try:
-            with patch("app.services.session_manager") as mock_sm, \
-                 patch("app.fetchers.run_background_fetch"):
+            with patch("app.services.session_manager") as mock_sm, patch("app.fetchers.run_background_fetch"):
                 mock_sm.get_pin.return_value = None
                 ensure_user_loaded("forceuser", force=True)
                 mock_sm.load_user.assert_called_once()
