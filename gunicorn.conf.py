@@ -21,8 +21,8 @@ timeout = 120
 graceful_timeout = 30
 
 # --- Logging ---
-accesslog = "-"       # stdout
-errorlog = "-"        # stderr
+accesslog = "-"  # stdout
+errorlog = "-"  # stderr
 loglevel = os.environ.get("LOG_LEVEL", "info")
 
 # Don't log health-check noise
@@ -34,6 +34,7 @@ limit_request_fields = 100
 
 # --- Process naming ---
 proc_name = "metron"
+
 
 # --- Server hooks ---
 def on_starting(server):

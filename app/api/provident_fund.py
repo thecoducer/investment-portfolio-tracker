@@ -41,10 +41,7 @@ def _month_range(start: date, end: date):
 
 def _is_past_employer(entry: dict[str, Any]) -> bool:
     """Return True if the entry represents a past employer lump-sum balance."""
-    return (
-        float(entry.get("opening_balance", 0) or 0) > 0
-        and float(entry.get("monthly_contribution", 0) or 0) <= 0
-    )
+    return float(entry.get("opening_balance", 0) or 0) > 0 and float(entry.get("monthly_contribution", 0) or 0) <= 0
 
 
 def _safe_float(entry: dict[str, Any], key: str) -> float:
@@ -338,7 +335,12 @@ def calculate_pf_corpus(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     entry_data = _init_entry_accumulators(parsed, past_employer_set)
 
     balance = _walk_timeline(
-        parsed, month_info, past_employer_set, past_lump_schedule, entry_data, today,
+        parsed,
+        month_info,
+        past_employer_set,
+        past_lump_schedule,
+        entry_data,
+        today,
     )
 
     return _build_enriched_results(parsed, entry_data, past_employer_set, balance, today)
