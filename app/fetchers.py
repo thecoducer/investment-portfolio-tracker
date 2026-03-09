@@ -6,8 +6,9 @@ Manual stock/ETF LTP fetching is per-user and non-blocking.
 
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from requests.exceptions import ConnectionError, Timeout
 
