@@ -64,7 +64,7 @@ class GoogleSheetsClient:
 
             http = httplib2.Http(timeout=self.TIMEOUT_SECONDS, cache=None)
             self.service = build(
-                "sheets", "v4", http=AuthorizedHttp(self.credentials, http=http), cache_discovery=False
+                "sheets", "v4", http=AuthorizedHttp(self.credentials, http=http), static_discovery=True
             )
             self._is_authenticated = True
             logger.info("Successfully authenticated with Google Sheets API")
@@ -323,6 +323,62 @@ class GoogleSheetsClient:
             if s["properties"]["title"] == sheet_name:
                 return s["properties"]["sheetId"]
         raise ValueError(f"Sheet tab '{sheet_name}' not found")
+
+    def ensure_sheet_tabs(self, spreadsheet_id: str, tabs: list[tuple[str, list[str]]]) -> None:
+        """Ensure multiple sheet tabs exist, fetching metadata only once.
+
+        *tabs* is a list of ``(sheet_name, headers)`` tuples.
+        Tabs that already exist get their headers checked/updated in a
+        single ``batchGet`` call.  Missing tabs are created individually.
+        """
+        self.authenticate()
+        try:
+            meta = (
+                self.service.spreadsheets()
+                .get(spreadsheetId=spreadsheet_id, fields="sheets.properties.title")
+                .execute()
+            )
+            existing = {s["properties"]["title"] for s in meta.get("sheets", [])}
+
+            present = [(name, hdrs) for name, hdrs in tabs if name in existing]
+            missing = [(name, hdrs) for name, hdrs in tabs if name not in existing]
+
+            # Batch-check headers for all existing tabs in one call.
+            if present:
+                ranges = [f"{name}!1:1" for name, _ in present]
+                result = (
+                    self.service.spreadsheets()
+                    .values()
+                    .batchGet(spreadsheetId=spreadsheet_id, ranges=ranges)
+                    .execute()
+                )
+                for vr, (name, headers) in zip(result.get("valueRanges", []), present):
+                    current = (vr.get("values") or [[]])[0]
+                    if len(current) < len(headers):
+                        self.service.spreadsheets().values().update(
+                            spreadsheetId=spreadsheet_id,
+                            range=f"{name}!A1",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": [headers]},
+                        ).execute()
+                        logger.info("Updated headers for '%s' (%d → %d cols)", name, len(current), len(headers))
+
+            # Create missing tabs one by one (rare — only on first use).
+            for name, headers in missing:
+                self.service.spreadsheets().batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"requests": [{"addSheet": {"properties": {"title": name, "gridProperties": {"frozenRowCount": 1}}}}]},
+                ).execute()
+                self.service.spreadsheets().values().update(
+                    spreadsheetId=spreadsheet_id,
+                    range=f"{name}!A1",
+                    valueInputOption="USER_ENTERED",
+                    body={"values": [headers]},
+                ).execute()
+                logger.info("Created sheet tab '%s' with headers", name)
+        except Exception:
+            logger.exception("Error ensuring sheet tabs")
+            raise
 
     def ensure_sheet_tab(self, spreadsheet_id: str, sheet_name: str, headers: list[str]) -> None:
         """Create the tab with header row if it does not already exist.

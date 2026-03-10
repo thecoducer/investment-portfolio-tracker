@@ -75,7 +75,7 @@ def _get_user_fetch_lock(google_id: str) -> threading.Lock:
 # ===================================================================
 
 
-def prefetch_all_user_sheets(user, *, track_state: bool = False):
+def prefetch_all_user_sheets(user, *, track_state: bool = False, ensure_tabs: bool = False):
     """Batch-fetch all sheet tabs in a single Google Sheets API call.
 
     On a cache miss this acquires the per-user lock, double-checks the
@@ -87,6 +87,10 @@ def prefetch_all_user_sheets(user, *, track_state: bool = False):
     When *track_state* is True (background fetch), updates
     ``state_manager.sheets_state`` so the frontend can poll for
     completion and render incrementally.
+
+    When *ensure_tabs* is True (manual refresh), verify that every
+    expected sheet tab exists and has up-to-date headers.  Skipped on
+    automatic fetches to avoid 5-10 extra Google Sheets API calls.
     """
     google_id = user.get("google_id", "")
     spreadsheet_id = user.get("spreadsheet_id")
@@ -126,9 +130,12 @@ def prefetch_all_user_sheets(user, *, track_state: bool = False):
             creds = credentials_from_dict(creds_dict)
             client = GoogleSheetsClient(user_credentials=creds)
 
-            for stype in ("stocks", "etfs", "mutual_funds", "sips", "provident_fund"):
-                cfg = SHEET_CONFIGS[stype]
-                client.ensure_sheet_tab(spreadsheet_id, cfg["sheet_name"], cfg["headers"])
+            if ensure_tabs:
+                tabs = [
+                    (SHEET_CONFIGS[st]["sheet_name"], SHEET_CONFIGS[st]["headers"])
+                    for st in ("stocks", "etfs", "mutual_funds", "sips", "provident_fund")
+                ]
+                client.ensure_sheet_tabs(spreadsheet_id, tabs)
 
             sheet_names = [
                 "Gold",
@@ -410,12 +417,20 @@ def fetch_gold_prices(force: bool = False) -> None:
     logger.error("All %d gold price fetch attempts failed", max_retries)
 
 
-def fetch_market_indices_data() -> None:
+_MARKET_DATA_MIN_INTERVAL = 60  # seconds — skip re-fetch if data is fresher
+
+
+def fetch_market_indices_data(*, force: bool = False) -> None:
     """Fetch market indices (Nifty50, Sensex, S&P500, Gold, Silver, USDINR).
 
     Stores the result in ``market_cache.market_indices`` so the
     ``/api/market_indices`` endpoint can serve it from cache.
     """
+    if not force and isinstance(market_cache.market_indices_last_fetch, datetime):
+        age = (datetime.now() - market_cache.market_indices_last_fetch).total_seconds()
+        if age < _MARKET_DATA_MIN_INTERVAL:
+            logger.debug("Market indices fresh (%.0fs old), skipping", age)
+            return
     try:
         client = MarketDataClient()
         data = client.fetch_market_indices()
@@ -425,7 +440,7 @@ def fetch_market_indices_data() -> None:
         logger.error("Error fetching market indices: %s", e)
 
 
-def fetch_nifty50_data() -> None:
+def fetch_nifty50_data(*, force: bool = False) -> None:
     """Fetch Nifty 50 constituent stocks via Yahoo Finance (non-blocking).
 
     The Nifty 50 symbol list is still fetched from NSE (with a hardcoded
@@ -435,6 +450,12 @@ def fetch_nifty50_data() -> None:
     if nifty50_fetch_in_progress.is_set():
         logger.info("Nifty 50 fetch already in progress")
         return
+
+    if not force and isinstance(market_cache.nifty50_last_fetch, datetime):
+        age = (datetime.now() - market_cache.nifty50_last_fetch).total_seconds()
+        if age < _MARKET_DATA_MIN_INTERVAL:
+            logger.debug("Nifty50 data fresh (%.0fs old), skipping", age)
+            return
 
     state_manager.set_nifty50_updating()
 
@@ -447,6 +468,7 @@ def fetch_nifty50_data() -> None:
             quotes = client.fetch_stock_quotes(symbols)
             # Preserve symbol order; include empty data for missed symbols
             market_cache.nifty50 = [quotes.get(s, client._empty_stock_data(s)) for s in symbols]
+            market_cache.nifty50_last_fetch = datetime.now()
             logger.info("Nifty 50 updated: %d stocks (%d with LTP)", len(market_cache.nifty50), len(quotes))
         except Timeout:
             error = "Yahoo Finance timeout"
@@ -504,13 +526,23 @@ def run_background_fetch(
 
     # --- Google Sheets ---
     if google_id:
-        user_dict = _build_user_dict_for_sheets(google_id)
+        # Skip the Firestore round-trip when sheets are already cached.
+        if not is_manual and user_sheets_cache.is_fully_cached(google_id):
+            user_dict = None
+            logger.debug("Sheets cache warm — skipping sheets fetch")
+            state_manager.set_sheets_updated(google_id)
+            # LTPs are also cached; mark done.
+            state_manager.set_manual_ltp_updated(google_id)
+            if on_complete:
+                on_complete()
+        else:
+            user_dict = _build_user_dict_for_sheets(google_id)
         if user_dict:
             state_manager.set_sheets_updating(google_id)
 
             def _sheets_then_ltps():
                 """Fetch sheets, then kick off manual LTP fetch."""
-                prefetch_all_user_sheets(user_dict, track_state=True)
+                prefetch_all_user_sheets(user_dict, track_state=True, ensure_tabs=is_manual)
                 # Manual LTP fetch needs symbols from sheets cache.
                 state_manager.set_manual_ltp_updating(google_id)
                 _start_ltp_fetch_thread(google_id, manual_symbols, is_manual)
@@ -531,6 +563,7 @@ def run_background_fetch(
     # --- Global market data ---
     threading.Thread(
         target=fetch_nifty50_data,
+        kwargs={"force": is_manual},
         name="Nifty50Fetch",
         daemon=True,
     ).start()
@@ -542,6 +575,7 @@ def run_background_fetch(
     ).start()
     threading.Thread(
         target=fetch_market_indices_data,
+        kwargs={"force": is_manual},
         name="MarketIndicesFetch",
         daemon=True,
     ).start()

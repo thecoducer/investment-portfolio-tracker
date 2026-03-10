@@ -26,6 +26,7 @@ class UserPortfolioData:
 @dataclass
 class MarketCache:
     nifty50: list[dict[str, Any]] = field(default_factory=list)
+    nifty50_last_fetch: datetime | None = None
     gold_prices: dict[str, dict[str, float]] = field(default_factory=dict)
     gold_prices_last_fetch: datetime | None = None
     market_indices: dict[str, Any] = field(default_factory=dict)
