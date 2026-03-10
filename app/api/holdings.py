@@ -58,9 +58,7 @@ class HoldingsService(BaseDataService):
                 # Only keep the two fields we need to avoid storing ~15K full dicts
                 raw = kite.mf_instruments()
                 self.mf_instruments_cache = {
-                    inst["tradingsymbol"]: inst.get("last_price_date")
-                    for inst in raw
-                    if "tradingsymbol" in inst
+                    inst["tradingsymbol"]: inst.get("last_price_date") for inst in raw if "tradingsymbol" in inst
                 }
                 self.mf_instruments_cache_time = datetime.now()
 

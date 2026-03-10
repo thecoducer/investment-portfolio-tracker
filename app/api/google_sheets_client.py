@@ -347,10 +347,7 @@ class GoogleSheetsClient:
             if present:
                 ranges = [f"{name}!1:1" for name, _ in present]
                 result = (
-                    self.service.spreadsheets()
-                    .values()
-                    .batchGet(spreadsheetId=spreadsheet_id, ranges=ranges)
-                    .execute()
+                    self.service.spreadsheets().values().batchGet(spreadsheetId=spreadsheet_id, ranges=ranges).execute()
                 )
                 for vr, (name, headers) in zip(result.get("valueRanges", []), present):
                     current = (vr.get("values") or [[]])[0]
@@ -367,7 +364,11 @@ class GoogleSheetsClient:
             for name, headers in missing:
                 self.service.spreadsheets().batchUpdate(
                     spreadsheetId=spreadsheet_id,
-                    body={"requests": [{"addSheet": {"properties": {"title": name, "gridProperties": {"frozenRowCount": 1}}}}]},
+                    body={
+                        "requests": [
+                            {"addSheet": {"properties": {"title": name, "gridProperties": {"frozenRowCount": 1}}}}
+                        ]
+                    },
                 ).execute()
                 self.service.spreadsheets().values().update(
                     spreadsheetId=spreadsheet_id,
