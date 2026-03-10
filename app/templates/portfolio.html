@@ -21,22 +21,28 @@
 </script>
 <div class="container"{% if not pin_verified %} style="visibility:hidden"{% endif %}>
 <header>
+<nav class="nav-hamburger">
+<button class="hamburger-btn" id="hamburgerBtn" aria-label="Navigation menu" aria-expanded="false">
+<svg class="hamburger-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+<svg class="hamburger-close-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+</button>
+<div class="nav-dropdown" id="navDropdown">
+<a href="/" class="nav-dropdown-item active">
+<svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+<span>Portfolio</span>
+</a>
+<a href="/nifty50" class="nav-dropdown-item">
+<svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+<span>Nifty 50</span>
+</a>
+</div>
+</nav>
 <div class="header-brand">
 <a href="/" class="brand-mark" aria-label="Metron home">
 <span class="brand-logo"></span>
 <span class="brand-name">Metron</span>
 </a>
 </div>
-<nav class="nav-tabs">
-<a href="/" class="nav-tab active">
-<svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-<span>Portfolio</span>
-</a>
-<a href="/nifty50" class="nav-tab">
-<svg class="nav-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-<span>Nifty 50</span>
-</a>
-</nav>
 <div class="controls">
 {% if user %}
 <div class="user-profile" id="userProfile">
@@ -514,8 +520,14 @@
 <!-- Fixed Deposits Section with Tabs -->
 {% if fixed_deposits_enabled %}
 <div class="section-wrapper" id="fixed-deposits-section">
-<div class="section-header">
+<div class="section-header fd-section-header">
+<div class="fd-title-row">
 <h2>Fixed Deposits <button class="section-info-btn" data-info="fixed_deposits" title="About this table" aria-label="About fixed deposits table"></button></h2>
+<button class="crud-add-btn" onclick="window.crudAdd('fixed_deposits')" title="Add fixed deposit">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+<span>Add</span>
+</button>
+</div>
 <div class="controls-container fd-header-controls">
 <div class="fd-tabs">
 <button class="fd-tab active" data-tab="maturity" onclick="window.switchFDTab('maturity')">
@@ -525,10 +537,6 @@ By Maturity
 By Bank
 </button>
 </div>
-<button class="crud-add-btn" onclick="window.crudAdd('fixed_deposits')" title="Add fixed deposit">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-<span>Add</span>
-</button>
 </div>
 </div>
 <div class="section-summary" id="fd_summary" style="--section-accent:#10b981">

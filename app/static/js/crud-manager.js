@@ -173,6 +173,7 @@ class CrudManager {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (this._deletePopover) this._closeDeletePopover();
+        else if (this._drawerEl) this._closeDrawer();
         else if (this._activeFormRow) this._cancelInline();
       }
     });
@@ -182,7 +183,7 @@ class CrudManager {
 
   /** Returns true when an inline add/edit form is currently open. */
   isEditing() {
-    return this._activeFormRow !== null;
+    return this._activeFormRow !== null || this._drawerEl !== null;
   }
 
   openAdd(schemaKey) {
@@ -211,51 +212,54 @@ class CrudManager {
     const schema = SCHEMAS[schemaKey];
     if (!schema) return;
 
-    // Close any existing popover first
+    // Close any existing dialog first
     this._closeDeletePopover();
 
-    // Find the delete button that was clicked to anchor the popover
-    const tbody = this._getTbody(schemaKey);
-    const row = tbody?.querySelector(`tr[data-manual-row="${rowNumber}"][data-schema="${schemaKey}"]`);
-    const anchor = row?.querySelector('.crud-delete-btn') || row;
+    // Create centered confirmation dialog
+    const backdrop = document.createElement('div');
+    backdrop.className = 'crud-delete-backdrop';
 
-    // Create the popover element
-    const popover = document.createElement('div');
-    popover.className = 'crud-delete-popover';
-    popover.innerHTML = `
-      <div class="crud-delete-popover-arrow"></div>
-      <div class="crud-delete-popover-body">
-        <span class="crud-delete-popover-text">Are you sure?</span>
-        <div class="crud-delete-popover-actions">
-          <button class="crud-dpop-btn crud-dpop-cancel">Cancel</button>
-          <button class="crud-dpop-btn crud-dpop-confirm">Confirm</button>
-        </div>
+    const dialog = document.createElement('div');
+    dialog.className = 'crud-delete-dialog';
+    dialog.innerHTML = `
+      <div class="crud-delete-dialog-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+      </div>
+      <div class="crud-delete-dialog-title">Delete this entry?</div>
+      <div class="crud-delete-dialog-sub">This action cannot be undone.</div>
+      <div class="crud-delete-dialog-actions">
+        <button class="crud-ddlg-btn crud-ddlg-cancel">Cancel</button>
+        <button class="crud-ddlg-btn crud-ddlg-confirm">Delete</button>
       </div>`;
 
-    document.body.appendChild(popover);
-    this._deletePopover = popover;
-
-    // Position the popover above the anchor
-    this._positionPopover(popover, anchor);
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+    this._deletePopover = backdrop;
 
     // Animate in
-    requestAnimationFrame(() => popover.classList.add('open'));
+    requestAnimationFrame(() => backdrop.classList.add('open'));
 
-    // Close on outside click
-    const onOutsideClick = (e) => {
-      if (!popover.contains(e.target) && !anchor.contains(e.target)) {
-        this._closeDeletePopover();
-      }
+    // Close on backdrop click
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) this._closeDeletePopover();
+    });
+
+    // Close on Escape
+    const onEscape = (e) => {
+      if (e.key === 'Escape') this._closeDeletePopover();
     };
-    setTimeout(() => document.addEventListener('click', onOutsideClick, { capture: true }), 0);
+    document.addEventListener('keydown', onEscape);
     this._deletePopoverCleanup = () => {
-      document.removeEventListener('click', onOutsideClick, { capture: true });
+      document.removeEventListener('keydown', onEscape);
     };
 
     // Wire buttons
-    popover.querySelector('.crud-dpop-cancel').addEventListener('click', () => this._closeDeletePopover());
-    popover.querySelector('.crud-dpop-confirm').addEventListener('click', async () => {
-      const btn = popover.querySelector('.crud-dpop-confirm');
+    dialog.querySelector('.crud-ddlg-cancel').addEventListener('click', () => this._closeDeletePopover());
+    dialog.querySelector('.crud-ddlg-confirm').addEventListener('click', async () => {
+      const btn = dialog.querySelector('.crud-ddlg-confirm');
       btn.disabled = true;
       btn.textContent = 'Deleting…';
       try {
@@ -276,52 +280,254 @@ class CrudManager {
     });
   }
 
-  _positionPopover(popover, anchor) {
-    const rect = anchor.getBoundingClientRect();
-    const popoverRect = popover.getBoundingClientRect();
-    const gap = 8;
-
-    // Default: position above the anchor, centered horizontally
-    let top = rect.top - popoverRect.height - gap + window.scrollY;
-    let left = rect.left + rect.width / 2 - popoverRect.width / 2 + window.scrollX;
-
-    // If it would go off-screen top, show below instead
-    if (top - window.scrollY < 8) {
-      top = rect.bottom + gap + window.scrollY;
-      popover.classList.add('below');
-    }
-
-    // Clamp horizontal to viewport
-    const maxLeft = window.innerWidth - popoverRect.width - 8 + window.scrollX;
-    left = Math.max(8 + window.scrollX, Math.min(left, maxLeft));
-
-    popover.style.top = `${top}px`;
-    popover.style.left = `${left}px`;
-
-    // Adjust arrow to point at anchor center
-    const arrowOffset = rect.left + rect.width / 2 - left;
-    const arrow = popover.querySelector('.crud-delete-popover-arrow');
-    if (arrow) arrow.style.left = `${arrowOffset}px`;
-  }
-
   _closeDeletePopover() {
     if (!this._deletePopover) return;
     if (this._deletePopoverCleanup) {
       this._deletePopoverCleanup();
       this._deletePopoverCleanup = null;
     }
-    const popover = this._deletePopover;
-    popover.classList.remove('open');
-    popover.classList.add('closing');
-    popover.addEventListener('animationend', () => popover.remove(), { once: true });
+    const backdrop = this._deletePopover;
+    backdrop.classList.remove('open');
+    backdrop.classList.add('closing');
+    backdrop.addEventListener('animationend', () => backdrop.remove(), { once: true });
     // Fallback removal
-    setTimeout(() => { if (popover.parentNode) popover.remove(); }, 300);
+    setTimeout(() => { if (backdrop.parentNode) backdrop.remove(); }, 300);
     this._deletePopover = null;
   }
 
   // ── Inline form ──────────────────────────────────────────────
 
+  _isMobileOrTablet() {
+    return window.innerWidth <= 768;
+  }
+
   _showInlineForm(schema, schemaKey, rowNumber, values, existingRow) {
+    if (this._isMobileOrTablet()) {
+      this._showDrawerForm(schema, schemaKey, rowNumber, values, existingRow);
+      return;
+    }
+    this._showInlineFormDesktop(schema, schemaKey, rowNumber, values, existingRow);
+  }
+
+  _showDrawerForm(schema, schemaKey, rowNumber, values, existingRow) {
+    const isEdit = rowNumber != null;
+
+    // Collect suggestions
+    const tbody = this._getTbody(schemaKey);
+    const suggestions = {};
+    for (const f of schema.fields) {
+      if (f.datalistFrom) {
+        const existing = new Set();
+        let colIdx = 0;
+        for (const sf of schema.fields) {
+          if (sf.key === f.datalistFrom) break;
+          if (!sf.skipInPayload) colIdx++;
+        }
+        if (tbody) {
+          tbody.querySelectorAll(`tr[data-schema="${schemaKey}"]`).forEach(row => {
+            const cell = row.children[colIdx];
+            if (cell) {
+              const clone = cell.cloneNode(true);
+              clone.querySelectorAll('.pf-past-badge, .badge').forEach(b => b.remove());
+              const v = clone.textContent.trim();
+              if (v && v !== '-') existing.add(v);
+            }
+          });
+        }
+        suggestions[f.key] = [...existing].sort();
+      }
+    }
+    this._fieldSuggestions = suggestions;
+
+    // Build fields HTML
+    let fieldsHtml = '';
+    for (const f of schema.fields) {
+      let val;
+      if (f.defaultFn && typeof f.defaultFn === 'function') {
+        val = f.defaultFn(values);
+      } else {
+        val = (values && values[f.key] !== undefined) ? values[f.key] : '';
+      }
+      fieldsHtml += this._buildInlineField(f, val, suggestions[f.key]);
+    }
+
+    // Create backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'crud-drawer-backdrop';
+
+    // Create drawer
+    const drawer = document.createElement('div');
+    drawer.className = 'crud-drawer';
+    drawer.innerHTML = `
+      <div class="crud-drawer-handle"></div>
+      <div class="crud-drawer-header">
+        <h3 class="crud-drawer-title">${isEdit ? 'Edit' : 'Add'} ${schema.label}</h3>
+        <button class="crud-drawer-close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="crud-drawer-body">
+        <form class="crud-drawer-form" autocomplete="off">
+          <div class="crud-inline-fields">${fieldsHtml}</div>
+        </form>
+      </div>
+      <div class="crud-drawer-footer">
+        <button type="button" class="crud-drawer-cancel">Cancel</button>
+        <button type="button" class="crud-drawer-save">${isEdit ? 'Update' : 'Save'}</button>
+      </div>`;
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(drawer);
+
+    // Store references
+    this._drawerBackdrop = backdrop;
+    this._drawerEl = drawer;
+    if (isEdit && existingRow) {
+      this._activeOriginalRow = existingRow;
+    }
+
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+
+    // Animate open
+    requestAnimationFrame(() => {
+      backdrop.classList.add('open');
+      drawer.classList.add('open');
+    });
+
+    // Focus first input
+    const firstInput = drawer.querySelector('input, select');
+    if (firstInput) setTimeout(() => firstInput.focus(), 300);
+
+    // Wire suggestions
+    if (this._fieldSuggestions) {
+      drawer.querySelectorAll('input.crud-inline-input').forEach(inp => {
+        const items = this._fieldSuggestions[inp.name];
+        if (items && items.length) this._initSuggestDropdown(inp, items);
+      });
+    }
+
+    // Wire conditional fields
+    this._initConditionalFields(drawer, schema);
+
+    // Wire buttons
+    const form = drawer.querySelector('.crud-drawer-form');
+    const cancel = () => this._closeDrawer();
+    backdrop.addEventListener('click', cancel);
+    drawer.querySelector('.crud-drawer-close').addEventListener('click', cancel);
+    drawer.querySelector('.crud-drawer-cancel').addEventListener('click', cancel);
+
+    drawer.querySelector('.crud-drawer-save').addEventListener('click', () => {
+      this._handleDrawerSave(schema, isEdit, rowNumber, form, drawer);
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this._handleDrawerSave(schema, isEdit, rowNumber, form, drawer);
+    });
+
+    form.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.tagName !== 'SELECT') {
+        e.preventDefault();
+        this._handleDrawerSave(schema, isEdit, rowNumber, form, drawer);
+      }
+    });
+  }
+
+  async _handleDrawerSave(schema, isEdit, rowNumber, form, drawer) {
+    const saveBtn = drawer.querySelector('.crud-drawer-save');
+    const payload = {};
+    for (const f of schema.fields) {
+      if (f.skipInPayload) continue;
+      const fieldWrap = form.querySelector(`[data-field-key="${f.key}"]`);
+      const isHidden = fieldWrap && fieldWrap.style.display === 'none';
+      const el = form.querySelector(`[name="${f.key}"]`);
+      let val = el ? el.value.trim() : '';
+      if (isHidden) val = '';
+      if (f.type === 'date' && val) val = toSheetDate(val);
+      if (f.uppercase) val = val.toUpperCase();
+      payload[f.key] = val;
+    }
+
+    if (schema.sheetType === 'provident_fund' && !payload.start_date && payload.opening_balance) {
+      const d = new Date();
+      payload.start_date = `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+    }
+
+    for (const f of schema.fields) {
+      if (f.skipInPayload) continue;
+      const fieldWrap = form.querySelector(`[data-field-key="${f.key}"]`);
+      const isHidden = fieldWrap && fieldWrap.style.display === 'none';
+      if (isHidden) continue;
+      const el = form.querySelector(`[name="${f.key}"]`);
+      const isRequired = el ? el.hasAttribute('required') : f.required;
+      if (isRequired && !payload[f.key]) {
+        this._toast(`${f.label} is required`, 'error');
+        if (el) {
+          el.focus();
+          el.classList.add('crud-inline-input-error');
+          el.addEventListener('input', () => el.classList.remove('crud-inline-input-error'), { once: true });
+        }
+        return;
+      }
+    }
+
+    saveBtn.disabled = true;
+    drawer.classList.add('saving');
+
+    try {
+      const url = isEdit
+        ? `/api/sheets/${schema.sheetType}/${rowNumber}`
+        : `/api/sheets/${schema.sheetType}`;
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const resp = await metronFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const d = await resp.json();
+        throw new Error(d.error || 'Save failed');
+      }
+
+      const result = await resp.json();
+      this._closeDrawer();
+      this._toast(isEdit ? 'Updated successfully' : 'Added successfully', 'success');
+      if (this._onDataChanged) this._onDataChanged(result.data);
+    } catch (err) {
+      this._toast(err.message, 'error');
+      saveBtn.disabled = false;
+      drawer.classList.remove('saving');
+      if (err.message.includes("doesn't exist on exchange")) {
+        const symbolEl = form.querySelector('[name="symbol"]');
+        if (symbolEl) {
+          symbolEl.focus();
+          symbolEl.classList.add('crud-inline-input-error');
+          symbolEl.addEventListener('input', () => symbolEl.classList.remove('crud-inline-input-error'), { once: true });
+        }
+      }
+    }
+  }
+
+  _closeDrawer() {
+    if (this._drawerEl) {
+      this._drawerEl.classList.remove('open');
+      if (this._drawerBackdrop) this._drawerBackdrop.classList.remove('open');
+      setTimeout(() => {
+        if (this._drawerEl) { this._drawerEl.remove(); this._drawerEl = null; }
+        if (this._drawerBackdrop) { this._drawerBackdrop.remove(); this._drawerBackdrop = null; }
+      }, 300);
+    }
+    document.body.style.overflow = '';
+    this._activeOriginalRow = null;
+    this._activeSchemaKey = null;
+    this._activeRowNumber = null;
+    this._activeFormRow = null;
+  }
+
+  _showInlineFormDesktop(schema, schemaKey, rowNumber, values, existingRow) {
     const tbody = this._getTbody(schemaKey);
     if (!tbody) return;
 
@@ -725,6 +931,11 @@ class CrudManager {
   // ── Cancel inline form ─────────────────────────────────────
 
   _cancelInline() {
+    // Close drawer if open
+    if (this._drawerEl) {
+      this._closeDrawer();
+      return;
+    }
     if (this._activeFormRow) {
       this._activeFormRow.remove();
       this._activeFormRow = null;

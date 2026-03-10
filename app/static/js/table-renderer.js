@@ -48,6 +48,7 @@ class TableRenderer {
     const formRow = tbody.querySelector('tr.crud-inline-row');
     if (!formRow) {
       tbody.innerHTML = html;
+      this._moveActionsToFirstCell(tbody);
       return;
     }
 
@@ -100,6 +101,23 @@ class TableRenderer {
     if (!foundEditedRow && formRow !== tbody.firstChild) {
       tbody.insertBefore(formRow, tbody.firstChild);
     }
+
+    this._moveActionsToFirstCell(tbody);
+  }
+
+  /**
+   * On mobile, move .crud-row-actions from the last cell to the first cell
+   * so they are visible without scrolling.
+   */
+  _moveActionsToFirstCell(tbody) {
+    if (window.innerWidth > 768) return;
+    tbody.querySelectorAll('tr[data-manual-row]').forEach(row => {
+      const actions = row.querySelector('.crud-row-actions');
+      if (!actions) return;
+      const firstTd = row.querySelector('td:first-child');
+      if (!firstTd || firstTd.contains(actions)) return;
+      firstTd.prepend(actions);
+    });
   }
 
   setSearchQuery(query) {
@@ -123,12 +141,12 @@ class TableRenderer {
     if (table) table.style.display = 'table';
     if (emptyState) emptyState.style.display = 'none'; // replaced by in-table CTA
 
+    // Always show the Add button; on mobile it's the primary CTA when empty
+    if (controls) controls.style.display = 'flex';
+
     if (hasData) {
-      if (controls) controls.style.display = 'flex';
       if (tabs) tabs.style.display = 'flex';
     } else {
-      // Hide controls (Add button) when empty — the in-table CTA already provides Add
-      if (controls) controls.style.display = 'none';
       if (tabs) tabs.style.display = 'none';
     }
   }
@@ -1112,10 +1130,19 @@ class TableRenderer {
 
     this._updateTbodyContent(tbody, rowsHTML);
 
-    // Show/hide the commodity ETF table within the section
+    // Show/hide the commodity ETF table within the section.
+    // Keep table visible during idle/updating so empty state shows while loading.
     const table = tbody.closest('table');
+    const tableWrapper = table?.closest('.table-scroll-wrapper');
     if (table) {
-      table.style.display = filteredHoldings.length > 0 ? '' : 'none';
+      const dataLoaded = !isUpdating && status.portfolio_state !== 'idle';
+      const shouldHide = filteredHoldings.length === 0 && dataLoaded;
+      table.style.display = shouldHide ? 'none' : '';
+      // Also hide/show the sub-table-title (e.g. "ETFs") preceding this table
+      const subTitle = tableWrapper?.previousElementSibling;
+      if (subTitle && subTitle.classList.contains('sub-table-title')) {
+        subTitle.style.display = shouldHide ? 'none' : '';
+      }
     }
 
     this._restoreExpandedState();
