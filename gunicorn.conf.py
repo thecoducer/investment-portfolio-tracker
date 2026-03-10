@@ -56,3 +56,13 @@ def on_starting(server):
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
     server.log.info("Worker spawned (pid: %s)", worker.pid)
+
+    # Eagerly initialise the Firestore client so the first HTTP request
+    # doesn't pay the cost of importing firebase_admin, opening a gRPC
+    # channel, and performing the TLS handshake (~1-2 s on cold start).
+    try:
+        from app.firebase_store import _db
+        _db()
+        server.log.info("Firestore client warmed up in worker %s", worker.pid)
+    except Exception as exc:
+        server.log.warning("Firestore warm-up failed: %s", exc)

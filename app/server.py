@@ -80,6 +80,14 @@ def main() -> None:
         logger.info("Starting UI server at %s", dashboard_url)
         start_server(app_ui, app_config.ui_host, app_config.ui_port)
 
+        # Eagerly initialise Firestore so the first request isn't slow.
+        try:
+            from .firebase_store import _db
+            _db()
+            logger.info("Firestore client warmed up")
+        except Exception as exc:
+            logger.warning("Firestore warm-up failed: %s", exc)
+
         logger.info("Servers ready. Press CTRL+C to stop.")
 
         # Block until shutdown signal
