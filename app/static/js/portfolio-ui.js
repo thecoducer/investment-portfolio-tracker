@@ -231,7 +231,7 @@ function removeDrawerAccount(name) {
       target: '#combined_summary',
       iconClass: 'tour-icon-wallet',
       title: 'Your net worth',
-      desc: 'Total invested value, current value, and overall returns — all in one place. This auto-updates when markets are open.',
+      desc: 'Total invested value, current value, and overall returns — all in one place. Hit refresh to pull the latest data from your broker.',
       position: 'bottom',
     },
     {
