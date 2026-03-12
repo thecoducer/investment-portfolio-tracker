@@ -96,6 +96,21 @@ def healthz():
     return jsonify({"status": "ok"}), 200
 
 
+# ---------------------------------------------------------------------------
+# PWA: serve service-worker at root scope
+# ---------------------------------------------------------------------------
+
+
+@app_ui.route("/service-worker.js", methods=["GET"])
+def service_worker():
+    """Serve the service worker from root so it can control all pages."""
+    resp = make_response(app_ui.send_static_file("service-worker.js"))
+    resp.headers["Content-Type"] = "application/javascript"
+    resp.headers["Service-Worker-Allowed"] = "/"
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
 @app_ui.before_request
 def _sync_spreadsheet_id():
     """Sync spreadsheet_id from Firebase if missing in session."""

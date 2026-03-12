@@ -1,0 +1,144 @@
+/* ── Metron PWA Install Banner ── */
+/* Bottom-sheet style for mobile/tablet */
+
+#pwa-install-banner {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+#pwa-install-banner.pwa-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Backdrop */
+.pwa-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* Sheet */
+.pwa-sheet {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 12px 20px calc(env(safe-area-inset-bottom, 12px) + 16px);
+  transform: translateY(100%);
+  transition: transform .35s cubic-bezier(.22, 1, .36, 1);
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, .18);
+}
+#pwa-install-banner.pwa-visible .pwa-sheet {
+  transform: translateY(0);
+}
+
+/* Drag handle */
+.pwa-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
+  margin: 0 auto 16px;
+}
+
+/* Content row */
+.pwa-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+/* App icon */
+.pwa-icon img {
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .12);
+}
+
+/* Text */
+.pwa-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.3;
+}
+.pwa-subtitle {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #6b7280;
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+/* iOS share icon inline */
+.pwa-share-icon {
+  display: inline-flex;
+  vertical-align: middle;
+  color: #3b82f6;
+  margin: 0 1px;
+}
+
+/* Action buttons */
+.pwa-actions {
+  display: flex;
+  gap: 10px;
+}
+.pwa-btn {
+  flex: 1;
+  padding: 13px 0;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .1s, opacity .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.pwa-btn:active {
+  transform: scale(.97);
+}
+.pwa-btn-dismiss {
+  background: #f3f4f6;
+  color: #374151;
+}
+.pwa-btn-install {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #2dd4bf;
+  letter-spacing: .01em;
+}
+
+/* ── Dark theme ── */
+.dark-theme #pwa-install-banner .pwa-backdrop {
+  background: rgba(0, 0, 0, .6);
+}
+.dark-theme #pwa-install-banner .pwa-sheet {
+  background: #1e293b;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, .4);
+}
+.dark-theme #pwa-install-banner .pwa-handle {
+  background: #475569;
+}
+.dark-theme #pwa-install-banner .pwa-title {
+  color: #f1f5f9;
+}
+.dark-theme #pwa-install-banner .pwa-subtitle {
+  color: #94a3b8;
+}
+.dark-theme #pwa-install-banner .pwa-btn-dismiss {
+  background: #334155;
+  color: #cbd5e1;
+}
+.dark-theme #pwa-install-banner .pwa-btn-install {
+  background: linear-gradient(135deg, #2dd4bf 0%, #5eead4 100%);
+  color: #0f172a;
+}
